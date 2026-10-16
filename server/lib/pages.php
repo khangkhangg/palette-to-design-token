@@ -22,7 +22,7 @@ const PALETTE_US_STATES = [
 ];
 // Strings checkout.js needs at runtime.
 const PALETTE_SCRIPT_STRINGS = ['err_email', 'err_paused', 'err_consent', 'err_paypal', 'err_retry', 'err_csrf', 'co_err_region', 'co_err_network',
-    'co_load_failed', 'co_copy', 'co_copied', 'co_copy_failed', 'co_ext_ok', 'co_ext_paste', 'co_emailed', 'api_resend_ok', 'acct_added'];
+    'co_err_confirm', 'co_load_failed', 'co_copy', 'co_copied', 'co_copy_failed', 'co_ext_ok', 'co_ext_paste', 'co_emailed', 'api_resend_ok', 'acct_added'];
 
 // ?lang= when it is one of the 7; else the best Accept-Language match; else en.
 // The escaped string with {name} placeholders replaced by trusted HTML.
@@ -72,9 +72,10 @@ function palette_page_headers(): array
 {
     return [
         'Content-Type' => 'text/html; charset=utf-8',
-        'Content-Security-Policy' => "default-src 'self'; script-src 'self' https://www.paypal.com https://*.paypal.com; "
-            . "frame-src https://*.paypal.com; connect-src 'self' https://*.paypal.com; "
-            . "img-src 'self' data: https://*.paypal.com https://*.paypalobjects.com; style-src 'self' 'unsafe-inline'",
+        'Content-Security-Policy' => "default-src 'self'; script-src 'self' https://www.paypal.com https://*.paypal.com https://*.paypalobjects.com; "
+            . "frame-src https://*.paypal.com; connect-src 'self' https://*.paypal.com https://*.paypalobjects.com; "
+            . "img-src 'self' data: https://*.paypal.com https://*.paypalobjects.com; style-src 'self' 'unsafe-inline'; "
+            . "base-uri 'none'; form-action 'self'; object-src 'none'; frame-ancestors 'none'",
         'X-Frame-Options' => 'DENY',
         'Referrer-Policy' => 'strict-origin-when-cross-origin',
         'X-Content-Type-Options' => 'nosniff',
@@ -317,7 +318,7 @@ function palette_render_account(array $ctx): string
                 . '</li>';
         }
         $prefill = is_string($query['key'] ?? null) ? mb_substr(trim($query['key']), 0, 40) : '';
-        $body = '<section class="card">' . ($rows !== '' ? '<ul class="keys">' . $rows . '</ul>' : '<p class="empty">' . palette_icon('key', 18) . $t('acct_none') . '</p>') . '</section>'
+        $body = '<section class="card">' . ($rows !== '' ? '<ul class="keys">' . $rows . '</ul><p class="copy-status" id="copy-status" role="status"></p>' : '<p class="empty">' . palette_icon('key', 18) . $t('acct_none') . '</p>') . '</section>'
             . '<form id="claim" class="card claim" novalidate>'
             . '<h2>' . $t('acct_add_title') . '</h2>'
             . '<div class="inline"><label class="sr-only" for="claim-key">' . $t('acct_key_label') . '</label>'

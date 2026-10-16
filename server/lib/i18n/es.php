@@ -58,6 +58,7 @@ return [
     'co_load_failed' => 'PayPal no se pudo cargar. Revisa tu conexión o desactiva los bloqueadores de contenido y vuelve a cargar la página.',
     'co_finishing' => 'Completando tu compra',
     'co_err_network' => 'No se pudo conectar con vietnamcos.com. Revisa tu conexión e inténtalo de nuevo.',
+    'co_err_confirm' => 'No pudimos confirmar tu pago. Si se te cobró, tu clave llegará por correo — o usa «¿Perdiste tu clave?» más abajo.',
     'co_success_title' => 'Ya tienes Pro. Gracias.',
     'co_key_label' => 'Tu clave de licencia',
     'co_copy' => 'Copiar',

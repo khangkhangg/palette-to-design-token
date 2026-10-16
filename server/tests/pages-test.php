@@ -31,9 +31,10 @@ ok('q=0 is refused', palette_page_lang([], 'fr;q=0,es;q=0.1') === 'es');
 
 // ---- security headers (one helper for every page)
 $hd = palette_page_headers();
-ok('CSP exact', ($hd['Content-Security-Policy'] ?? '') === "default-src 'self'; script-src 'self' https://www.paypal.com https://*.paypal.com; "
-    . "frame-src https://*.paypal.com; connect-src 'self' https://*.paypal.com; img-src 'self' data: https://*.paypal.com https://*.paypalobjects.com; "
-    . "style-src 'self' 'unsafe-inline'");
+ok('CSP exact', ($hd['Content-Security-Policy'] ?? '') === "default-src 'self'; script-src 'self' https://www.paypal.com https://*.paypal.com https://*.paypalobjects.com; "
+    . "frame-src https://*.paypal.com; connect-src 'self' https://*.paypal.com https://*.paypalobjects.com; "
+    . "img-src 'self' data: https://*.paypal.com https://*.paypalobjects.com; style-src 'self' 'unsafe-inline'; "
+    . "base-uri 'none'; form-action 'self'; object-src 'none'; frame-ancestors 'none'");
 ok('X-Frame-Options DENY', ($hd['X-Frame-Options'] ?? '') === 'DENY');
 ok('Referrer-Policy', ($hd['Referrer-Policy'] ?? '') === 'strict-origin-when-cross-origin');
 ok('html content type', ($hd['Content-Type'] ?? '') === 'text/html; charset=utf-8');
@@ -132,6 +133,7 @@ $out = palette_render_account(['query' => ['lang' => 'en'], 'accept_language' =>
 ok('account logged in: own keys in full', str_contains($out, $k1) && str_contains($out, $k2));
 ok('account logged in: not others\' keys', !str_contains($out, $k3));
 ok('account logged in: copy buttons', substr_count($out, 'data-copy="') === 2);
+ok('account logged in: copy status region', preg_match('/<p[^>]*id="copy-status"[^>]*role="status"|<p[^>]*role="status"[^>]*id="copy-status"/', $out) === 1);
 ok('account logged in: revoked marked', str_contains($out, h(palette_t('en', 'acct_revoked'))));
 ok('account logged in: claim form', str_contains($out, 'id="claim"') && preg_match('/<input[^>]*name="key"/', $out) === 1);
 ok('account logged in: no login link', !str_contains($out, 'auth=login'));
@@ -179,4 +181,6 @@ foreach (LANGS as $l) foreach (['co_h1', 'co_refund', 'co_consent', 'acct_title'
     if (!array_key_exists($k, palette_strings($l))) $missing[] = "$l:$k";
 }
 ok('page keys in every language', $missing === []);
+ok('co_err_confirm en exact', palette_t('en', 'co_err_confirm') === "We couldn't confirm your payment. If you were charged, your key will arrive by email — or use 'Lost your key?' below.");
+ok('co_err_confirm passed to the script', str_contains($en, 'co_err_confirm'));
 ok('co_consent en exact', palette_t('en', 'co_consent') === $consentEn && palette_t('en', 'co_refund') === $refundEn);

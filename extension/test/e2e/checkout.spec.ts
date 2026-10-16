@@ -141,6 +141,26 @@ test('an invalid email is refused before PayPal opens', async ({ page }) => {
   await page.getByTestId('fake-paypal').click();
   await expect(page.locator('#buy-error')).toHaveText('Enter a valid email address.');
   expect(created).toBe(false);
+  await expect(page.locator('#email')).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.locator('#email')).toHaveAttribute('aria-describedby', 'email-hint buy-error');
+  await page.locator('#email').fill('ok@studio.vn');
+  await expect(page.locator('#buy-error')).toBeHidden();
+  await expect(page.locator('#email')).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(page.locator('#email')).toHaveAttribute('aria-describedby', 'email-hint');
+});
+
+test('consent unchecked at click time marks the checkbox invalid', async ({ page }) => {
+  await seed(page);
+  await fakePayPal(page);
+  await page.goto('/palette/checkout?lang=en');
+  await page.locator('#email').fill('mai@studio.vn');
+  await page.locator('#consent').check();
+  // Real PayPal keeps onClick firing while disabled; reach that path by calling onClick through the fake.
+  await page.locator('#consent').uncheck();
+  await page.getByTestId('fake-paypal').evaluate((b: HTMLButtonElement) => { b.disabled = false; b.click(); });
+  await expect(page.locator('#buy-error')).toHaveText('Please confirm that you understand purchases are final and not refundable.');
+  await expect(page.locator('#consent')).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.locator('#consent')).toHaveAttribute('aria-describedby', 'buy-error');
 });
 
 test('a paid order whose key is not ready shows the retry message (503)', async ({ page }) => {
@@ -152,6 +172,23 @@ test('a paid order whose key is not ready shows the retry message (503)', async 
   await page.getByTestId('fake-paypal').click();
   expect((await capture).status()).toBe(503);
   await expect(page.locator('#buy-error')).toHaveText('Recibimos el pago, pero tu clave aún no está lista. Revisa tu correo en unos minutos.');
+  await expect(page.locator('#done')).toBeHidden();
+  // No second payment: the button is gone and the form is locked, the message stays.
+  await expect(page.locator('#paypal')).toBeHidden();
+  await expect(page.locator('#email')).toBeDisabled();
+  await expect(page.locator('#consent')).toBeDisabled();
+  await expect(page.locator('#buy-error')).toBeVisible();
+});
+
+test('a network failure after approval says the payment could not be confirmed', async ({ page }) => {
+  await seed(page);
+  await fakePayPal(page);
+  await page.route('**/palette/api.php?action=capture', (r) => r.abort('failed'));
+  await page.goto('/palette/checkout?lang=en');
+  await fillForm(page, 'mai@studio.vn');
+  await page.getByTestId('fake-paypal').click();
+  await expect(page.locator('#buy-error')).toHaveText("We couldn't confirm your payment. If you were charged, your key will arrive by email — or use 'Lost your key?' below.");
+  await expect(page.locator('#paypal')).toBeHidden();
   await expect(page.locator('#done')).toBeHidden();
 });
 
@@ -239,5 +276,8 @@ test('account: signed in, the key from the success page is added and listed', as
   await expect(page).toHaveURL('/palette/account?lang=en');
   await expect(page.locator('.keys code')).toHaveText(key);
   await expect(page.locator(`[data-copy="${key}"]`)).toBeVisible();
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.locator(`[data-copy="${key}"]`).click();
+  await expect(page.locator('#copy-status')).toHaveText('Copied');
   await page.request.get('/__dev/login?user_id=0');
 });

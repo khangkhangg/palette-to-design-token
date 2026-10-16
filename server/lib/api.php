@@ -32,6 +32,14 @@ function palette_api_error(int $status, string $key, string $lang, array $header
     return palette_api_reply($status, ['ok' => false, 'error' => $key, 'message' => palette_t($lang, $key)], $headers);
 }
 
+// The session's checkout token, created only when missing: rotating it on every config call would
+// invalidate a second open tab (checkout and account share it).
+function palette_api_csrf_token(): string
+{
+    $tok = $_SESSION['csrf_tokens']['palette_checkout'] ?? null;
+    return is_string($tok) && preg_match('/^[0-9a-f]{64}$/', $tok) ? $tok : generateCSRFToken('palette_checkout');
+}
+
 function palette_api_handle(array $req): array
 {
     $conn = $GLOBALS['conn'];
@@ -54,7 +62,7 @@ function palette_api_handle(array $req): array
         $m = palette_money_settings(palette_settings($conn));
         $ready = pp_ready($pp);
         return palette_api_reply(200, ['ok' => true, 'enabled' => $ready] + ($ready ? ['client_id' => $pp['client_id']] : [])
-            + ['price' => palette_money($m['price']), 'tax_mode' => $m['tax_mode'], 'csrf' => generateCSRFToken('palette_checkout')]);
+            + ['price' => palette_money($m['price']), 'tax_mode' => $m['tax_mode'], 'csrf' => palette_api_csrf_token()]);
     }
 
     if ($action === 'verify') {

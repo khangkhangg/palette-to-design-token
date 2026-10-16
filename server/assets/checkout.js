@@ -117,9 +117,34 @@
     var lastError = '';
     var buttons = null;
 
-    function showError(msg) {
+    var invalid = null;   // the field currently marked aria-invalid
+
+    // Shows msg (or clears it) and ties it to the field that caused it.
+    function showError(msg, field) {
+      if (invalid) {
+        invalid.removeAttribute('aria-invalid');
+        if (invalid.dataset.describedby) invalid.setAttribute('aria-describedby', invalid.dataset.describedby);
+        else invalid.removeAttribute('aria-describedby');
+        delete invalid.dataset.describedby;
+        invalid = null;
+      }
       err.textContent = msg || '';
       show(err, !!msg);
+      if (msg && field) {
+        var d = field.getAttribute('aria-describedby') || '';
+        field.dataset.describedby = d;
+        field.setAttribute('aria-describedby', (d ? d + ' ' : '') + 'buy-error');
+        field.setAttribute('aria-invalid', 'true');
+        invalid = field;
+      }
+    }
+
+    // After a payment that may have gone through: no second button, nothing to edit, the message stays.
+    function lock(msg) {
+      show(slot, false);
+      show(document.querySelector('.buy .hint-center'), false);
+      Array.prototype.forEach.call(form.querySelectorAll('input, select'), function (el) { el.disabled = true; });
+      showError(msg);
     }
 
     function caTax() {
@@ -232,7 +257,7 @@
         onClick: function (_d, actions) {
           var p = problem();
           if (p) {
-            showError(p.msg);
+            showError(p.msg, p.field);
             p.field.focus();
             return actions.reject();
           }
@@ -254,7 +279,9 @@
           return api('capture', { order_id: d.orderID, csrf: csrf }).then(function (r) {
             if (r.ok) { success(r); return; }
             busy(false);
-            showError(r.message);   // includes the 503 err_retry "payment received" message
+            if (r.error === 'network') lock(T.co_err_confirm);   // approved, but we never heard back
+            else if (r.status === 503) lock(r.message);        // err_retry: paid, key not ready yet
+            else showError(r.message);
           });
         },
         onCancel: function () { showError(''); },

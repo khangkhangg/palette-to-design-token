@@ -54,6 +54,12 @@ $b = $r['body'];
 ok('config ready', $r['status'] === 200 && $b['ok'] === true && $b['enabled'] === true && $b['client_id'] === 'cid'
     && $b['price'] === '1.49' && $b['tax_mode'] === 'none' && preg_match('/^[0-9a-f]{64}$/', $b['csrf']) === 1);
 ok('config csrf is the session token', $b['csrf'] === $_SESSION['csrf_tokens']['palette_checkout']);
+$b2 = call('GET', 'config')['body'];
+ok('config reuses the session token (no rotation)', $b2['csrf'] === $b['csrf']);
+ok('an earlier page\'s token still verifies', verifyCSRFToken($b['csrf'], 'palette_checkout'));
+$_SESSION = [];
+$b3 = call('GET', 'config')['body'];
+ok('config generates a token when missing', preg_match('/^[0-9a-f]{64}$/', $b3['csrf']) === 1 && $b3['csrf'] !== $b['csrf']);
 ok('config never leaks the secret', !str_contains(json_encode($r), '"sec"') && !isset($b['secret']));
 stub_paypal($conn, false);
 $b = call('GET', 'config')['body'];
