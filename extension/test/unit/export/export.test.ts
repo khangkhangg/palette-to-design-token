@@ -156,9 +156,6 @@ describe('figma', () => {
 });
 
 describe('index', () => {
-  it('md not implemented', () => {
-    expect(() => exportFile(brewline, 'md', o)).toThrow('md exporter not implemented');
-  });
   it('slug', () => {
     expect(slug('brewline.co')).toBe('brewline-co');
     expect(slug('Sub_Domain.Example.com/x?y')).toBe('sub-domain-example-com-x-y');

@@ -1,15 +1,17 @@
 import type { Tokens } from '../model/tokens';
 import { toCss } from './css';
+import { toDesignMd } from './designmd';
 import { toDtcg } from './dtcg';
 import { toFigma } from './figma';
 import { toTailwind3, toTailwind4 } from './tailwind';
 import type { ExportOptions } from './types';
 
 export type { ExportOptions, Part } from './types';
+export { exportAll } from './zip';
 export type Format = 'css' | 'tailwind' | 'json' | 'figma' | 'md' | 'all';
 
 export function slug(site: string): string {
-  return site.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return site.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'site';
 }
 
 export function exportFile(
@@ -29,6 +31,6 @@ export function exportFile(
     case 'figma':
       return { filename: 'figma-variables.json', mime: 'application/json', text: toFigma(tokens, o) };
     case 'md':
-      throw new Error('md exporter not implemented');
+      return { filename: 'DESIGN.md', mime: 'text/markdown', text: toDesignMd(tokens, o) };
   }
 }

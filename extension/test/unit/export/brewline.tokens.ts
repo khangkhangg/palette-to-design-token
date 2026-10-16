@@ -26,5 +26,11 @@ export const brewline: Tokens = {
   spacing: { base: 4, scale: [4, 8, 12, 16, 24, 32, 48] },
   radius: [4, 10, 9999],
   shadows: ['0 1px 2px rgba(0, 0, 0, 0.5)', '0 6px 16px rgba(0, 0, 0, 0.6)'],
-  contrast: [],
+  contrast: [
+    { fg: '#1B1A17', bg: '#FFFDF8', ratio: 16.8, large: false, uses: 120, where: 'body text', grade: 'AAA' },
+    {
+      fg: '#FFFFFF', bg: '#E0763A', ratio: 2.9, large: false, uses: 4, where: 'buttons', grade: 'fail',
+      fix: { fg: '#FFFFFF', bg: '#B4501A', ratio: 4.7 },
+    },
+  ],
 };
