@@ -92,7 +92,7 @@ describe('collect samples', () => {
     }));
     expect(s.colours).toEqual([
       expect.objectContaining({ kind: 'bg', css: 'rgb(10, 20, 30)', weight: 50 }),
-      expect.objectContaining({ kind: 'border', css: 'rgb(1, 2, 3)', weight: 30 }),
+      expect.objectContaining({ kind: 'border', css: 'rgb(1, 2, 3)', weight: 10 }),
     ]);
     expect(s.spacing).toEqual(expect.arrayContaining([8, 16, 24, 12]));
     expect(s.spacing).not.toContain(-4);
@@ -117,7 +117,7 @@ describe('collect samples', () => {
     expect(s.colours.filter((c) => c.kind === 'fill')).toEqual([expect.objectContaining({ css: 'rgb(31, 94, 75)', weight: 100 })]);
   });
 
-  it('records a border drawn on any side, not only the top', () => {
+  it('records a border drawn on any side, weighted by the drawn sides only', () => {
     // Row separators and sidebar rules are bottom / inline-end borders (T14 dark-app).
     const d = doc('<div id="b"></div><div id="e"></div>');
     const s = collect(d, byId({
@@ -125,8 +125,8 @@ describe('collect samples', () => {
       e: { w: 10, h: 5, style: { borderLeftWidth: '1px', borderLeftStyle: 'solid', borderLeftColor: 'rgb(1, 2, 3)' } },
     }));
     expect(s.colours.filter((c) => c.kind === 'border')).toEqual([
-      expect.objectContaining({ css: 'rgb(48, 54, 61)', weight: 30 }),
-      expect.objectContaining({ css: 'rgb(1, 2, 3)', weight: 30 }),
+      expect.objectContaining({ css: 'rgb(48, 54, 61)', weight: 10 }),
+      expect.objectContaining({ css: 'rgb(1, 2, 3)', weight: 5 }),
     ]);
   });
 
@@ -145,7 +145,9 @@ describe('collect samples', () => {
     // getComputedStyle reports margin: 0 auto as the used px (T14 arabic-rtl: 100px on a 1280px viewport).
     const d = doc('<div id="w"></div>');
     const base = byId({ w: { style: { marginLeft: '100px', marginRight: '100px', marginTop: '16px' } } });
-    const s = collect(d, { ...base, autoMargin: (_el, side) => side === 'left' || side === 'right' });
+    let lookups = 0;
+    const s = collect(d, { ...base, autoMargins: () => { lookups++; return new Set(['left', 'right'] as const); } });
+    expect(lookups).toBe(1);
     expect(s.spacing).toEqual([16]);
   });
 

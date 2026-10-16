@@ -23,7 +23,7 @@ interface Cluster {
   hex: string;
   weight: number;
   interactive: boolean;
-  /** share of link/button/nav use: like weight, but normalised over the interactive or nav samples only */
+  /** share of link/button/nav use: text and bg only, each normalised over its interactive or nav samples */
   actionWeight: number;
   /** weight of interactive samples */
   interactiveWeight: number;
@@ -50,10 +50,13 @@ function prepare(samples: ColourSample[]): Prepared[] {
   }
   // Action share: the same normalisation over interactive/nav samples only. As a share of the whole page a
   // button's area is negligible beside the page background, so link characters would always outvote it.
+  // Only text and bg vote: fill and border are rare in the action set, so normalised per kind a lone nav
+  // logo path or outlined button would get a whole kind's share.
+  const acts = out.filter((p) => (p.interactive || p.nav) && (p.kind === 'text' || p.kind === 'bg'));
   const actionTotals: Partial<Record<ColourKind, number>> = {};
-  for (const p of out) if (p.interactive || p.nav) actionTotals[p.kind] = (actionTotals[p.kind] ?? 0) + p.weight;
+  for (const p of acts) actionTotals[p.kind] = (actionTotals[p.kind] ?? 0) + p.weight;
   const actionKinds = Object.keys(actionTotals).length;
-  for (const p of out) if (p.interactive || p.nav) p.action = p.weight / (actionTotals[p.kind] as number) / actionKinds;
+  for (const p of acts) p.action = p.weight / (actionTotals[p.kind] as number) / actionKinds;
   // Each kind has its own units: normalise per kind, then share equally between kinds present.
   const totals: Partial<Record<ColourKind, number>> = {};
   for (const p of out) totals[p.kind] = (totals[p.kind] ?? 0) + p.weight;

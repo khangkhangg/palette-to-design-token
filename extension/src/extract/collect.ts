@@ -20,8 +20,8 @@ export type Side = 'top' | 'right' | 'bottom' | 'left';
 export interface Measure {
   rect(el: Element): { width: number; height: number };
   style(el: Element): CSSStyleDeclaration;
-  /** True when the margin on `side` is `auto` (getComputedStyle only reports the used px). Optional: absent = never. */
-  autoMargin?(el: Element, side: Side): boolean;
+  /** The sides whose margin is `auto` (getComputedStyle only reports the used px). Optional: absent = none. */
+  autoMargins?(el: Element): Set<Side>;
 }
 
 const DEFAULT_LIMIT = 4000;
@@ -34,13 +34,17 @@ const MONO_TAGS = new Set(['code', 'pre', 'kbd', 'samp']);
 const SVG_SHAPES = new Set(['path', 'rect', 'circle', 'ellipse', 'polygon', 'polyline', 'text']);
 const SIDES = ['Top', 'Right', 'Bottom', 'Left'] as const;
 
+const ALL_SIDES: Side[] = ['top', 'right', 'bottom', 'left'];
 type TypedOM = { computedStyleMap?(): { get(prop: string): unknown } };
 
 const defaultMeasure: Measure = {
   rect: (el) => el.getBoundingClientRect(),
   style: (el) => getComputedStyle(el),
   // CSS Typed OM keeps the computed keyword where getComputedStyle resolves margins to px.
-  autoMargin: (el, side) => String((el as TypedOM).computedStyleMap?.().get(`margin-${side}`)) === 'auto',
+  autoMargins: (el) => {
+    const map = (el as TypedOM).computedStyleMap?.();
+    return new Set(map ? ALL_SIDES.filter((sd) => String(map.get(`margin-${sd}`)) === 'auto') : []);
+  },
 };
 
 interface Ctx { interactive: boolean; nav: boolean; heading: boolean; mono: boolean; button: boolean; link: boolean }
@@ -158,13 +162,15 @@ export function collect(root: Document, measure: Measure = defaultMeasure, limit
     const bg = parseColour(st.backgroundColor);
     if (bg && bg.a > 0) out.colours.push({ css: st.backgroundColor, kind: 'bg', weight: area, interactive, nav });
 
-    // border: the first side that draws one (separators are often bottom- or inline-end-only)
-    const side = SIDES.find((sd) => {
+    // border: colour of the first side that draws one (separators are often bottom- or inline-end-only),
+    // weighted by the length of the drawn sides only
+    const drawn = SIDES.filter((sd) => {
       const style = st[`border${sd}Style`];
       return px(st[`border${sd}Width`]) > 0 && !!style && style !== 'none' && style !== 'hidden';
     });
-    if (side) {
-      out.colours.push({ css: st[`border${side}Color`], kind: 'border', weight: 2 * rect.width + 2 * rect.height, interactive, nav });
+    if (drawn.length) {
+      const length = drawn.reduce((n, sd) => n + (sd === 'Top' || sd === 'Bottom' ? rect.width : rect.height), 0);
+      out.colours.push({ css: st[`border${drawn[0]}Color`], kind: 'border', weight: length, interactive, nav });
     }
 
     // svg fill
@@ -178,9 +184,12 @@ export function collect(root: Document, measure: Measure = defaultMeasure, limit
       if (v > 0) out.spacing.push(v);
     }
     const margins: [Side, string][] = [['top', st.marginTop], ['right', st.marginRight], ['bottom', st.marginBottom], ['left', st.marginLeft]];
+    let auto: Set<Side> | undefined; // looked up once, and only when some margin is positive
     for (const [sd, m] of margins) {
       const v = px(m);
-      if (v > 0 && !measure.autoMargin?.(el, sd)) out.spacing.push(v);
+      if (!(v > 0)) continue;
+      auto ??= measure.autoMargins?.(el) ?? new Set();
+      if (!auto.has(sd)) out.spacing.push(v);
     }
     for (const g of [st.rowGap, st.columnGap]) {
       if (g && g !== 'normal' && !g.includes('%')) {

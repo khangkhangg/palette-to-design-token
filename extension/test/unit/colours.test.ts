@@ -103,6 +103,31 @@ describe('analyseColours', () => {
     expect(byName(t, 'accent')?.hex).toBe('#DB2777');
   });
 
+  it('does not let a lone nav logo fill outvote the link and button colour', () => {
+    // Fill and border are rare in the action set: normalised per kind, one logo path would get a whole kind's share.
+    const t = analyseColours([
+      s('#FFFFFF', 'bg', 1_000_000),
+      s('#111827', 'text', 2000),
+      s('#FFFFFF', 'bg', 100_000, false, true),
+      s('#374151', 'text', 100, true, true),
+      s('#4F46E5', 'text', 60, true),
+      s('#FFFFFF', 'text', 40, true),
+      s('#4F46E5', 'bg', 4000, true),
+      s('#E11D48', 'fill', 600, true, true),
+    ]);
+    expect(byName(t, 'primary')?.hex).toBe('#4F46E5');
+  });
+
+  it('makes a lone CTA background primary when it is the only action colour', () => {
+    const t = analyseColours([
+      s('#FFFFFF', 'bg', 1_000_000),
+      s('#1A1A1A', 'text', 3000),
+      s('#E0763A', 'bg', 6000, true),
+      s('#FFFFFF', 'text', 12, true),
+    ]);
+    expect(byName(t, 'primary')?.hex).toBe('#E0763A');
+  });
+
   it('weights sum to at most 1 and names are unique', () => {
     const t = analyseColours(page());
     expect(t.reduce((a, x) => a + x.weight, 0)).toBeLessThanOrEqual(1 + 1e-9);

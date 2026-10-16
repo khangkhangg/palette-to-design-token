@@ -31,6 +31,9 @@ const EXPECTED: Record<string, Expected> = JSON.parse(
 let context: BrowserContext;
 let sw: Worker;
 let extId: string;
+/** Pages and chrome tabs a test opened; closed after each test even when it fails. */
+let opened: Page[] = [];
+let openedTabIds: number[] = [];
 
 
 test.beforeAll(async () => {
@@ -42,6 +45,13 @@ test.beforeAll(async () => {
   extId = new URL(sw.url()).host;
 });
 
+test.afterEach(async () => {
+  await Promise.all(opened.map((p) => p.close().catch(() => {})));
+  if (openedTabIds.length) await sw.evaluate(async (ids) => { await chrome.tabs.remove(ids).catch(() => {}); }, openedTabIds);
+  opened = [];
+  openedTabIds = [];
+});
+
 test.afterAll(async () => {
   await context?.close();
 });
@@ -49,6 +59,7 @@ test.afterAll(async () => {
 /** Opens `url` in a new tab, makes it the active tab, and returns its page and chrome tab id. */
 async function openTab(url: string): Promise<{ page: Page; tabId: number }> {
   const page = await context.newPage();
+  opened.push(page);
   await page.goto(url);
   await page.bringToFront();
   const tabId = await sw.evaluate(async (u) => {
@@ -76,9 +87,11 @@ async function scan(tabId: number): Promise<{ tokens: Tokens; ms: number }> {
 
 /** Opens an extension page as a background tab, so the fixture tab stays the active tab of the window. */
 async function openExtensionPage(path: string): Promise<Page> {
-  const opened = context.waitForEvent('page', (p) => p.url().startsWith(`chrome-extension://${extId}/${path}`));
+  const pending = context.waitForEvent('page', (p) => p.url().startsWith(`chrome-extension://${extId}/${path}`));
   await sw.evaluate(async (url) => { await chrome.tabs.create({ url, active: false }); }, `chrome-extension://${extId}/${path}`);
-  return opened;
+  const page = await pending;
+  opened.push(page);
+  return page;
 }
 
 async function setStorage(values: Record<string, unknown>): Promise<void> {
@@ -89,7 +102,7 @@ test.describe('extraction on fixtures', () => {
   for (const [fixture, exp] of Object.entries(EXPECTED)) {
     test(`${fixture} roles match expected.json`, async () => {
       const url = `${BASE}/${fixture}.html`;
-      const { page, tabId } = await openTab(url);
+      const { tabId } = await openTab(url);
       const { tokens } = await scan(tabId);
       const byName = Object.fromEntries(tokens.colours.map((c) => [c.name, c.hex]));
       const summary = JSON.stringify(tokens.colours.map((c) => `${c.name} ${c.hex} ${(c.weight * 100).toFixed(1)}%`));
@@ -117,22 +130,20 @@ test.describe('extraction on fixtures', () => {
       }
       if (exp.radius) expect(tokens.radius).toEqual(exp.radius);
       if (exp.minShadows !== undefined) expect(tokens.shadows.length).toBeGreaterThanOrEqual(exp.minShadows);
-      await page.close();
     });
   }
 
   test('light-marketing scans in under 1500 ms', async () => {
-    const { page, tabId } = await openTab(`${BASE}/light-marketing.html`);
+    const { tabId } = await openTab(`${BASE}/light-marketing.html`);
     const { ms } = await scan(tabId);
     expect(ms).toBeLessThan(1500);
-    await page.close();
   });
 });
 
 test.describe('popup', () => {
   test('renders the Colours tab for the active fixture tab, and theme Dark persists across reload', async () => {
     await setStorage({ settings: { theme: 'system', lang: 'en', pro: false } });
-    const { page: fixture } = await openTab(`${BASE}/light-marketing.html`);
+    await openTab(`${BASE}/light-marketing.html`);
     const popup = await openExtensionPage('popup.html');
 
     await expect(popup.getByRole('tab', { name: 'Colours' })).toHaveAttribute('aria-selected', 'true');
@@ -148,17 +159,12 @@ test.describe('popup', () => {
     await popup.reload();
     await expect(popup.locator('html')).toHaveAttribute('data-theme', 'dark');
     await expect(popup.getByRole('heading', { name: 'Primary' })).toBeVisible();
-
-    await popup.close();
-    await fixture.close();
   });
 
   test('chrome://extensions shows the restricted state', async () => {
-    const tabId = await sw.evaluate(async () => (await chrome.tabs.create({ url: 'chrome://extensions', active: true })).id!);
+    openedTabIds.push(await sw.evaluate(async () => (await chrome.tabs.create({ url: 'chrome://extensions', active: true })).id!));
     const popup = await openExtensionPage('popup.html');
     await expect(popup.getByText("This page can't be scanned")).toBeVisible();
-    await popup.close();
-    await sw.evaluate(async (id) => { await chrome.tabs.remove(id); }, tabId);
   });
 });
 
@@ -175,7 +181,7 @@ test.describe('export with Pro', () => {
   test('every format downloads a non-empty file', async () => {
     test.setTimeout(60_000); // six downloads; each waits for the file to land on disk
     await setStorage({ settings: { theme: 'light', lang: 'en', pro: true } });
-    const { page: fixture } = await openTab(`${BASE}/light-marketing.html`);
+    await openTab(`${BASE}/light-marketing.html`);
     const panel = await openExtensionPage('sidepanel.html?view=export');
     await expect(panel.getByRole('heading', { name: 'Export tokens' })).toBeVisible();
 
@@ -190,7 +196,5 @@ test.describe('export with Pro', () => {
       const path = await download.path();
       expect(readFileSync(path).length, `${value} size`).toBeGreaterThan(0);
     }
-    await panel.close();
-    await fixture.close();
   });
 });
