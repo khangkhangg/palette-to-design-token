@@ -211,3 +211,47 @@ $frPage = checkout(['lang' => 'fr']);
 ok('fr summary total is 1,49 $ US (no extra USD)', str_contains($frPage, '<span id="total">' . FR_PRICE . '</span></span>')
     && preg_match('#id="palette-data">(.*?)</script>#s', $frPage, $m) === 1 && (json_decode($m[1], true)['total'] ?? '') === FR_PRICE);
 ok('co_consent en exact', palette_t('en', 'co_consent') === $consentEn && palette_t('en', 'co_refund') === $refundEn);
+
+// ---- product page: download, what it does, free vs pro, install, entering a key
+const PP_KEYS = ['pp_download', 'pp_get_pro', 'pp_works_in', 'pp_what_h', 'pp_feat_colours_h', 'pp_feat_colours', 'pp_feat_system_h',
+    'pp_feat_system', 'pp_feat_contrast_h', 'pp_feat_contrast', 'pp_feat_export_h', 'pp_feat_export', 'pp_plans_h', 'pp_plan_feature',
+    'pp_plan_free', 'pp_plan_pro', 'pp_yes', 'pp_no', 'pp_row_scan', 'pp_row_view', 'pp_row_copy', 'pp_row_contrast', 'pp_row_saved',
+    'pp_saved_free', 'pp_saved_pro', 'pp_row_exports', 'pp_row_fixes', 'pp_install_h', 'pp_install_1', 'pp_install_2', 'pp_install_3',
+    'pp_install_4', 'pp_install_5', 'pp_install_note', 'pp_key_h', 'pp_key_1', 'pp_key_2', 'pp_key_email', 'pp_key_lost'];
+$missing = [];
+foreach (LANGS as $l) foreach (PP_KEYS as $k) {
+    $v = palette_strings($l)[$k] ?? '';
+    if (trim($v) === '' || preg_match(EMOJI_RE, $v) || ($l !== 'en' && $v === palette_t('en', $k) && !in_array($k, ['pp_plan_pro'], true))) $missing[] = "$l:$k";
+}
+ok('product page strings in all 7 languages, translated, no emoji: ' . implode(', ', $missing), $missing === []);
+ok('PALETTE_EXT_VERSION matches the extension manifest',
+    PALETTE_EXT_VERSION === json_decode((string)file_get_contents(PALETTE_DIR . '/../extension/public/manifest.json'), true)['version']);
+$en = checkout(['lang' => 'en']);
+$pos = fn(string $needle) => strpos($en, $needle);
+ok('download link: latest zip with download attribute',
+    preg_match('#<a[^>]*href="/palette/download/site-to-design-token-latest\.zip"[^>]*\bdownload\b[^>]*>.*?Download the extension \(free\)#s', $en) === 1
+    || preg_match('#<a[^>]*\bdownload\b[^>]*href="/palette/download/site-to-design-token-latest\.zip"[^>]*>.*?Download the extension \(free\)#s', $en) === 1);
+ok('Get Pro anchors to the buy card', preg_match('#<a[^>]*href="\#buy"[^>]*>.*?Get Pro — \$1\.49#s', $en) === 1 && str_contains($en, 'id="buy"'));
+ok('works-in line with version', str_contains($en, 'Works in Chrome, Edge, Brave and Opera. Version <bdi dir="ltr">' . PALETTE_EXT_VERSION . '</bdi>.'));
+ok('sections in order: hero, what, plans, install, key, then the buy card',
+    $pos('id="hero-actions"') !== false && $pos('id="what"') > $pos('id="hero-actions"') && $pos('id="plans"') > $pos('id="what"')
+    && $pos('id="install"') > $pos('id="plans"') && $pos('id="have-key"') > $pos('id="install"') && $pos('id="buy"') > $pos('id="have-key"'));
+ok('four features with inline SVG icons', preg_match('#id="what".*?</section>#s', $en, $wm) === 1 && substr_count($wm[0], '<li class="feature">') === 4
+    && substr_count($wm[0], '<svg') >= 4 && str_contains($wm[0], h(palette_t('en', 'pp_feat_export'))));
+ok('free vs pro table', preg_match('#id="plans".*?</section>#s', $en, $pm) === 1 && str_contains($pm[0], '<table')
+    && str_contains($pm[0], 'Pro, $1.49 once') && substr_count($pm[0], '<tr') === 8 && str_contains($pm[0], h(palette_t('en', 'pp_saved_free'))));
+ok('install steps: 5, chrome://extensions as copyable code, not a link', preg_match('#id="install".*?</section>#s', $en, $im) === 1
+    && substr_count($im[0], '<li') === 5 && str_contains($im[0], '<code dir="ltr">chrome://extensions</code>')
+    && str_contains($im[0], 'data-copy="chrome://extensions"') && !str_contains($im[0], 'href="chrome:')
+    && str_contains($im[0], h(palette_t('en', 'pp_install_note'))));
+ok('already bought: how to enter the key, link to the lost-key form', preg_match('#id="have-key".*?</section>#s', $en, $km) === 1
+    && str_contains($km[0], 'Enter license key') && str_contains($km[0], 'href="#resend"') && str_contains($km[0], h(palette_t('en', 'pp_key_email'))));
+$fr = checkout(['lang' => 'fr']);
+ok('fr: Get Pro and the plan header use 1,49 $ US', str_contains($fr, h(palette_t('fr', 'pp_get_pro', ['price' => FR_PRICE])))
+    && str_contains($fr, h(palette_t('fr', 'pp_plan_pro', ['price' => FR_PRICE]))));
+foreach (LANGS as $l) {
+    $html = checkout(['lang' => $l]);
+    $all = true;
+    foreach (['pp_download', 'pp_what_h', 'pp_plans_h', 'pp_install_h', 'pp_key_h', 'pp_install_note'] as $k) if (!str_contains($html, h(palette_t($l, $k)))) $all = false;
+    ok("product page $l: every section rendered", $all && str_contains($html, '/palette/download/site-to-design-token-latest.zip'));
+}

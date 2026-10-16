@@ -8,6 +8,10 @@ const PALETTE_LANG_NAMES = ['en' => 'English', 'zh-CN' => '中文', 'hi' => 'ह
                             'ar' => 'العربية', 'fr' => 'Français', 'bn' => 'বাংলা'];
 const PALETTE_PRIVACY_UPDATED = '2026-10-17';
 const PALETTE_SUPPORT_EMAIL = 'support@vietnamcos.com';
+// The extension version the checkout page offers (keep in step with extension/public/manifest.json; pages-test checks).
+const PALETTE_EXT_VERSION = '0.1.0';
+// Direct download, uploaded to server/download/ at deploy (npm run package:direct); never committed.
+const PALETTE_DOWNLOAD_URL = PALETTE_BASE . '/download/site-to-design-token-latest.zip';
 const PALETTE_US_STATES = [
     'AL' => 'Alabama', 'AK' => 'Alaska', 'AZ' => 'Arizona', 'AR' => 'Arkansas', 'CA' => 'California', 'CO' => 'Colorado',
     'CT' => 'Connecticut', 'DE' => 'Delaware', 'DC' => 'District of Columbia', 'FL' => 'Florida', 'GA' => 'Georgia',
@@ -138,6 +142,14 @@ function palette_icon(string $name, int $size = 16): string
         'shield' => '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
         'chat' => '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
         'arrow' => '<path d="M5 12h14M13 6l6 6-6 6"/>',
+        'download' => '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/>',
+        'palette' => '<path d="M12 2a10 10 0 0 0 0 20c1 0 1.7-.8 1.7-1.7 0-.4-.2-.8-.5-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.7 1.7-1.7h2A5.5 5.5 0 0 0 22 11c0-5-4.5-9-10-9z"/>'
+            . '<circle cx="7.5" cy="11.5" r="1.2"/><circle cx="10.5" cy="7" r="1.2"/><circle cx="15.5" cy="7.5" r="1.2"/>',
+        'layers' => '<path d="m12 2 10 5-10 5L2 7z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/>',
+        'contrast' => '<circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 0 0 20z" fill="currentColor"/>',
+        'code' => '<path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/>',
+        'minus' => '<path d="M5 12h14"/>',
+        'info' => '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
     ];
     return '<svg class="icon icon-' . $name . '" width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
         . ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' . ($paths[$name] ?? '') . '</svg>';
@@ -212,15 +224,60 @@ function palette_render_checkout(array $ctx): string
         . ($ca ? '<p class="sum-note">' . $t('co_tax_note') . '</p>' : '')
         . '</div>';
 
-    $pitch = '<section class="pitch">'
+    $hero = '<section class="hero">'
         . '<span class="eyebrow">' . $t('co_eyebrow') . '</span>'
         . '<h1>' . $t('co_h1') . '</h1>'
         . '<p class="lead">' . $t('co_lead') . '</p>'
+        . '<div class="hero-actions" id="hero-actions">'
+        . '<a class="btn btn-accent btn-lg" href="' . PALETTE_DOWNLOAD_URL . '" download>' . palette_icon('download', 17) . '<span>' . $t('pp_download') . '</span></a>'
+        . '<a class="btn btn-quiet btn-lg" href="#buy">' . palette_h(palette_t($lang, 'pp_get_pro', ['price' => $price])) . '</a>'
+        . '</div>'
+        . '<p class="works-in">' . palette_t_html($lang, 'pp_works_in', ['version' => palette_ltr(PALETTE_EXT_VERSION)]) . '</p>'
         . $summary
         . '<ul class="trust">'
         . '<li>' . palette_icon('lock', 15) . $t('co_trust_paypal') . '</li>'
         . '<li>' . palette_icon('browser', 15) . $t('co_trust_browsers') . '</li>'
         . '</ul></section>';
+
+    $features = '';
+    foreach (['colours' => 'palette', 'system' => 'layers', 'contrast' => 'contrast', 'export' => 'code'] as $k => $icon) {
+        $features .= '<li class="feature"><span class="feature-icon">' . palette_icon($icon, 18) . '</span><div>'
+            . '<h3>' . $t('pp_feat_' . $k . '_h') . '</h3><p>' . $t('pp_feat_' . $k) . '</p></div></li>';
+    }
+    $what = '<section class="pp-section" id="what" aria-labelledby="what-h"><h2 id="what-h">' . $t('pp_what_h') . '</h2>'
+        . '<ul class="features">' . $features . '</ul></section>';
+
+    $yes = '<span class="plan-yes">' . palette_icon('check', 16) . '<span class="sr-only">' . $t('pp_yes') . '</span></span>';
+    $no = '<span class="plan-no">' . palette_icon('minus', 16) . '<span class="sr-only">' . $t('pp_no') . '</span></span>';
+    $rows = '';
+    foreach ([['pp_row_scan', $yes, $yes], ['pp_row_view', $yes, $yes], ['pp_row_copy', $yes, $yes], ['pp_row_contrast', $yes, $yes],
+              ['pp_row_saved', $t('pp_saved_free'), $t('pp_saved_pro')], ['pp_row_exports', $no, $yes], ['pp_row_fixes', $no, $yes]] as [$k, $free, $pro]) {
+        $rows .= '<tr><th scope="row">' . $t($k) . '</th><td>' . $free . '</td><td>' . $pro . '</td></tr>';
+    }
+    $plans = '<section class="pp-section" id="plans" aria-labelledby="plans-h"><h2 id="plans-h">' . $t('pp_plans_h') . '</h2>'
+        . '<div class="plans-wrap"><table class="plans"><thead><tr><th scope="col"><span class="sr-only">' . $t('pp_plan_feature') . '</span></th>'
+        . '<th scope="col">' . $t('pp_plan_free') . '</th>'
+        . '<th scope="col" class="plan-pro">' . palette_h(palette_t($lang, 'pp_plan_pro', ['price' => $price])) . '</th></tr></thead>'
+        . '<tbody>' . $rows . '</tbody></table></div></section>';
+
+    // chrome:// links are blocked from web pages, so the address is copyable text.
+    $url = '<span class="copyable"><code dir="ltr">chrome://extensions</code>'
+        . '<button type="button" class="btn btn-quiet btn-sm" data-copy="chrome://extensions" data-copy-status="install-copy-status">'
+        . palette_icon('copy', 14) . '<span>' . $t('co_copy') . '</span></button></span>';
+    $steps = '';
+    foreach (['pp_install_1', 'pp_install_2', 'pp_install_3', 'pp_install_4', 'pp_install_5'] as $k) {
+        $steps .= '<li>' . ($k === 'pp_install_2' ? palette_t_html($lang, $k, ['url' => $url]) : $t($k)) . '</li>';
+    }
+    $install = '<section class="pp-section" id="install" aria-labelledby="install-h"><h2 id="install-h">' . $t('pp_install_h') . '</h2>'
+        . '<ol class="steps">' . $steps . '</ol>'
+        . '<p class="sr-only" id="install-copy-status" role="status"></p>'
+        . '<p class="pp-note">' . palette_icon('info', 15) . '<span>' . $t('pp_install_note') . '</span></p></section>';
+
+    $haveKey = '<section class="pp-section" id="have-key" aria-labelledby="have-key-h"><h2 id="have-key-h">' . palette_icon('key', 18) . $t('pp_key_h') . '</h2>'
+        . '<ol class="steps steps-short"><li>' . $t('pp_key_1') . '</li><li>' . $t('pp_key_2') . '</li></ol>'
+        . '<p class="pp-aside">' . $t('pp_key_email') . ' <a href="#resend">' . $t('pp_key_lost') . '</a></p></section>';
+
+    $pitch = '<div class="pitch">' . $hero . $what . $plans . $install . $haveKey . '</div>';
 
     $tax = '';
     if ($ca) {

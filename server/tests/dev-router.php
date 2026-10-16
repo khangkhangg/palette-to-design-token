@@ -25,6 +25,20 @@ if (preg_match('#^/palette/assets/([A-Za-z0-9_-]+(?:/[A-Za-z0-9_.-]+)?\.(css|js|
     return true;
 }
 
+// The direct-download zip, from server/download/ when one has been put there (it is uploaded at deploy, never committed).
+if (preg_match('#^/palette/download/([A-Za-z0-9_-][A-Za-z0-9_.-]*\.zip)$#', $path, $m)) {
+    if (!is_file($file = $server . '/download/' . $m[1])) {
+        http_response_code(404);
+        echo 'not found';
+        return true;
+    }
+    header('Content-Type: application/zip');
+    header('Content-Length: ' . filesize($file));
+    header('Cache-Control: no-store');
+    readfile($file);
+    return true;
+}
+
 require_once $server . '/bootstrap.php';
 $db = (string)($conn->query('SELECT DATABASE()')->fetch_row()[0] ?? '');
 if (!str_ends_with($db, '_test')) {

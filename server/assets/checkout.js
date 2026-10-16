@@ -88,7 +88,7 @@
     var src = btn.hasAttribute('data-copy-from') ? $(btn.getAttribute('data-copy-from')) : null;
     var text = src ? src.textContent : btn.getAttribute('data-copy');
     var keyEl = src || btn.parentNode.querySelector('code');
-    var status = $('copy-status');
+    var status = $(btn.getAttribute('data-copy-status') || 'copy-status');
     var label = btn.querySelector('span');
     var write = navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error('no clipboard'));
     write.then(function () {

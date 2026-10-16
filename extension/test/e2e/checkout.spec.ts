@@ -318,3 +318,61 @@ test('account: signed in, the key from the success page is added and listed', as
   await expect(page.locator('#copy-status')).toHaveText('Copied');
   await page.request.get('/__dev/login?user_id=0');
 });
+
+test('product page: free download link, Get Pro jumps to the buy card, install address is copyable', async ({ page, context }) => {
+  await seed(page);
+  await fakePayPal(page);
+  await page.goto('/palette/checkout?lang=en');
+  const download = page.getByRole('link', { name: 'Download the extension (free)' });
+  await expect(download).toHaveAttribute('href', '/palette/download/site-to-design-token-latest.zip');
+  await expect(download).toHaveAttribute('download', '');
+  await expect(page.getByText('Works in Chrome, Edge, Brave and Opera. Version 0.1.0.')).toBeVisible();
+  for (const h of ['What it does', 'Free vs Pro', 'Install in 1 minute', 'Already bought Pro?']) {
+    await expect(page.getByRole('heading', { name: h })).toBeVisible();
+  }
+
+  const getPro = page.getByRole('link', { name: 'Get Pro — $1.49' });
+  await expect(getPro).toHaveAttribute('href', '#buy');
+  await getPro.click();
+  await expect(page).toHaveURL(/#buy$/);
+  await expect(page.locator('#buy')).toBeInViewport();
+
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const copy = page.locator('#install [data-copy="chrome://extensions"]');
+  await copy.click();
+  await expect(copy).toHaveText('Copied');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('chrome://extensions');
+  await expect(page.locator('#copy-status')).toHaveText('');
+  await expect(page.locator('#install a[href^="chrome:"]')).toHaveCount(0);
+});
+
+test('product page: the dev router serves a zip put in server/download, and 404s otherwise', async ({ page }) => {
+  const { mkdirSync, rmSync, writeFileSync } = await import('node:fs');
+  const { resolve } = await import('node:path');
+  const dir = resolve(import.meta.dirname, '../../../server/download');
+  const name = `e2e-${Date.now()}.zip`;
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(resolve(dir, name), 'PK-dummy');
+  try {
+    const ok = await page.request.get(`/palette/download/${name}`);
+    expect(ok.status()).toBe(200);
+    expect(ok.headers()['content-type']).toBe('application/zip');
+    expect(await ok.text()).toBe('PK-dummy');
+  } finally {
+    rmSync(resolve(dir, name), { force: true });
+  }
+  expect((await page.request.get('/palette/download/nope-missing.zip')).status()).toBe(404);
+  expect((await page.request.get('/palette/download/..%2Fbootstrap.php')).status()).toBe(404);
+});
+
+test('product page fits a phone in a long-script language and in Arabic', async ({ page }) => {
+  await seed(page);
+  await fakePayPal(page);
+  await page.setViewportSize({ width: 360, height: 780 });
+  for (const lang of ['bn', 'ar']) {
+    await page.goto(`/palette/checkout?lang=${lang}`);
+    await expect(page.locator('#plans table')).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+    expect(overflow, lang).toBe(false);
+  }
+});
