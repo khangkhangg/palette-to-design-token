@@ -18,6 +18,11 @@ describe('DESIGN.md', () => {
   it('writes the fail pair with its fix', () => {
     expect(md()).toContain('Do not put #FFFFFF text on #E0763A (2.9:1). Use #FFFFFF on #B4501A.');
   });
+  it('writes the stored 2dp ratio, never rounding a fail up to 4.5', () => {
+    const t = { ...brewline, contrast: [{ fg: '#5E7F5D', bg: '#FFFFFF', ratio: 4.49, large: false, uses: 1, where: 'other' as const, grade: 'fail' as const }] };
+    expect(md(t)).toContain('(4.49:1)');
+    expect(md(t)).not.toContain('4.5:1');
+  });
   it('ends a fail pair without a fix at the ratio', () => {
     const t = { ...brewline, contrast: [{ fg: '#fff', bg: '#eee', ratio: 1.2, large: false, uses: 1, where: 'other' as const, grade: 'fail' as const }] };
     expect(md(t)).toContain('- Do not put #fff text on #eee (1.2:1).\n');

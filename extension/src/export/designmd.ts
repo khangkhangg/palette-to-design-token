@@ -13,7 +13,8 @@ const USE_FOR: Record<Role, string> = {
 
 const IMAGE = 'an image or gradient';
 const bgLabel = (bg: string): string => (bg === 'none' ? IMAGE : bg);
-const ratio = (n: number | null): string => (n === null ? '' : n.toFixed(1));
+/** The analyser already floors to 2dp; rounding again could turn a fail into 4.5. */
+const ratio = (n: number | null): string => (n === null ? '' : String(n));
 
 function contrastLine(p: ContrastPair): string | null {
   if (p.grade === 'unknown') return `- Check manually: ${p.fg} text on ${IMAGE}.`;

@@ -42,6 +42,12 @@ describe('analyseContrast', () => {
     expect(p.ratio).toBeLessThan(5.8);
     expect(p.fg).toBe('#666666');
   });
+  it('floors the stored ratio to 2dp and grades from the raw ratio', () => {
+    // #5E7F5D on white is 4.49703...:1, a fail that rounding would show as 4.5
+    const [p] = analyseContrast([sample({ fg: '#5E7F5D' })]);
+    expect(p.ratio).toBe(4.49);
+    expect(p.grade).toBe('fail');
+  });
   it('treats null bg as unknown', () => {
     const [p] = analyseContrast([sample({ bg: null })]);
     expect(p.ratio).toBeNull();

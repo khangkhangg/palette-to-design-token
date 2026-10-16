@@ -74,7 +74,8 @@ export function analyseContrast(samples: PairSample[]): ContrastPair[] {
     const pair: ContrastPair = {
       fg: toHex(g.fg),
       bg: g.bg ? toHex(g.bg) : 'none',
-      ratio: rawRatio === null ? null : Math.round(rawRatio * 100) / 100,
+      // floored, not rounded, so a failing 4.497 is never stored (or shown) as a passing 4.5
+      ratio: rawRatio === null ? null : Math.floor(rawRatio * 100 + 1e-9) / 100,
       large: g.large, uses: g.uses, where, grade: gr,
     };
     if (gr === 'fail' && g.bg) {
