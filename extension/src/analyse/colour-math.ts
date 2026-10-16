@@ -217,13 +217,13 @@ export function parseColour(css: string): RGBA | null {
   const fm = /^([a-z-]+)\(\s*([^)]*?)\s*\)$/i.exec(s);
   if (!fm) return null;
   const fn = fm[1].toLowerCase();
-  const [body, alphaTok, ...extra] = fm[2].split('/').map((p) => p.trim());
+  const [body = '', alphaTok, ...extra] = fm[2].split('/').map((p) => p.trim());
   if (extra.length) return null;
   const toks = body.split(/[\s,]+/).filter(Boolean);
   // Legacy comma syntax puts alpha as a 4th token (5th for color()).
   let aTok = alphaTok;
   const withoutAlpha = fn === 'color' ? 4 : 3;
-  if (aTok === undefined && toks.length === withoutAlpha + 1) aTok = toks.pop();
+  if (aTok === undefined && toks.length === withoutAlpha + 1) aTok = toks.pop() as string;
   let alpha = 1;
   if (aTok !== undefined) {
     const v = comp(aTok, 1);
