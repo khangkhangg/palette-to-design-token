@@ -76,7 +76,7 @@ function palette_resend(mysqli $c, string $email, string $ip): void
     $email = strtolower(trim($email));
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return;
     if (!checkRateLimit($ip, 'palette:resend', 10, 3600)) return;
-    if (!checkRateLimit($ip, 'palette:resend:' . sha1($email), 3, 3600)) return;
+    if (!checkRateLimit('palette:resend-email', 'palette:resend:' . sha1($email), 3, 3600)) return;
     $st = $c->prepare('SELECT license_key, lang FROM palette_licenses WHERE email = ? AND revoked_at IS NULL ORDER BY id');
     $st->bind_param('s', $email);
     $st->execute();
@@ -96,7 +96,14 @@ function palette_claim(mysqli $c, string $rawKey, int $userId): bool
     $st->execute();
     $n = $st->affected_rows;
     $st->close();
-    return $n === 1;
+    if ($n === 1) return true;
+    // Idempotent for the current owner.
+    $st = $c->prepare('SELECT 1 FROM palette_licenses WHERE license_key = ? AND user_id = ? AND revoked_at IS NULL');
+    $st->bind_param('si', $key, $userId);
+    $st->execute();
+    $owned = $st->get_result()->num_rows === 1;
+    $st->close();
+    return $owned;
 }
 
 function palette_keys_for_user(mysqli $c, int $userId): array

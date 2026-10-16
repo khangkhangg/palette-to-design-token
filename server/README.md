@@ -31,3 +31,7 @@ companies repo (`PALETTE_COMPANIES_DIR`, default `C:\Projects\companies`).
 `tests/helpers.php` seeds `$_ENV` (DB_* for the test DB) BEFORE companies'
 `config.php` loads, so its real `.env` credentials are never used, and exits 2 unless
 `SELECT DATABASE()` ends in `_test`. Each `*-test.php` runs in its own php process.
+
+## Known limitations
+
+- `palette_resend` must run after the HTTP response is flushed (it does DB and Resend work only for existing addresses, which would otherwise leak address existence through response timing).

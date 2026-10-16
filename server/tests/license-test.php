@@ -81,10 +81,17 @@ for ($i = 0; $i < 12; $i++) {
 }
 ok('per-IP resend cap 10', count($GLOBALS['palette_sent']) === 10);
 
+// global per-email resend cap across IPs
+reset_state($conn);
+palette_issue_license($conn, 'bomb@studio.vn', 'ORDB', 'en');
+foreach (['10.1.0.1', '10.1.0.2', '10.1.0.3', '10.1.0.4'] as $ip) palette_resend($conn, 'bomb@studio.vn', $ip);
+ok('4 resends for one email from 4 IPs -> 3 emails', count($GLOBALS['palette_sent']) === 3);
+
 // claim
 reset_state($conn);
 $c = palette_issue_license($conn, 'c@studio.vn', 'ORD6', 'en');
 ok('claim first user', palette_claim($conn, strtolower($c['key']), 7) === true);
+ok('claim again by owner is idempotent', palette_claim($conn, $c['key'], 7) === true);
 ok('claim second user fails', palette_claim($conn, $c['key'], 8) === false);
 ok('claim unknown fails', palette_claim($conn, 'bad', 7) === false);
 $kk = palette_keys_for_user($conn, 7);
