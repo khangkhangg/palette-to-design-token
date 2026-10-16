@@ -64,3 +64,35 @@ Actions: `config` (GET), `create`, `capture`, `resend`, `claim` (POST, CSRF form
 Errors are `{ok:false, error:<i18n key>, message:<localised>}`; 419 bad CSRF, 429 rate limited, 503 `err_retry` when a paid order's key is not ready yet.
 `verify` sends CORS headers only for `chrome-extension://<id>` origins whose id is in the `extension_ids` setting; the client IP is `REMOTE_ADDR` only.
 `resend` answers first and runs `palette_resend` after `fastcgi_finish_request()` (ruling S4); on servers without it (CLI, `php -S`) the work stays synchronous.
+
+## Pages (`checkout.php`, `account.php`, `privacy.php`)
+
+Served as `/palette/checkout`, `/palette/account` and `/palette/privacy` (extensionless: the vhost needs a rewrite
+to the `.php` file if it does not already try `$uri.php`). Each file is a thin adapter over a pure renderer in
+`lib/pages.php` (`palette_render_checkout/account/privacy(array $ctx): string`, tested by `tests/pages-test.php`);
+behaviour is in `assets/checkout.js` (vanilla, no build), styles in `assets/checkout.css` (light + dark, logical
+properties for Arabic), Geist self-hosted under `assets/fonts/` (OFL). No external fonts, no inline scripts.
+
+- Language: `?lang=` when it is one of the 7, else the best `Accept-Language` match, else `en`; the switcher is
+  plain links that keep the page (and a valid `?ext=` / `?key=`). Strings are `lib/i18n/*.php` (`page_*`, `co_*`,
+  `acct_*`, `priv_*`).
+- Every page sends `palette_page_headers()`: CSP `default-src 'self'` allowing PayPal's script/frame/connect/img
+  hosts only, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`.
+- Checkout loads `https://www.paypal.com/sdk/js?client-id=<id>&currency=USD&intent=capture&components=buttons`
+  after `api.php?action=config`; the consent checkbox gates the button (`actions.disable()/enable()`);
+  createOrder -> `create`, onApprove -> `capture` -> key, Copy, "Link to account" (`/palette/account?key=...`), and,
+  when opened with `?ext=<extension id>`, `chrome.runtime.sendMessage(ext, {type:'license', key})`.
+  With `tax_mode = ca` it shows a country (US / other) and US state select and the CA total.
+- Account: signed out -> link to `/companies/?auth=login&redirect=/palette/account` (keeps `?key`); signed in
+  (`$_SESSION['user_id']`) -> the user's keys in full with copy buttons, and a claim form prefilled from `?key`.
+
+### Checkout e2e
+
+    cd extension && npm run e2e:checkout
+
+Runs `test/e2e/checkout.spec.ts` against `php -S` with `tests/dev-router.php` (PHP from `$PHP_BIN`, else the
+winget PHP 8.4, else `php`). The router seeds `$_ENV` with the `palette_test` database before companies'
+`config.php` loads (under the `cli-server` SAPI it reads `DB_HOST_REMOTE`, which is also seeded), refuses to serve
+unless the database name ends in `_test`, and with `PALETTE_DEV_PP_STUB=1` stubs PayPal REST and Resend and adds
+`/__dev/seed`, `/__dev/login`, `/__dev/license`. The PayPal JS SDK is replaced in the browser by the spec.
+It is separate from `npm run e2e` (which needs no PHP or database). **Do not deploy `tests/`.**

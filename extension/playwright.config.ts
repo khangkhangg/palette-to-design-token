@@ -4,6 +4,7 @@ export const FIXTURE_PORT = 4517;
 
 export default defineConfig({
   testDir: 'test/e2e',
+  testIgnore: 'checkout.spec.ts', // needs PHP + MariaDB: npm run e2e:checkout
   timeout: 30_000,
   workers: 1,
   reporter: 'list',

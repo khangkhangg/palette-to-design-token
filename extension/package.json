@@ -7,7 +7,8 @@
     "build": "vite build && vite build -c vite.extract.config.ts",
     "build:dev": "vite build --mode development && vite build -c vite.extract.config.ts --mode development",
     "test": "vitest run",
-    "e2e": "node scripts/e2e.mjs"
+    "e2e": "node scripts/e2e.mjs",
+    "e2e:checkout": "playwright test -c playwright.checkout.config.ts"
   },
   "dependencies": {
     "fflate": "^0.8.3",
