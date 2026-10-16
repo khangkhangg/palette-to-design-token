@@ -9,6 +9,9 @@ import { Tabs } from '../components/Tabs';
 import { plural, renderedLang, resolveLang, setLang, t } from '../i18n';
 import { applyTheme } from '../theme';
 import { ColoursTab, orderedColours, useCopy } from './ColoursTab';
+import { ContrastTab } from './ContrastTab';
+import { SpacingTab } from './SpacingTab';
+import { TypeTab } from './TypeTab';
 
 type State =
   | { kind: 'scanning' }
@@ -120,9 +123,10 @@ export function App({ onExport = () => {} }: AppProps) {
             label={t('tabs.label')}
             onChange={setTab}
           >
-            {tab === 'colours'
-              ? <ColoursTab colours={tokens.colours} />
-              : <EmptyState icon="layers" title={t(`tabs.${tab}`)} body={t('tabs.comingSoon')} />}
+            {tab === 'colours' && <ColoursTab colours={tokens.colours} />}
+            {tab === 'type' && <TypeTab fonts={tokens.fonts} type={tokens.type} />}
+            {tab === 'spacing' && <SpacingTab spacing={tokens.spacing} radius={tokens.radius} shadows={tokens.shadows} />}
+            {tab === 'contrast' && <ContrastTab contrast={tokens.contrast} pro={settings.pro} />}
           </Tabs>
           <footer class="footer">
             <button

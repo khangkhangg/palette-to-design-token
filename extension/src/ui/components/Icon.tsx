@@ -44,6 +44,8 @@ const PATHS = {
       <path d="m2 17 10 5 10-5M2 12l10 5 10-5" />
     </>
   ),
+  wand: <path d="m15 4-1 4 4-1M4 20 14.5 9.5M18 8l2-2M18 14l2 1M10 6 9 4" />,
+  arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
 } satisfies Record<string, JSX.Element>;
 
 export type IconName = keyof typeof PATHS;

@@ -25,8 +25,7 @@
     "colours": "Colours",
     "type": "Type",
     "spacing": "Spacing",
-    "contrast": "Contrast",
-    "comingSoon": "This section fills in once the page is analysed in depth."
+    "contrast": "Contrast"
   },
   "roles": {
     "primary": "Primary",
@@ -53,5 +52,71 @@
     "failedTitle": "Couldn't scan this page",
     "failedBody": "Something went wrong while reading the page. Reload it, then retry.",
     "retry": "Retry"
+  },
+  "type": {
+    "fonts": "Fonts",
+    "scale": "Scale",
+    "empty": "No type styles found",
+    "emptyBody": "This page has no readable text styles.",
+    "fontRole": {
+      "body": "Body",
+      "heading": "Heading",
+      "mono": "Mono"
+    },
+    "sampleName": {
+      "display": "Display",
+      "h1": "Heading 1",
+      "h2": "Heading 2",
+      "h3": "Heading 3",
+      "h4": "Heading 4",
+      "body": "Body text",
+      "small": "Small text",
+      "caption": "Caption",
+      "xs": "Extra small"
+    },
+    "sample": "Aa {name}",
+    "meta": "{family} {weight} · {size}/{lineHeight}"
+  },
+  "spacing": {
+    "scale": "Spacing scale",
+    "radius": "Radius",
+    "shadow": "Shadow",
+    "base": "{n}px base",
+    "noBase": "No consistent base",
+    "empty": "No spacing found",
+    "emptyBody": "This page has no spacing, radius or shadow values to show.",
+    "px": "{n}px",
+    "full": "Full"
+  },
+  "contrast": {
+    "pass": "pass WCAG AA",
+    "fail": "fail, fix them",
+    "unknown": "need a manual check",
+    "empty": "No colour pairs found",
+    "emptyBody": "No text and background pairs could be read on this page.",
+    "uses": "{n} uses",
+    "imageOrGradient": "image or gradient",
+    "where": {
+      "body text": "Body text",
+      "headings": "Headings",
+      "links": "Links",
+      "buttons": "Buttons",
+      "other": "Other"
+    },
+    "grade": {
+      "AAA": "AAA",
+      "AA": "AA",
+      "AA-large": "AA large",
+      "fail": "Fails",
+      "unknown": "Check manually"
+    },
+    "ratio": "{ratio}:1",
+    "fixTitle": "Suggested fix for {where}",
+    "fixLocked": "Unlock to see the fix",
+    "unlock": "Unlock",
+    "before": "Before",
+    "after": "After",
+    "sampleButton": "Sample",
+    "fixedRatio": "Fixed ratio {ratio}:1"
   }
 }
