@@ -55,7 +55,7 @@ describe('store listings', () => {
     it(`listing.${loc}.md: short description equals appDesc, with privacy URL and refund line`, () => {
       const md = readFileSync(resolve(docs, `listing.${loc}.md`), 'utf8');
       const desc = JSON.parse(readFileSync(resolve(pub, '_locales', loc, 'messages.json'), 'utf8')).appDesc.message;
-      const short = md.split(/^## .*\n/m)[2].trim();
+      const short = md.split(/^## .*\r?\n/m)[2].trim();
       expect(short).toBe(desc);
       expect(md).toContain('https://vietnamcos.com/palette/privacy');
       expect(md).toContain('1.49'.replace('.', loc === 'es' || loc === 'fr' ? ',' : '.'));
