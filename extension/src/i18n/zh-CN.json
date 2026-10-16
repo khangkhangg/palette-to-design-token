@@ -46,7 +46,7 @@
     "exportTokens": "导出 Token",
     "pro": "PRO",
     "restrictedTitle": "无法扫描此页面",
-    "restrictedBody": "浏览器内置页面和 Chrome 应用商店会阻止扩展程序。请打开普通网站后重试。",
+    "restrictedBody": "浏览器内置页面和 Chrome 网上应用店会阻止扩展程序。请打开普通网站后重试。",
     "noAccess": "在此页面上点击 Site to Design Token 图标即可扫描。",
     "failedTitle": "页面扫描失败",
     "failedBody": "读取页面时出了问题。请刷新页面后重试。",

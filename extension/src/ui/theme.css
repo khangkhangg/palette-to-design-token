@@ -443,7 +443,7 @@ body.sidepanel, body.sidepanel #app { block-size: 100vh; }
 .ex-btn:disabled { cursor: default; color: var(--muted); border-color: var(--line); }
 .ex-btn-primary { flex: 1.4; border: 0; background: var(--accent); color: var(--on-accent); }
 .ex-btn-primary:hover { background: var(--accent-hover); }
-.ex-btn-label { min-inline-size: 0; overflow: hidden; overflow-wrap: anywhere; line-height: 1.25; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.ex-btn-label { min-inline-size: 0; overflow: hidden; overflow-wrap: break-word; line-height: 1.25; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .ex-btn .icon { flex-shrink: 0; }
 
 /* Unlock sheet (overlay and full-panel) */

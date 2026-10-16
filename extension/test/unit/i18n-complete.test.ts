@@ -42,6 +42,16 @@ describe.each(LANGS)('%s dictionary', (lang) => {
   const raw = load(lang);
   const dict = raw ? flatten(raw) : {};
   const categories = new Intl.PluralRules(lang).resolvedOptions().pluralCategories as string[];
+  /** Categories that only one count (of 0–10 000) selects, e.g. Arabic zero, one and two. */
+  const rules = new Intl.PluralRules(lang);
+  const hits = new Map<string, number>();
+  for (let n = 0; n <= 10_000; n++) hits.set(rules.select(n), (hits.get(rules.select(n)) ?? 0) + 1);
+  const singleNumber = new Set(categories.filter((c) => hits.get(c) === 1));
+
+  it('knows which categories cover a single number', () => {
+    const want: Record<string, string[]> = { ar: ['one', 'two', 'zero'], es: ['one'] };
+    expect([...singleNumber].sort()).toEqual(want[lang] ?? []);
+  });
 
   it('exists', () => {
     expect(raw, `src/i18n/${lang}.json`).toBeDefined();
@@ -65,8 +75,9 @@ describe.each(LANGS)('%s dictionary', (lang) => {
       expect(placeholders(dict[`${base}_other`] ?? ''), `${lang} ${base}_other`).toEqual(want);
       for (const c of categories) {
         const got = placeholders(dict[`${base}_${c}`] ?? '');
-        // A form for one exact number (Arabic zero/one/two: "لونان") may spell the number out instead of {n}.
-        expect(got.every((p) => want.includes(p)), `${lang} ${base}_${c}`).toBe(true);
+        // Only a category that covers a single number (Arabic zero/one/two: "لونان") may spell it out instead of {n}.
+        const expected = singleNumber.has(c) ? got.filter((p) => want.includes(p)) : want;
+        expect(got, `${lang} ${base}_${c}`).toEqual(expected);
       }
     }
   });
@@ -123,5 +134,19 @@ describe('fonts', () => {
       `--font-ui: 'Geist', 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans Bengali', 'Noto Sans Devanagari', 'Noto Sans SC', system-ui, sans-serif;`,
     );
     expect(css).not.toMatch(/@font-face\s*{[^}]*Noto/);
+  });
+});
+
+describe('source hygiene', () => {
+  it('writes bidi controls and RTL ranges as escapes, never as raw invisible characters', () => {
+    const RAW = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/;
+    const files = ['src/ui/i18n.ts', 'test/unit/i18n.test.ts', 'test/unit/i18n-complete.test.ts', 'test/e2e/extension.spec.ts'];
+    for (const f of files) {
+      const text = readFileSync(resolve(import.meta.dirname, '../..', f), 'utf8');
+      expect(RAW.test(text), f).toBe(false);
+    }
+    for (const lang of ['en', ...LANGS]) {
+      expect(RAW.test(readFileSync(resolve(DIR, `${lang}.json`), 'utf8')), `${lang}.json`).toBe(false);
+    }
   });
 });

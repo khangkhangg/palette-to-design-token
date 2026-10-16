@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { addDictionary, AVAILABLE_LANGS, plural, renderedLang, resolveLang, setLang, t } from '../../src/ui/i18n';
+import { addDictionary, AVAILABLE_LANGS, formatDateTime, plural, renderedLang, resolveLang, setLang, t } from '../../src/ui/i18n';
 
 afterEach(() => setLang('en'));
 
@@ -61,7 +61,7 @@ describe('setLang', () => {
   });
 });
 
-// Runs last: the injected dictionaries stay registered for the rest of this file.
+// These register a test-only 'ru' dictionary, which stays registered for the rest of this file; later tests do not use it.
 describe('partial dictionaries', () => {
   it('fall back to English for a missing key', () => {
     addDictionary('ru', { popup: { copyHexList: 'Копировать' } });
@@ -85,9 +85,9 @@ describe('partial dictionaries', () => {
 });
 
 describe('bidi isolation', () => {
-  const LRI = '⁦';
-  const RLI = '⁧';
-  const PDI = '⁩';
+  const LRI = '\u2066';
+  const RLI = '\u2067';
+  const PDI = '\u2069';
 
   it('isolates interpolated left-to-right values in Arabic so "#F4F1EA" keeps its # on the left', () => {
     setLang('ar');
@@ -112,5 +112,18 @@ describe('bidi isolation', () => {
   it('leaves left-to-right languages untouched', () => {
     setLang('fr');
     expect(t('contrast.pairColours', { fg: '#5B6470', bg: '#F4F1EA' })).toBe('#5B6470 sur #F4F1EA');
+  });
+});
+
+describe('formatDateTime', () => {
+  const EASTERN_DIGITS = /[٠-٩۰-۹०-९০-৯]/;
+  it.each(['bn', 'ar', 'hi', 'zh-CN', 'fr', 'es', 'en'])('writes %s dates with Western digits', (lang) => {
+    setLang(lang);
+    const s = formatDateTime('2026-10-16T09:05:00Z');
+    expect(s).toMatch(/2026/);
+    expect(EASTERN_DIGITS.test(s), s).toBe(false);
+  });
+  it('returns an empty string for an invalid date', () => {
+    expect(formatDateTime('nope')).toBe('');
   });
 });

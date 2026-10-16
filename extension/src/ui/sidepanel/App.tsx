@@ -5,7 +5,7 @@ import { recheckIfDue } from '../../license';
 import { getSettings, listScans, onSettingsChange, saveScan, type Settings } from '../../store';
 import { EmptyState } from '../components/EmptyState';
 import { Icon } from '../components/Icon';
-import { renderedLang, resolveLang, setLang, t } from '../i18n';
+import { formatDateTime, resolveLang, setLang, t } from '../i18n';
 import { applyTheme } from '../theme';
 import { viewFromSearch, type PanelView } from './open';
 import { UnlockSheet } from '../components/UnlockSheet';
@@ -34,12 +34,6 @@ const NOTE_KEY: Record<ShownScanError, string> = {
   'no-access': 'popup.noAccess',
   failed: 'popup.failedTitle',
 };
-
-function scannedWhen(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return new Intl.DateTimeFormat(renderedLang(), { dateStyle: 'medium', timeStyle: 'short' }).format(d);
-}
 
 export interface AppProps {
   initialView?: PanelView;
@@ -106,7 +100,7 @@ export function App({ initialView = viewFromSearch(location.search) }: AppProps)
           <span class="header-name">{t('panel.title')}</span>
           {tokens && (
             <span class="header-sub">
-              {t('panel.scanned', { site: tokens.site, when: scannedWhen(tokens.scannedAt) })}
+              {t('panel.scanned', { site: tokens.site, when: formatDateTime(tokens.scannedAt) })}
             </span>
           )}
         </div>

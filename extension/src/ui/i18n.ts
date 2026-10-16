@@ -48,7 +48,7 @@ function lookup(dict: Dict | undefined, key: string): string | undefined {
   return typeof node === 'string' ? node : undefined;
 }
 
-const RTL_CHAR = /[֐-ࣿיִ-﷿ﹰ-﻿]/;
+const RTL_CHAR = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
 const LETTER = /\p{L}/u;
 
 /**
@@ -58,7 +58,7 @@ const LETTER = /\p{L}/u;
  */
 function isolate(v: string): string {
   if (!RTL.has(rendered) || !LETTER.test(v)) return v;
-  return `${RTL_CHAR.test(v) ? '⁧' : '⁦'}${v}⁩`;
+  return `${RTL_CHAR.test(v) ? '\u2067' : '\u2066'}${v}\u2069`;
 }
 
 export function t(key: string, vars?: Record<string, string | number>): string {
@@ -76,6 +76,16 @@ export function plural(key: string, n: number): string {
   const form = `${key}_${new Intl.PluralRules(lang).select(n)}`;
   const s = lookup(DICTS[lang], form) ?? lookup(DICTS[lang], `${key}_other`) ?? `${key}_other`;
   return s.replace(/\{n\}/g, String(n));
+}
+
+/**
+ * Formats an ISO date and time in the rendered language, always with Western digits (Bengali and Arabic would
+ * otherwise get their native digits). Returns "" for an invalid date.
+ */
+export function formatDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat(rendered, { dateStyle: 'medium', timeStyle: 'short', numberingSystem: 'latn' }).format(d);
 }
 
 /** Renders `lang` if its dictionary is loaded, else English; sets <html lang/dir> to match. */

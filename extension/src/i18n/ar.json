@@ -37,7 +37,7 @@
   "roles": {
     "primary": "الأساسي",
     "accent": "المميِّز",
-    "surface": "الأسطح",
+    "surface": "السطح",
     "text": "النص",
     "border": "الحدود",
     "other": "أخرى"
@@ -149,7 +149,7 @@
     "viewOnly": "للعرض فقط",
     "colours": "الألوان",
     "colourRoles": "أدوار الألوان",
-    "typography": "الطباعة",
+    "typography": "الخطوط",
     "spacing": "المسافات",
     "radius": "استدارة الزوايا",
     "shadows": "الظلال",
@@ -202,7 +202,7 @@
     },
     "parts": {
       "colours": "الألوان",
-      "typography": "الطباعة",
+      "typography": "الخطوط",
       "spacing": "المسافات",
       "radius": "استدارة الزوايا",
       "shadows": "الظلال"
