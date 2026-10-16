@@ -43,6 +43,14 @@ describe('background', () => {
     await vi.waitFor(() => expect(respond).toHaveBeenCalledWith({ ok: false, reason: 'revoked' }));
   });
 
+  it('answers network when activation itself rejects', async () => {
+    activate.mockRejectedValue(new Error('storage quota'));
+    const { listener } = await boot();
+    const respond = vi.fn();
+    expect(listener({ type: 'license', key: 'SDT-ABCD-2345-6789' }, { url: 'https://vietnamcos.com/palette/checkout' }, respond)).toBe(true);
+    await vi.waitFor(() => expect(respond).toHaveBeenCalledWith({ ok: false, reason: 'network' }));
+  });
+
   it('ignores other senders and malformed messages', async () => {
     const { listener } = await boot();
     const respond = vi.fn();

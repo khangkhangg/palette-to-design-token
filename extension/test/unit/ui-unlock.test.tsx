@@ -35,7 +35,7 @@ describe('UnlockSheet licensing', () => {
   it('links to the lost-key form on the checkout page', () => {
     render(<UnlockSheet variant="overlay" onClose={() => {}} />);
     const a = screen.getByRole('link', { name: 'Lost your key?' }) as HTMLAnchorElement;
-    expect(a.href).toBe('https://vietnamcos.com/palette/checkout?lang=en#lost');
+    expect(a.href).toBe('https://vietnamcos.com/palette/checkout?lang=en#resend');
   });
 
   it('Activate is disabled until a key is typed', () => {
@@ -49,6 +49,7 @@ describe('UnlockSheet licensing', () => {
     ['invalid', "That key isn't valid."],
     ['revoked', 'This key was refunded and no longer works.'],
     ['network', "Couldn't reach the server — try again."],
+    ['rate_limited', 'Too many attempts — wait a minute and try again.'],
   ])('shows the %s message and keeps the sheet open', async (reason, message) => {
     mocks.activate.mockResolvedValue({ ok: false, reason });
     const onClose = vi.fn();

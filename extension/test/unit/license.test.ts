@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { activate, checkoutUrl, recheckIfDue } from '../../src/license';
+import { activate, checkoutUrl, lostKeyUrl, recheckIfDue } from '../../src/license';
 import { getSettings, setSettings } from '../../src/store';
 import { installFakeChrome, uninstallFakeChrome } from './fake-chrome';
 
@@ -9,6 +9,7 @@ let data: Record<string, unknown>;
 const fetchMock = vi.fn();
 
 const reply = (status: number, body: unknown) => Promise.resolve({ status, json: async () => body } as Response);
+const notJson = () => Promise.resolve({ status: 200, json: async () => { throw new SyntaxError('Unexpected token <'); } } as unknown as Response);
 const lic = (verifiedAt: string) => ({ key: KEY, verifiedAt, emailMasked: 'a***@x.com' });
 
 beforeEach(() => {
@@ -34,6 +35,23 @@ describe('activate', () => {
     fetchMock.mockReturnValue(reply(200, { ok: true, valid: true, revoked: false, email_masked: null }));
     await activate('SDT-ABCD-23O5-6I89');
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ key: 'SDT-ABCD-2305-6189' });
+  });
+  it('accepts keys typed with spaces or without dashes, like the server', async () => {
+    fetchMock.mockImplementation(() => reply(200, { ok: true, valid: true, revoked: false, email_masked: null }));
+    expect(await activate('SDT ABCD 2345 6789')).toEqual({ ok: true });
+    expect(await activate('sdtabcd23456789')).toEqual({ ok: true });
+    expect(await activate('sdt_abcd.23o5/6i8l')).toEqual({ ok: true });
+    expect(fetchMock.mock.calls.map((c) => JSON.parse(c[1].body).key)).toEqual([KEY, KEY, 'SDT-ABCD-2305-6181']);
+  });
+  it('treats a 200 without a clear verdict as a network failure, not an invalid key', async () => {
+    fetchMock.mockReturnValueOnce(reply(200, {}));
+    expect(await activate(KEY)).toEqual({ ok: false, reason: 'network' });
+    fetchMock.mockReturnValueOnce(reply(200, { ok: false }));
+    expect(await activate(KEY)).toEqual({ ok: false, reason: 'network' });
+    fetchMock.mockReturnValueOnce(reply(200, { revoked: true }));
+    expect(await activate(KEY)).toEqual({ ok: false, reason: 'network' });
+    fetchMock.mockReturnValueOnce(notJson());
+    expect(await activate(KEY)).toEqual({ ok: false, reason: 'network' });
   });
   it('rejects malformed keys locally without a network call', async () => {
     expect(await activate('nonsense')).toEqual({ ok: false, reason: 'invalid' });
@@ -104,6 +122,39 @@ describe('recheckIfDue', () => {
     await recheckIfDue(now);
     expect((await getSettings()).pro).toBe(false);
   });
+  it.each([
+    ['an empty 200', () => reply(200, {})],
+    ['a 200 with ok:false', () => reply(200, { ok: false })],
+    ['a 200 with valid:false but no ok', () => reply(200, { valid: false, revoked: false })],
+    ['a non-JSON 200', notJson],
+    ['a 500', () => reply(500, { ok: false })],
+    ['a 503', () => reply(503, {})],
+    ['a 302', () => reply(302, {})],
+  ])('%s keeps Pro and the licence', async (_label, res) => {
+    data.license = lic(ago(31));
+    await setSettings({ pro: true });
+    fetchMock.mockReturnValueOnce(res());
+    await recheckIfDue(now);
+    expect(data.license).toEqual(lic(ago(31)));
+    expect((await getSettings()).pro).toBe(true);
+  });
+  it('an unparseable verifiedAt is due once, then rewritten so it does not recheck on every open', async () => {
+    data.license = lic('not a date');
+    await setSettings({ pro: true });
+    fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+    await recheckIfDue(now);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect((data.license as any).verifiedAt).toBe(now.toISOString());
+    expect((await getSettings()).pro).toBe(true);
+    await recheckIfDue(now);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it('an unparseable verifiedAt with a valid answer is rewritten to now', async () => {
+    data.license = lic('');
+    fetchMock.mockReturnValue(reply(200, { ok: true, valid: true, revoked: false, email_masked: 'a***@x.com' }));
+    await recheckIfDue(now);
+    expect((data.license as any).verifiedAt).toBe(now.toISOString());
+  });
   it('a network error or rate limit keeps Pro and the licence', async () => {
     data.license = lic(ago(31));
     await setSettings({ pro: true });
@@ -119,5 +170,11 @@ describe('recheckIfDue', () => {
 describe('checkoutUrl', () => {
   it('carries the language and this extension id', () => {
     expect(checkoutUrl('fr')).toBe('https://vietnamcos.com/palette/checkout?lang=fr&ext=abcdefghijklmnopabcdefghijklmnop');
+  });
+});
+
+describe('lostKeyUrl', () => {
+  it('points at the resend form on the checkout page', () => {
+    expect(lostKeyUrl('fr')).toBe('https://vietnamcos.com/palette/checkout?lang=fr#resend');
   });
 });

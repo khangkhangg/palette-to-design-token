@@ -11,9 +11,16 @@ const RECHECK_MS = 30 * 24 * 60 * 60 * 1000;
 const TIMEOUT_MS = 10_000;
 const KEY_SHAPE = /^SDT-[0-9A-HJKMNP-TV-Z]{4}(-[0-9A-HJKMNP-TV-Z]{4}){2}$/;
 
-/** Trims, uppercases and applies the Crockford look-alike mapping (O to 0, I/L to 1). */
+/**
+ * Same rule as the server's palette_normalise_key: keep letters and digits only, uppercase,
+ * map Crockford look-alikes (O to 0, I/L to 1) and, when that leaves SDT plus 12 characters,
+ * re-insert the dashes — so "SDT ABCD 2345 6789" and "sdtabcd23456789" both work.
+ */
 function normalise(raw: string): string {
-  return raw.trim().toUpperCase().replace(/O/g, '0').replace(/[IL]/g, '1');
+  const s = raw.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  if (s.length !== 15 || !s.startsWith('SDT')) return s;
+  const body = s.slice(3).replace(/O/g, '0').replace(/[IL]/g, '1');
+  return `SDT-${body.slice(0, 4)}-${body.slice(4, 8)}-${body.slice(8)}`;
 }
 
 type Verdict =
@@ -32,10 +39,14 @@ async function verify(key: string): Promise<Verdict> {
     });
     if (res.status === 429) return { kind: 'rate_limited' };
     if (res.status !== 200) return { kind: 'network' };
-    const body = (await res.json()) as { ok?: boolean; valid?: boolean; revoked?: boolean; email_masked?: string | null };
-    if (body.revoked) return { kind: 'revoked' };
-    if (body.ok && body.valid) return { kind: 'valid', emailMasked: body.email_masked ?? null };
-    return { kind: 'invalid' };
+    const body = (await res.json()) as { ok?: unknown; valid?: unknown; revoked?: unknown; email_masked?: unknown } | null;
+    // Only an explicit verdict from our API counts. Anything else on a 200 (a proxy's {},
+    // {"ok":false}, an HTML page) is a network failure, so a re-check never drops Pro on it.
+    if (body?.ok !== true) return { kind: 'network' };
+    if (body.revoked === true) return { kind: 'revoked' };
+    if (body.valid === true) return { kind: 'valid', emailMasked: typeof body.email_masked === 'string' ? body.email_masked : null };
+    if (body.valid === false) return { kind: 'invalid' };
+    return { kind: 'network' };
   } catch {
     return { kind: 'network' };
   } finally {
@@ -66,7 +77,8 @@ export async function recheckIfDue(now: Date = new Date()): Promise<void> {
   const lic = await readLicense();
   if (!lic) return;
   const age = now.getTime() - new Date(lic.verifiedAt).getTime();
-  if (age <= RECHECK_MS) return;
+  const unparseable = Number.isNaN(age);
+  if (!unparseable && age <= RECHECK_MS) return;
   const v = await verify(lic.key);
   if (v.kind === 'valid') {
     await chrome.storage.local.set({ [LICENSE_KEY]: { ...lic, verifiedAt: now.toISOString(), emailMasked: v.emailMasked ?? lic.emailMasked } });
@@ -74,6 +86,9 @@ export async function recheckIfDue(now: Date = new Date()): Promise<void> {
   } else if (v.kind === 'invalid' || v.kind === 'revoked') {
     await chrome.storage.local.remove(LICENSE_KEY);
     await setSettings({ pro: false });
+  } else if (unparseable) {
+    // Due once; rewrite the date so a failed check doesn't repeat on every open.
+    await chrome.storage.local.set({ [LICENSE_KEY]: { ...lic, verifiedAt: now.toISOString() } });
   }
 }
 
@@ -82,5 +97,5 @@ export function checkoutUrl(lang: string): string {
 }
 
 export function lostKeyUrl(lang: string): string {
-  return `${API_BASE}/checkout?lang=${encodeURIComponent(lang)}#lost`;
+  return `${API_BASE}/checkout?lang=${encodeURIComponent(lang)}#resend`;
 }
