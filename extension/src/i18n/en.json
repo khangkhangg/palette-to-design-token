@@ -1,0 +1,53 @@
+{
+  "app": {
+    "name": "Site to Design Token"
+  },
+  "header": {
+    "subtitle": "{site} · {counts}",
+    "counts": "{colours} colours · {fonts} fonts",
+    "rescan": "Re-scan page",
+    "settings": "Settings"
+  },
+  "settings": {
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "language": "Language",
+    "langEn": "English"
+  },
+  "tabs": {
+    "label": "Sections",
+    "colours": "Colours",
+    "type": "Type",
+    "spacing": "Spacing",
+    "contrast": "Contrast",
+    "comingSoon": "This section fills in once the page is analysed in depth."
+  },
+  "roles": {
+    "primary": "Primary",
+    "accent": "Accent",
+    "surface": "Surface",
+    "text": "Text",
+    "border": "Border",
+    "other": "Other"
+  },
+  "colours": {
+    "copy": "Copy {hex}, {share} of colour use",
+    "copied": "Copied",
+    "lessThanOne": "<1%",
+    "foundLittle": "This site uses few brand colours, so there is no clear primary or accent. Here is everything we found.",
+    "none": "No colours found on this page."
+  },
+  "popup": {
+    "scanning": "Scanning page…",
+    "copyHexList": "Copy hex list",
+    "exportTokens": "Export tokens",
+    "pro": "PRO",
+    "restrictedTitle": "This page can't be scanned",
+    "restrictedBody": "Browser pages and the Chrome Web Store block extensions. Open a regular website and try again.",
+    "failedTitle": "Couldn't scan this page",
+    "failedBody": "Something went wrong while reading the page. Reload it, then retry.",
+    "retry": "Retry"
+  }
+}
