@@ -10,6 +10,8 @@ import { App } from '../../src/ui/popup/App';
 const mocks = vi.hoisted(() => ({
   scanActiveTab: vi.fn(),
   recheckIfDue: vi.fn(),
+  currentLicense: vi.fn(),
+  removeLicense: vi.fn(),
   setSettings: vi.fn(),
   saveScan: vi.fn(),
   settings: { theme: 'system', lang: '', pro: false } as Settings,
@@ -20,7 +22,11 @@ vi.mock('../../src/scan', async (importOriginal) => ({
   scanActiveTab: mocks.scanActiveTab,
 }));
 
-vi.mock('../../src/license', () => ({ recheckIfDue: mocks.recheckIfDue }));
+vi.mock('../../src/license', () => ({
+  recheckIfDue: mocks.recheckIfDue,
+  currentLicense: mocks.currentLicense,
+  removeLicense: mocks.removeLicense,
+}));
 
 vi.mock('../../src/store', () => ({
   getSettings: async () => mocks.settings,
@@ -52,6 +58,8 @@ beforeEach(() => {
   mocks.settings = { theme: 'system', lang: '', pro: false };
   mocks.scanActiveTab.mockReset();
   mocks.recheckIfDue.mockReset().mockResolvedValue(undefined);
+  mocks.currentLicense.mockReset().mockResolvedValue(null);
+  mocks.removeLicense.mockReset().mockResolvedValue(undefined);
   mocks.setSettings.mockReset().mockResolvedValue(undefined);
   mocks.saveScan.mockReset().mockResolvedValue(undefined);
   writeText.mockClear();
@@ -215,5 +223,90 @@ describe('popup App', () => {
     expect(type.getAttribute('aria-selected')).toBe('true');
     expect(document.activeElement).toBe(type);
     expect(screen.queryByText('#1F5E4B')).toBeNull();
+  });
+
+  describe('licence in the settings menu', () => {
+    const openMenu = async () => fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+
+    it('offers Enter license key to free users, with no Pro status', async () => {
+      mocks.scanActiveTab.mockResolvedValue(brewline());
+      render(<App />);
+      await openMenu();
+      expect(screen.getByRole('button', { name: 'Enter license key' })).toBeTruthy();
+      expect(screen.queryByText(/Pro active/)).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Remove key from this browser' })).toBeNull();
+    });
+
+    it('shows Pro active with the last 4 characters of the key, not the whole key', async () => {
+      mocks.settings = { ...mocks.settings, pro: true };
+      mocks.currentLicense.mockResolvedValue({ key: 'SDT-ABCD-2345-6789', verifiedAt: '2026-10-01T00:00:00.000Z', emailMasked: null });
+      mocks.scanActiveTab.mockResolvedValue(brewline());
+      render(<App />);
+      await openMenu();
+      expect((await screen.findByText(/Pro active/)).textContent).toBe('Pro active · SDT-…-6789');
+      expect(document.body.textContent).not.toContain('ABCD');
+      expect(screen.queryByRole('button', { name: 'Enter license key' })).toBeNull();
+    });
+
+    it('removes the key only after an in-menu confirm (no window.confirm), and Cancel keeps it', async () => {
+      const confirmSpy = vi.spyOn(window, 'confirm');
+      mocks.settings = { ...mocks.settings, pro: true };
+      mocks.currentLicense.mockResolvedValue({ key: 'SDT-ABCD-2345-6789', verifiedAt: '2026-10-01T00:00:00.000Z', emailMasked: null });
+      mocks.scanActiveTab.mockResolvedValue(brewline());
+      render(<App />);
+      await openMenu();
+      fireEvent.click(await screen.findByRole('button', { name: 'Remove key from this browser' }));
+      expect(screen.getByText('Remove the key? Pro turns off in this browser until you enter it again.')).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(mocks.removeLicense).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole('button', { name: 'Remove key from this browser' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Remove key' }));
+      await waitFor(() => expect(mocks.removeLicense).toHaveBeenCalledTimes(1));
+      expect(await screen.findByRole('button', { name: 'Enter license key' })).toBeTruthy();
+      expect(screen.queryByText(/Pro active/)).toBeNull();
+      expect(confirmSpy).not.toHaveBeenCalled();
+      confirmSpy.mockRestore();
+    });
+
+    const proWithKey = () => {
+      mocks.settings = { ...mocks.settings, pro: true };
+      mocks.currentLicense.mockResolvedValue({ key: 'SDT-ABCD-2345-6789', verifiedAt: '2026-10-01T00:00:00.000Z', emailMasked: null });
+      mocks.scanActiveTab.mockResolvedValue(brewline());
+    };
+
+    it('shows the masked key left-to-right inside a bdi', async () => {
+      proWithKey();
+      render(<App />);
+      await openMenu();
+      const status = await screen.findByText(/Pro active/);
+      const bdi = status.querySelector('bdi');
+      expect(bdi?.getAttribute('dir')).toBe('ltr');
+      expect(bdi?.textContent).toBe('SDT-…-6789');
+    });
+
+    it('moves focus into the confirm step, and back to the remove button on Cancel', async () => {
+      proWithKey();
+      render(<App />);
+      await openMenu();
+      fireEvent.click(await screen.findByRole('button', { name: 'Remove key from this browser' }));
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' })));
+      expect(screen.getByRole('group', { name: 'Remove key from this browser' }).contains(document.activeElement)).toBe(true);
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Remove key from this browser' })));
+    });
+
+    it('restores Pro and says so when removing the key fails', async () => {
+      const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+      proWithKey();
+      mocks.removeLicense.mockRejectedValue(new Error('storage'));
+      render(<App />);
+      await openMenu();
+      fireEvent.click(await screen.findByRole('button', { name: 'Remove key from this browser' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Remove key' }));
+      expect((await screen.findByRole('status')).textContent).toContain("Couldn't remove the key — try again");
+      expect(await screen.findByText(/Pro active/)).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Enter license key' })).toBeNull();
+      err.mockRestore();
+    });
   });
 });

@@ -1,0 +1,4 @@
+# The direct-download zip is uploaded here at deploy (npm run package:direct); never commit it.
+*
+!.gitignore
+!.gitkeep

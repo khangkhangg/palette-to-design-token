@@ -89,7 +89,7 @@ export function App({ initialView = viewFromSearch(location.search) }: AppProps)
   if (view === 'unlock') return <UnlockSheet variant="page" onClose={() => setView('system')} onUnlocked={() => setView(tokens ? 'export' : 'system')} />;
 
   if (view === 'export' && tokens) {
-    return <ExportScreen tokens={tokens} pro={settings.pro} onBack={() => setView('system')} />;
+    return <ExportScreen tokens={tokens} pro={settings.pro} onBack={() => setView('system')} onHaveKey={() => setView('unlock')} />;
   }
 
   return (
@@ -104,6 +104,9 @@ export function App({ initialView = viewFromSearch(location.search) }: AppProps)
             </span>
           )}
         </div>
+        {!settings.pro && (
+          <button type="button" class="link-btn" onClick={() => setView('unlock')}>{t('panel.haveKey')}</button>
+        )}
         {!settings.pro && <span class="sp-badge">{t('panel.viewOnly')}</span>}
         <button type="button" class="icon-btn" aria-label={t('header.rescan')} disabled={busy} onClick={scan}>
           <span class={busy ? 'spin' : undefined}><Icon name="rescan" /></span>

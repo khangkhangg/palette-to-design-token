@@ -73,6 +73,34 @@
     });
   });
 
+  // ---- scroll regions: a [data-scroll-label] wrapper that overflows becomes a focusable, labelled region
+  // so keyboard users can scroll it; when everything fits it stays a plain wrapper.
+  function markScrollRegions() {
+    document.querySelectorAll('[data-scroll-label]').forEach(function (el) {
+      if (el.scrollWidth > el.clientWidth + 1) {
+        el.setAttribute('tabindex', '0');
+        el.setAttribute('role', 'region');
+        el.setAttribute('aria-label', el.getAttribute('data-scroll-label'));
+      } else {
+        el.removeAttribute('tabindex');
+        el.removeAttribute('role');
+        el.removeAttribute('aria-label');
+      }
+    });
+  }
+  markScrollRegions();
+  // Widths change after layout settles (webfonts, images) and with the viewport: re-check on each.
+  window.addEventListener('resize', markScrollRegions);
+  window.addEventListener('load', markScrollRegions);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(markScrollRegions);
+  if (window.ResizeObserver) {
+    var ro = new ResizeObserver(markScrollRegions);
+    document.querySelectorAll('[data-scroll-label]').forEach(function (el) {
+      ro.observe(el);
+      if (el.firstElementChild) ro.observe(el.firstElementChild);
+    });
+  }
+
   // ---- copy buttons: [data-copy="text"] or [data-copy-from="element id"]
   function selectText(el) {
     var range = document.createRange();
@@ -88,7 +116,7 @@
     var src = btn.hasAttribute('data-copy-from') ? $(btn.getAttribute('data-copy-from')) : null;
     var text = src ? src.textContent : btn.getAttribute('data-copy');
     var keyEl = src || btn.parentNode.querySelector('code');
-    var status = $('copy-status');
+    var status = $(btn.getAttribute('data-copy-status') || 'copy-status');
     var label = btn.querySelector('span');
     var write = navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error('no clipboard'));
     write.then(function () {

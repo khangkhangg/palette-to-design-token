@@ -17,7 +17,15 @@
     "themeLight": "লাইট",
     "themeDark": "ডার্ক",
     "themeSystem": "সিস্টেম",
-    "language": "ভাষা"
+    "language": "ভাষা",
+    "enterKey": "লাইসেন্স কী দিন",
+    "proActive": "Pro চালু আছে",
+    "proActiveKey": "Pro চালু আছে · {key}",
+    "removeKey": "এই ব্রাউজার থেকে কী সরান",
+    "removeConfirm": "কী সরাবেন? আবার না দেওয়া পর্যন্ত এই ব্রাউজারে Pro বন্ধ থাকবে।",
+    "removeConfirmYes": "কী সরান",
+    "cancel": "বাতিল",
+    "removeFailed": "কী সরানো যায়নি — আবার চেষ্টা করুন"
   },
   "tabs": {
     "label": "বিভাগ",
@@ -145,7 +153,8 @@
     "exportFormats": "CSS · Tailwind · Figma · JSON · AI-এর জন্য DESIGN.md",
     "back": "ডিজাইন সিস্টেমে ফিরে যান",
     "dismiss": "বন্ধ করুন",
-    "loading": "এই পেজটি পড়া হচ্ছে…"
+    "loading": "এই পেজটি পড়া হচ্ছে…",
+    "haveKey": "কী আছে?"
   },
   "export": {
     "title": "টোকেন এক্সপোর্ট করুন",

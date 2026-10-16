@@ -42,3 +42,9 @@ Pro 版，一次性付费 1.49 美元
 退款
 
 所有销售均为最终交易。由于 Pro 即时解锁且仅需 1.49 美元，购买后我们不提供退款。
+
+## Links
+
+- Homepage URL: https://vietnamcos.com/palette/
+- Privacy policy URL: https://vietnamcos.com/palette/privacy
+- Terms of service URL: https://vietnamcos.com/palette/terms

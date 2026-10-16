@@ -42,3 +42,9 @@ Pro، فتح لمرة واحدة بسعر 1.49 دولار
 الاسترداد
 
 جميع المبيعات نهائية. لأن Pro يُفتح فوراً وسعره 1.49 دولار، لا نقدّم استرداداً للمبلغ بعد الشراء.
+
+## Links
+
+- Homepage URL: https://vietnamcos.com/palette/
+- Privacy policy URL: https://vietnamcos.com/palette/privacy
+- Terms of service URL: https://vietnamcos.com/palette/terms

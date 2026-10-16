@@ -318,3 +318,126 @@ test('account: signed in, the key from the success page is added and listed', as
   await expect(page.locator('#copy-status')).toHaveText('Copied');
   await page.request.get('/__dev/login?user_id=0');
 });
+
+test('product page: free download link, Get Pro jumps to the buy card, install address is copyable', async ({ page, context }) => {
+  await seed(page);
+  await fakePayPal(page);
+  await page.goto('/palette/checkout?lang=en');
+  const download = page.getByRole('link', { name: 'Download the extension (free)' });
+  await expect(download).toHaveAttribute('href', '/palette/download/site-to-design-token-latest.zip');
+  await expect(download).toHaveAttribute('download', '');
+  await expect(page.getByText('Works in Chrome, Edge and Brave. Version 0.1.0.')).toBeVisible();
+  for (const h of ['What it does', 'Free vs Pro', 'Install in 1 minute', 'Already bought Pro?']) {
+    await expect(page.getByRole('heading', { name: h })).toBeVisible();
+  }
+
+  const getPro = page.getByRole('link', { name: 'Get Pro — $1.49' });
+  await expect(getPro).toHaveAttribute('href', '#buy');
+  await getPro.click();
+  await expect(page).toHaveURL(/#buy$/);
+  await expect(page.locator('#buy')).toBeInViewport();
+
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const copy = page.locator('#install [data-copy="chrome://extensions"]');
+  await copy.click();
+  await expect(copy).toHaveText('Copied');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('chrome://extensions');
+  await expect(page.locator('#copy-status')).toHaveText('');
+  await expect(page.locator('#install a[href^="chrome:"]')).toHaveCount(0);
+});
+
+test('product page: the dev router serves a zip put in server/download, and 404s otherwise', async ({ page }) => {
+  const { mkdirSync, rmSync, writeFileSync } = await import('node:fs');
+  const { resolve } = await import('node:path');
+  const dir = resolve(import.meta.dirname, '../../../server/download');
+  const name = `e2e-${Date.now()}.zip`;
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(resolve(dir, name), 'PK-dummy');
+  try {
+    const ok = await page.request.get(`/palette/download/${name}`);
+    expect(ok.status()).toBe(200);
+    expect(ok.headers()['content-type']).toBe('application/zip');
+    expect(await ok.text()).toBe('PK-dummy');
+  } finally {
+    rmSync(resolve(dir, name), { force: true });
+  }
+  expect((await page.request.get('/palette/download/nope-missing.zip')).status()).toBe(404);
+  expect((await page.request.get('/palette/download/..%2Fbootstrap.php')).status()).toBe(404);
+});
+
+test('product page fits a phone in a long-script language and in Arabic', async ({ page }) => {
+  await seed(page);
+  await fakePayPal(page);
+  await page.setViewportSize({ width: 360, height: 780 });
+  for (const lang of ['bn', 'ar']) {
+    await page.goto(`/palette/checkout?lang=${lang}`);
+    await expect(page.locator('#plans table')).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+    expect(overflow, lang).toBe(false);
+  }
+});
+
+test('landing: download, Get Pro to the checkout buy card, screenshots load, terms in the footer', async ({ page }) => {
+  await seed(page);
+  await fakePayPal(page);
+  const res = await page.goto('/palette/?lang=en');
+  expect(res!.headers()['content-security-policy']).toContain("default-src 'self'");
+  await expect(page.getByRole('link', { name: 'Download the extension (free)' })).toHaveAttribute('href', '/palette/download/site-to-design-token-latest.zip');
+  await expect(page.locator('img').first()).toHaveJSProperty('naturalWidth', 1280);
+  const srcs = await page.locator('#shots img').evaluateAll((imgs) => imgs.map((i) => (i as HTMLImageElement).getAttribute('src') ?? ''));
+  expect(srcs).toHaveLength(5);
+  for (const src of srcs) {
+    const r = await page.request.get(src);
+    expect(r.status(), src).toBe(200);
+    expect(r.headers()['content-type']).toBe('image/png');
+  }
+  const terms = page.locator('footer').getByRole('link', { name: 'Terms' });
+  await expect(terms).toHaveAttribute('href', '/palette/terms?lang=en');
+
+  const getPro = page.getByRole('link', { name: 'Get Pro — $1.49' });
+  await expect(getPro).toHaveAttribute('href', '/palette/checkout?lang=en#buy');
+  await getPro.click();
+  await expect(page).toHaveURL('/palette/checkout?lang=en#buy');
+  await expect(page.locator('#buy')).toBeInViewport();
+
+  await page.goto('/palette/terms?lang=en');
+  await expect(page.getByRole('heading', { level: 1, name: 'Terms of sale and use' })).toBeVisible();
+  await expect(page.getByText('Operated by vietnamcos.com', { exact: false })).toBeVisible();
+});
+
+test('landing: Arabic at 360px has no horizontal overflow, FAQ opens', async ({ page }) => {
+  await seed(page);
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto('/palette/?lang=ar');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(overflow).toBe(false);
+  const first = page.locator('#faq details').first();
+  await first.locator('summary').click();
+  await expect(first).toHaveAttribute('open', '');
+});
+
+test('plans table: the wrapper becomes a focusable labelled region only when it overflows', async ({ page }) => {
+  await seed(page);
+  await page.goto('/palette/?lang=en');
+  const wrap = page.locator('#plans .plans-wrap');
+  await expect(wrap).not.toHaveAttribute('tabindex', /.*/);
+  await page.addStyleTag({ content: '.plans { min-inline-size: 2000px; }' });
+  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+  await expect(wrap).toHaveAttribute('tabindex', '0');
+  await expect(wrap).toHaveAttribute('role', 'region');
+  await expect(wrap).toHaveAttribute('aria-label', 'Free vs Pro');
+});
+
+test('landing at 360px: the DESIGN.md sample scrolls and is a keyboard-reachable labelled region', async ({ page }) => {
+  await seed(page);
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto('/palette/?lang=en');
+  const pre = page.locator('#ai pre.md-sample');
+  expect(await pre.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+  await expect(pre).toHaveAttribute('tabindex', '0');
+  await expect(pre).toHaveAttribute('role', 'region');
+  await expect(pre).toHaveAttribute('aria-label', 'Made for AI coding');
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(pre).not.toHaveAttribute('tabindex', /.*/);
+});

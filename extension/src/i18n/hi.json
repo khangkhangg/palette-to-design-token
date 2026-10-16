@@ -17,7 +17,15 @@
     "themeLight": "लाइट",
     "themeDark": "डार्क",
     "themeSystem": "सिस्टम",
-    "language": "भाषा"
+    "language": "भाषा",
+    "enterKey": "लाइसेंस कुंजी डालें",
+    "proActive": "Pro चालू है",
+    "proActiveKey": "Pro चालू है · {key}",
+    "removeKey": "इस ब्राउज़र से कुंजी हटाएँ",
+    "removeConfirm": "कुंजी हटाएँ? जब तक आप इसे फिर से नहीं डालते, इस ब्राउज़र में Pro बंद रहेगा।",
+    "removeConfirmYes": "कुंजी हटाएँ",
+    "cancel": "रद्द करें",
+    "removeFailed": "कुंजी नहीं हटाई जा सकी — फिर से कोशिश करें"
   },
   "tabs": {
     "label": "सेक्शन",
@@ -145,7 +153,8 @@
     "exportFormats": "CSS · Tailwind · Figma · JSON · AI के लिए DESIGN.md",
     "back": "डिज़ाइन सिस्टम पर वापस जाएँ",
     "dismiss": "बंद करें",
-    "loading": "यह पेज पढ़ा जा रहा है…"
+    "loading": "यह पेज पढ़ा जा रहा है…",
+    "haveKey": "कुंजी है?"
   },
   "export": {
     "title": "टोकन एक्सपोर्ट करें",

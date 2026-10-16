@@ -58,16 +58,16 @@ $SSH "cd $DOCROOT && php -r 'require \"config.php\"; require \"includes/function
 
 ## 2. Upload (exclude tests and dev files)
 
-`server/tests/` holds the test suite and `dev-router.php`; `README.md` and `DEPLOY.md` are for developers. None of them go to production.
+`server/tests/` holds the test suite and `dev-router.php`; `README.md` and `DEPLOY.md` are for developers. None of them go to production. `download/*.zip` is excluded so `--delete` never removes the extension zip uploaded in step 7.
 
 ```bash
 # dry run first, read the file list
 rsync -avn --delete \
-  --exclude 'tests/' --exclude 'README.md' --exclude 'DEPLOY.md' --exclude '*.log' --exclude '.git*' \
+  --exclude 'tests/' --exclude 'README.md' --exclude 'DEPLOY.md' --exclude '*.log' --exclude '.git*' --exclude 'download/*.zip' \
   -e "ssh -i ~/.ssh/spo2x_admin" server/ root@100.71.6.80:$DOCROOT/palette/
 # real run once the list looks right
 rsync -av --delete \
-  --exclude 'tests/' --exclude 'README.md' --exclude 'DEPLOY.md' --exclude '*.log' --exclude '.git*' \
+  --exclude 'tests/' --exclude 'README.md' --exclude 'DEPLOY.md' --exclude '*.log' --exclude '.git*' --exclude 'download/*.zip' \
   -e "ssh -i ~/.ssh/spo2x_admin" server/ root@100.71.6.80:$DOCROOT/palette/
 $SSH "chown -R www-data:www-data $DOCROOT/palette && find $DOCROOT/palette -type d -exec chmod 755 {} + && find $DOCROOT/palette -type f -exec chmod 644 {} +"
 ```
@@ -81,7 +81,7 @@ tar -C server --exclude=tests --exclude=README.md --exclude=DEPLOY.md -cf - . | 
 **Verify:**
 
 ```bash
-$SSH "ls -la $DOCROOT/palette"     # api.php account.php assets bootstrap.php checkout.php lib migrate.php privacy.php setup.php webhook.php; NO tests, README.md, DEPLOY.md
+$SSH "ls -la $DOCROOT/palette"     # api.php account.php assets bootstrap.php checkout.php download index.php lib migrate.php privacy.php setup.php terms.php webhook.php; NO tests, README.md, DEPLOY.md
 $SSH "find $DOCROOT/palette \( -name 'dev-router.php' -o -name '*-test.php' \) | wc -l"     # 0
 $SSH "stat -c '%U:%G' $DOCROOT/palette $DOCROOT/palette/api.php"                          # www-data:www-data
 $SSH "grep -rn PALETTE_NO_MAIL $DOCROOT/palette | grep -v lib/mail.php"                   # prints nothing
@@ -103,8 +103,10 @@ $SSH "nano /etc/nginx/sites-enabled/vietnamcos.com"
 Add this single line at server level in the HTTPS `server` block that serves vietnamcos.com (for example right after `root ...;` / `index ...;`, before the first `location`). Add it to the `www.` block too if that is a separate content-serving block:
 
 ```nginx
-rewrite ^/palette/(checkout|account|privacy)$ /palette/$1.php last;
+rewrite ^/palette/(checkout|account|privacy|terms)$ /palette/$1.php last;
 ```
+
+`/palette/` itself (the landing page, `index.php`) needs no rewrite: the vhost's `index index.php` serves it. Check that the `index` directive lists `index.php`.
 
 ```bash
 $SSH "nginx -t && systemctl reload nginx"
@@ -117,6 +119,9 @@ $SSH "nginx -T 2>/dev/null | grep -nE 'rewrite .*/palette/'"     # the rewrite l
 curl -s -o /dev/null -w 'checkout %{http_code}\n' https://vietnamcos.com/palette/checkout     # 200
 curl -s -o /dev/null -w 'account  %{http_code}\n' https://vietnamcos.com/palette/account      # 200
 curl -s -o /dev/null -w 'privacy  %{http_code}\n' https://vietnamcos.com/palette/privacy      # 200
+curl -s -o /dev/null -w 'terms    %{http_code}\n' https://vietnamcos.com/palette/terms        # 200
+curl -s -o /dev/null -w 'landing  %{http_code}\n' https://vietnamcos.com/palette/             # 200
+curl -s -o /dev/null -w 'shot     %{http_code} %{content_type}\n' https://vietnamcos.com/palette/assets/screenshots/1-popup-colours.png   # 200 image/png
 curl -s -D- 'https://vietnamcos.com/palette/api.php?action=config' | sed -n '1p;/content-type/Ip;$p'   # 200, application/json, {"ok":true,...}
 curl -s -o /dev/null -w 'webhook GET %{http_code}\n' https://vietnamcos.com/palette/webhook.php   # anything except 500 (400 or 405 is fine)
 ```
@@ -202,8 +207,12 @@ Sandbox payments cost nothing; on 6a fix and repeat as needed, on 6b close the w
 
 1. Build: `cd extension && npm run build` (output `extension/dist`; production manifest has no `host_permissions`).
 2. Get an extension id, either way:
-   - **Unpacked**: `chrome://extensions` > Developer mode > Load unpacked > `extension/dist`. The id is on the card; it changes if the folder path changes.
-   - **Web Store, unlisted** (recommended, stable id): `npm run package`, upload `extension/site-to-design-token-0.1.0.zip` in the Developer Dashboard with Visibility = Unlisted, save, and copy the item id (that is the extension id).
+   - **Unpacked / direct download**: the production build injects `"key"` from `extension/extension-public-key.txt`, so `extension/dist` and the direct zip always load as **`ldaogkdkcojplcghhpbhdbkdpdmgdcin`**, whatever the folder. Build the download with `npm run package:direct` (`extension/site-to-design-token-<version>-direct.zip`) and upload it to `$DOCROOT/palette/download/` as both `site-to-design-token-<version>.zip` and `site-to-design-token-latest.zip` (the landing and checkout pages link the latest name). Verify:
+
+     ```bash
+     curl -sI https://vietnamcos.com/palette/download/site-to-design-token-latest.zip | grep -iE '^HTTP|^content-type'   # HTTP/2 200, content-type: application/zip
+     ```
+   - **Web Store, unlisted** (store id differs from the direct id; add both): `npm run package` (strips `"key"`, which the Store rejects), upload `extension/site-to-design-token-0.1.0.zip` in the Developer Dashboard with Visibility = Unlisted, save, and copy the item id (that is the extension id).
 3. Add the id to settings (merge, do not overwrite):
 
 ```bash
@@ -230,6 +239,7 @@ curl -si -X OPTIONS -H "Origin: chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 ## 8. Go live
 
+0. **Owner review of `/palette/terms`.** The terms (`terms_*` in `lib/i18n/*.php`) were drafted without a legal entity name, address or governing law; the page says only "Operated by vietnamcos.com". The owner must read and approve them (and add any of those details) before taking real payments.
 1. PayPal must be **live** (companies already sells on it; it changes only if step 6b ran, which restores it). Do not switch modes here: step 1c must print `"mode":"live"` and `"enabled":true`. If it does not, stop and ask the owner: companies' checkout depends on the same settings.
 2. Re-run `https://vietnamcos.com/palette/setup.php` as admin: it must register a **live** webhook (`webhook_mode` = `live`). A mode mismatch is logged on every webhook call until you do.
    - Verify: PayPal developer dashboard > Live app > Webhooks lists the URL with the four events.

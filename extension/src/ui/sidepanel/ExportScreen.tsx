@@ -25,9 +25,11 @@ export interface ExportScreenProps {
   tokens: Tokens;
   pro: boolean;
   onBack(): void;
+  /** Free users: opens the unlock view to enter a key. */
+  onHaveKey?(): void;
 }
 
-export function ExportScreen({ tokens, pro, onBack }: ExportScreenProps) {
+export function ExportScreen({ tokens, pro, onBack, onHaveKey }: ExportScreenProps) {
   const [format, setFormat] = useState<Format>('md');
   const [tailwind, setTailwind] = useState<3 | 4>(4);
   const [on, setOn] = useState<Part[]>(PARTS);
@@ -74,6 +76,9 @@ export function ExportScreen({ tokens, pro, onBack }: ExportScreenProps) {
           <Icon name="back" />
         </button>
         <h1 class="export-title">{t('export.title')}</h1>
+        {!pro && onHaveKey && (
+          <button type="button" class="link-btn" onClick={onHaveKey}>{t('panel.haveKey')}</button>
+        )}
         {pro && (
           <span class="pro-badge">
             <Icon name="check" size={12} />

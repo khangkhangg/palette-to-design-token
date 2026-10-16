@@ -54,3 +54,9 @@ Extract a website's colours, typography, spacing, radius, shadows and contrast r
 - storage: saves the user's settings, recent scans and the Pro licence key on the device.
 - sidePanel: shows the full design system and the export screen in Chrome's side panel.
 - externally_connectable (https://vietnamcos.com/palette/* and https://www.vietnamcos.com/palette/*): lets the checkout page on that site hand the purchased licence key to the extension, so Pro unlocks without copy and paste.
+
+## Links
+
+- Homepage URL: https://vietnamcos.com/palette/
+- Privacy policy URL: https://vietnamcos.com/palette/privacy
+- Terms of service URL: https://vietnamcos.com/palette/terms

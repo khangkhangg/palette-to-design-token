@@ -51,7 +51,7 @@ buyers whose PayPal address is in California only, computed server-side.
 **In v1:** everything in the mockups — extraction, roles, contrast, the five
 export formats + zip, free/Pro gating, saved sites, license purchase and
 activation, theme switch, 7 languages, Chrome Web Store package (runs on Chrome,
-Edge, Brave, Opera).
+Edge, Brave; not Opera, which lacks chrome.sidePanel).
 
 **Not in v1:** Firefox/Safari builds, a vietnamcos admin screen for Palette
 sales (query the table; add later), team licenses, scanning pages behind

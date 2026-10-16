@@ -58,6 +58,9 @@ describe('store listings', () => {
       const short = md.split(/^## .*\r?\n/m)[2].trim();
       expect(short).toBe(desc);
       expect(md).toContain('https://vietnamcos.com/palette/privacy');
+      expect(md).toMatch(/^- Homepage URL: https:\/\/vietnamcos\.com\/palette\/\r?$/m);
+      expect(md).toContain('- Terms of service URL: https://vietnamcos.com/palette/terms');
+      expect(md).not.toMatch(/opera/i);
       expect(md).toContain('1.49'.replace('.', loc === 'es' || loc === 'fr' ? ',' : '.'));
     });
   }

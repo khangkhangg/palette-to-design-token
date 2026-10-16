@@ -15,7 +15,15 @@
     "themeLight": "浅色",
     "themeDark": "深色",
     "themeSystem": "跟随系统",
-    "language": "语言"
+    "language": "语言",
+    "enterKey": "输入许可密钥",
+    "proActive": "Pro 已激活",
+    "proActiveKey": "Pro 已激活 · {key}",
+    "removeKey": "从此浏览器移除密钥",
+    "removeConfirm": "要移除密钥吗？在你重新输入之前，此浏览器中的 Pro 将关闭。",
+    "removeConfirmYes": "移除密钥",
+    "cancel": "取消",
+    "removeFailed": "无法移除密钥，请重试"
   },
   "tabs": {
     "label": "分区",
@@ -142,7 +150,8 @@
     "exportFormats": "CSS · Tailwind · Figma · JSON · DESIGN.md（供 AI 使用）",
     "back": "返回设计系统",
     "dismiss": "关闭",
-    "loading": "正在读取此页面…"
+    "loading": "正在读取此页面…",
+    "haveKey": "已有密钥？"
   },
   "export": {
     "title": "导出 Token",

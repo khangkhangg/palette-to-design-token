@@ -55,6 +55,13 @@ const PATHS = {
   back: <path d="M19 12H5M11 6l-6 6 6 6" />,
   close: <path d="M18 6 6 18M6 6l12 12" />,
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
+  key: (
+    <>
+      <circle cx="7.5" cy="15.5" r="5.5" />
+      <path d="m21 2-9.6 9.6" />
+      <path d="m15.5 7.5 3 3L22 7l-3-3" />
+    </>
+  ),
 } satisfies Record<string, JSX.Element>;
 
 /** Icons that point along the reading direction: mirrored under [dir=rtl]. */
