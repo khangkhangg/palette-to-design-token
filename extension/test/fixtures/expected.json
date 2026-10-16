@@ -1,0 +1,63 @@
+{
+  "light-marketing": {
+    "colours": { "primary": "#1F5E4B", "accent": "#E0763A", "surface": "#FFFFFF", "surface-2": "#F4F1EA", "text": "#1A1A1A", "text-2": "#5B6470", "border": "#E5E7EB" },
+    "absentHex": ["#000000"],
+    "contrast": [
+      { "fg": "#FFFFFF", "bg": "#1F5E4B", "grade": "AAA", "where": "links" },
+      { "fg": "#FFFFFF", "bg": "#E0763A", "grade": "fail", "where": "links" }
+    ],
+    "fonts": { "body": "Inter", "heading": "Georgia" },
+    "spacingBase": 8,
+    "spacingMultipleOf": 8,
+    "radius": [8, 12, 9999],
+    "minShadows": 1
+  },
+  "dark-app": {
+    "colours": { "primary": "#2F81F7", "accent": "#F78166", "surface": "#0D1117", "surface-2": "#161B22", "surface-3": "#21262D", "text": "#E6EDF3", "text-2": "#8B949E", "border": "#30363D" },
+    "contrast": [
+      { "fg": "#E6EDF3", "bg": "#21262D", "grade": "AAA" },
+      { "fg": "#8B949E", "bg": "#21262D", "grade": "AA" }
+    ],
+    "fonts": { "body": "Segoe UI", "mono": "ui-monospace" },
+    "spacingBase": 4,
+    "spacingMultipleOf": 4,
+    "radius": [6]
+  },
+  "gradient-hero": {
+    "colours": { "primary": "#6D28D9", "accent": "#DB2777", "surface": "#FFFFFF", "text": "#111827" },
+    "contrast": [
+      { "fg": "#FFFFFF", "bg": "none", "grade": "unknown", "where": "headings" }
+    ],
+    "fonts": { "body": "Plus Jakarta Sans" },
+    "radius": [9999]
+  },
+  "tailwind": {
+    "colours": { "primary": "#4F46E5", "accent": "#F59E0B", "surface": "#FFFFFF", "text": "#4B5563", "text-2": "#111827", "border": "#E5E7EB" },
+    "contrast": [
+      { "fg": "#FFFFFF", "bg": "#4F46E5", "grade": "AA", "where": "body text" },
+      { "fg": "#FFFFFF", "bg": "#F59E0B", "grade": "fail", "where": "buttons" }
+    ],
+    "fonts": { "body": "ui-sans-serif" },
+    "spacingBase": 4,
+    "spacingMultipleOf": 4,
+    "radius": [6, 8, 9999],
+    "minShadows": 1
+  },
+  "arabic-rtl": {
+    "colours": { "primary": "#0F766E", "accent": "#B45309", "surface": "#FFFFFF", "surface-2": "#F5F5F4", "text": "#57534E", "text-2": "#1F2937", "border": "#E7E5E4" },
+    "contrast": [
+      { "fg": "#FFFFFF", "bg": "#0F766E", "grade": "AA", "where": "links" }
+    ],
+    "fonts": { "body": "Noto Kufi Arabic" },
+    "spacingBase": 8,
+    "spacingMultipleOf": 8,
+    "radius": [8, 16]
+  },
+  "near-empty": {
+    "colours": { "text": "#000000" },
+    "absentRoles": ["primary", "accent", "surface"],
+    "contrast": [
+      { "fg": "#000000", "bg": "#FFFFFF", "grade": "AAA", "where": "body text" }
+    ]
+  }
+}

@@ -18,8 +18,7 @@
     "themeDark": "Dark",
     "themeSystem": "System",
     "language": "Language",
-    "langEn": "English",
-    "devPro": "Dev: toggle Pro"
+    "langEn": "English"
   },
   "tabs": {
     "label": "Sections",

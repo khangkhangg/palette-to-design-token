@@ -15,9 +15,13 @@ export interface Samples {
   truncated: boolean;
 }
 
+export type Side = 'top' | 'right' | 'bottom' | 'left';
+
 export interface Measure {
   rect(el: Element): { width: number; height: number };
   style(el: Element): CSSStyleDeclaration;
+  /** True when the margin on `side` is `auto` (getComputedStyle only reports the used px). Optional: absent = never. */
+  autoMargin?(el: Element, side: Side): boolean;
 }
 
 const DEFAULT_LIMIT = 4000;
@@ -26,10 +30,17 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const WHITE: RGBA = { r: 255, g: 255, b: 255, a: 1 };
 const HEADING = /^h[1-6]$/;
 const MONO_TAGS = new Set(['code', 'pre', 'kbd', 'samp']);
+/** SVG elements that paint their fill; svg, g, symbol etc. only pass an inherited fill down. */
+const SVG_SHAPES = new Set(['path', 'rect', 'circle', 'ellipse', 'polygon', 'polyline', 'text']);
+const SIDES = ['Top', 'Right', 'Bottom', 'Left'] as const;
+
+type TypedOM = { computedStyleMap?(): { get(prop: string): unknown } };
 
 const defaultMeasure: Measure = {
   rect: (el) => el.getBoundingClientRect(),
   style: (el) => getComputedStyle(el),
+  // CSS Typed OM keeps the computed keyword where getComputedStyle resolves margins to px.
+  autoMargin: (el, side) => String((el as TypedOM).computedStyleMap?.().get(`margin-${side}`)) === 'auto',
 };
 
 interface Ctx { interactive: boolean; nav: boolean; heading: boolean; mono: boolean; button: boolean; link: boolean }
@@ -147,13 +158,17 @@ export function collect(root: Document, measure: Measure = defaultMeasure, limit
     const bg = parseColour(st.backgroundColor);
     if (bg && bg.a > 0) out.colours.push({ css: st.backgroundColor, kind: 'bg', weight: area, interactive, nav });
 
-    // border
-    if (px(st.borderTopWidth) > 0 && st.borderTopStyle && st.borderTopStyle !== 'none') {
-      out.colours.push({ css: st.borderTopColor, kind: 'border', weight: 2 * rect.width + 2 * rect.height, interactive, nav });
+    // border: the first side that draws one (separators are often bottom- or inline-end-only)
+    const side = SIDES.find((sd) => {
+      const style = st[`border${sd}Style`];
+      return px(st[`border${sd}Width`]) > 0 && !!style && style !== 'none' && style !== 'hidden';
+    });
+    if (side) {
+      out.colours.push({ css: st[`border${side}Color`], kind: 'border', weight: 2 * rect.width + 2 * rect.height, interactive, nav });
     }
 
     // svg fill
-    if (el.namespaceURI === SVG_NS && st.fill && st.fill !== 'none' && parseColour(st.fill)) {
+    if (el.namespaceURI === SVG_NS && SVG_SHAPES.has(name) && st.fill && st.fill !== 'none' && parseColour(st.fill)) {
       out.colours.push({ css: st.fill, kind: 'fill', weight: area, interactive, nav });
     }
 
@@ -162,12 +177,13 @@ export function collect(root: Document, measure: Measure = defaultMeasure, limit
       const v = px(p);
       if (v > 0) out.spacing.push(v);
     }
-    for (const m of [st.marginTop, st.marginRight, st.marginBottom, st.marginLeft]) {
+    const margins: [Side, string][] = [['top', st.marginTop], ['right', st.marginRight], ['bottom', st.marginBottom], ['left', st.marginLeft]];
+    for (const [sd, m] of margins) {
       const v = px(m);
-      if (v > 0) out.spacing.push(v);
+      if (v > 0 && !measure.autoMargin?.(el, sd)) out.spacing.push(v);
     }
     for (const g of [st.rowGap, st.columnGap]) {
-      if (g && g !== 'normal') {
+      if (g && g !== 'normal' && !g.includes('%')) {
         const v = px(g);
         if (v > 0) out.spacing.push(v);
       }
@@ -177,7 +193,8 @@ export function collect(root: Document, measure: Measure = defaultMeasure, limit
     const r = st.borderTopLeftRadius;
     if (r) {
       const v = px(r);
-      if (v > 0) out.radius.push(r.includes('%') && v >= 50 ? 9999 : v);
+      // a percentage under 50% depends on the box size and is not a px token
+      if (v > 0 && !(r.includes('%') && v < 50)) out.radius.push(r.includes('%') ? 9999 : v);
     }
 
     // shadow

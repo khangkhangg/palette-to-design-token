@@ -106,6 +106,49 @@ describe('collect samples', () => {
     expect(s.colours.filter((c) => c.kind === 'fill')).toEqual([expect.objectContaining({ css: 'rgb(9, 9, 9)', weight: 20 })]);
   });
 
+  it('samples fill on svg shapes only, not on the svg and g containers that merely inherit it', () => {
+    // Every svg element has a computed fill (default black, inherited): sampling containers counted
+    // black by the icon's whole box even when the only painted shape is green (T14 light-marketing).
+    const d = doc('<svg id="s"><g id="g"><path id="p"></path></g></svg>');
+    const s = collect(d, byId({
+      s: { w: 24, h: 24 }, g: { w: 20, h: 20 },
+      p: { w: 10, h: 10, style: { fill: 'rgb(31, 94, 75)' } },
+    }));
+    expect(s.colours.filter((c) => c.kind === 'fill')).toEqual([expect.objectContaining({ css: 'rgb(31, 94, 75)', weight: 100 })]);
+  });
+
+  it('records a border drawn on any side, not only the top', () => {
+    // Row separators and sidebar rules are bottom / inline-end borders (T14 dark-app).
+    const d = doc('<div id="b"></div><div id="e"></div>');
+    const s = collect(d, byId({
+      b: { w: 10, h: 5, style: { borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'rgb(48, 54, 61)' } },
+      e: { w: 10, h: 5, style: { borderLeftWidth: '1px', borderLeftStyle: 'solid', borderLeftColor: 'rgb(1, 2, 3)' } },
+    }));
+    expect(s.colours.filter((c) => c.kind === 'border')).toEqual([
+      expect.objectContaining({ css: 'rgb(48, 54, 61)', weight: 30 }),
+      expect.objectContaining({ css: 'rgb(1, 2, 3)', weight: 30 }),
+    ]);
+  });
+
+  it('ignores percentage gaps and percentage radii under 50%, which are not px values', () => {
+    // getComputedStyle returns gap and border-radius percentages as written ("2%", "6%"); parseFloat read them as px.
+    const d = doc('<div id="g"></div><div id="r"></div>');
+    const s = collect(d, byId({
+      g: { style: { rowGap: '2%', columnGap: '2%', paddingTop: '8px' } },
+      r: { style: { borderTopLeftRadius: '6%' } },
+    }));
+    expect(s.spacing).toEqual([8]);
+    expect(s.radius).toEqual([]);
+  });
+
+  it('skips auto margins, whose px value is centring slack and not spacing', () => {
+    // getComputedStyle reports margin: 0 auto as the used px (T14 arabic-rtl: 100px on a 1280px viewport).
+    const d = doc('<div id="w"></div>');
+    const base = byId({ w: { style: { marginLeft: '100px', marginRight: '100px', marginTop: '16px' } } });
+    const s = collect(d, { ...base, autoMargin: (_el, side) => side === 'left' || side === 'right' });
+    expect(s.spacing).toEqual([16]);
+  });
+
   it('uses the page hostname as site', () => {
     const d = doc('<p>x</p>');
     const withLoc = { body: d.body, documentElement: d.documentElement, location: { hostname: 'example.com' } } as unknown as Document;

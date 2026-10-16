@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>واحة - متجر القهوة المختصة</title>
+<style>
+  /* Palette (expected.json):
+     primary  #0F766E  nav links and "اطلب الآن" buttons
+     accent   #B45309  the offer link in the banner
+     surface  #FFFFFF  page; surface-2 #F5F5F4 banner and footer
+     text     #57534E  secondary copy (most characters: descriptions, banner, footer); text-2 #1F2937 headings
+     border   #E7E5E4  product cards
+     Fonts: body "Noto Kufi Arabic", Tahoma. Logical properties throughout, as an RTL site uses them. */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: #FFFFFF; }
+  body { font-family: "Noto Kufi Arabic", Tahoma, sans-serif; font-size: 16px; line-height: 28px; color: #1F2937; }
+  a { color: #0F766E; text-decoration: none; }
+  .wrap { max-width: 1080px; margin-inline: auto; padding-inline: 24px; }
+
+  header .wrap { display: flex; align-items: center; gap: 24px; padding-block: 16px; }
+  .brand { font-size: 24px; font-weight: 700; margin-inline-end: auto; }
+  .btn { display: inline-block; background: #0F766E; color: #FFFFFF; padding: 8px 24px; border-radius: 8px; font-weight: 700; }
+
+  .banner { background: #F5F5F4; padding-block: 64px; }
+  .banner h1 { font-size: 40px; line-height: 56px; }
+  .banner p { margin-block: 16px 24px; color: #57534E; font-size: 18px; line-height: 32px; }
+  .banner .offer { color: #B45309; font-weight: 700; margin-inline-start: 16px; }
+
+  .products { padding-block: 64px; }
+  .products h2 { font-size: 32px; line-height: 48px; margin-block-end: 24px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .card { border: 1px solid #E7E5E4; border-radius: 16px; padding: 24px; }
+  .card h3 { font-size: 20px; line-height: 32px; }
+  .card p { color: #57534E; margin-block: 8px 16px; }
+  footer { background: #F5F5F4; padding-block: 32px; color: #57534E; font-size: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <span class="brand">واحة</span>
+    <nav>
+      <a href="#coffee">القهوة</a>
+      <a href="#tools">أدوات التحضير</a>
+      <a href="#about">من نحن</a>
+    </nav>
+    <a class="btn" href="#order">اطلب الآن</a>
+  </div>
+</header>
+<section class="banner">
+  <div class="wrap">
+    <h1>قهوة مختصة محمصة كل أسبوع</h1>
+    <p>نختار حبوبنا من مزارع صغيرة في إثيوبيا واليمن وكولومبيا، ونحمصها بكميات قليلة لتصلك طازجة إلى باب بيتك.</p>
+    <a class="btn" href="#order">اطلب الآن</a>
+    <a class="offer" href="#offer">خصم ٢٠٪ على أول طلب</a>
+  </div>
+</section>
+<section class="products" id="coffee">
+  <div class="wrap">
+    <h2>الأكثر طلباً هذا الشهر</h2>
+    <div class="grid">
+      <article class="card"><h3>يرغاتشيفي</h3><p>إثيوبيا، تحميص فاتح، نكهات الياسمين والليمون والعسل.</p><a href="#p1">أضف إلى السلة</a></article>
+      <article class="card"><h3>حراز</h3><p>اليمن، تحميص متوسط، نكهات التمر والقرفة والشوكولاتة.</p><a href="#p2">أضف إلى السلة</a></article>
+      <article class="card"><h3>هويلا</h3><p>كولومبيا، تحميص متوسط، نكهات الكراميل والتفاح الأحمر.</p><a href="#p3">أضف إلى السلة</a></article>
+    </div>
+  </div>
+</section>
+<footer>
+  <div class="wrap">جميع الحقوق محفوظة لمتجر واحة ٢٠٢٦</div>
+</footer>
+</body>
+</html>

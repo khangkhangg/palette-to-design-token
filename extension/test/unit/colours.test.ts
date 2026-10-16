@@ -72,6 +72,37 @@ describe('analyseColours', () => {
     expect(t.find((x) => x.hex === '#A9CDF2')?.role).toBe('other');
   });
 
+  it('orders surfaces from the dominant background: dark to light on a dark page', () => {
+    // T14 dark-app: the page background is the darkest and covers the most area, so it is "surface".
+    const t = analyseColours([
+      s('#21262D', 'bg', 200_000),
+      s('#0D1117', 'bg', 1_000_000),
+      s('#161B22', 'bg', 300_000),
+      s('#E6EDF3', 'text', 3000),
+    ]);
+    expect(t.filter((x) => x.role === 'surface').map((x) => [x.name, x.hex])).toEqual([
+      ['surface', '#0D1117'], ['surface-2', '#161B22'], ['surface-3', '#21262D'],
+    ]);
+  });
+
+  it('picks primary by its share of link/button/nav use, not of the whole page', () => {
+    // T14 gradient-hero: purple fills both buttons and colours the nav; pink is only three text links.
+    // As a share of all page colour, a button's area is tiny next to the page background, so the
+    // links' characters outweighed it and pink became primary.
+    const t = analyseColours([
+      s('#FFFFFF', 'bg', 1_500_000),
+      s('#111827', 'text', 600),
+      s('#DB2777', 'text', 57, true),
+      s('#6D28D9', 'text', 25, true, true),
+      s('#6D28D9', 'text', 17, true),
+      s('#FFFFFF', 'text', 22, true),
+      s('#FFFFFF', 'bg', 8000, true),
+      s('#6D28D9', 'bg', 14_400, true),
+    ]);
+    expect(byName(t, 'primary')?.hex).toBe('#6D28D9');
+    expect(byName(t, 'accent')?.hex).toBe('#DB2777');
+  });
+
   it('weights sum to at most 1 and names are unique', () => {
     const t = analyseColours(page());
     expect(t.reduce((a, x) => a + x.weight, 0)).toBeLessThanOrEqual(1 + 1e-9);

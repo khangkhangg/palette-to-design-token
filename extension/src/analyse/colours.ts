@@ -23,7 +23,7 @@ interface Cluster {
   hex: string;
   weight: number;
   interactive: boolean;
-  /** weight of samples that are interactive or in nav */
+  /** share of link/button/nav use: like weight, but normalised over the interactive or nav samples only */
   actionWeight: number;
   /** weight of interactive samples */
   interactiveWeight: number;
@@ -33,7 +33,7 @@ interface Cluster {
   h: number;
 }
 
-interface Prepared { rgb: RGBA; kind: ColourKind; weight: number; interactive: boolean; nav: boolean }
+interface Prepared { rgb: RGBA; kind: ColourKind; weight: number; action: number; interactive: boolean; nav: boolean }
 
 const hueGap = (a: number, b: number) => {
   const d = Math.abs(a - b) % 360;
@@ -46,8 +46,14 @@ function prepare(samples: ColourSample[]): Prepared[] {
     if (!(smp.weight > 0) || !Number.isFinite(smp.weight)) continue;
     const c = parseColour(smp.css);
     if (!c || c.a <= 0) continue;
-    out.push({ rgb: composite(c, WHITE), kind: smp.kind, weight: smp.weight, interactive: smp.interactive, nav: smp.nav });
+    out.push({ rgb: composite(c, WHITE), kind: smp.kind, weight: smp.weight, action: 0, interactive: smp.interactive, nav: smp.nav });
   }
+  // Action share: the same normalisation over interactive/nav samples only. As a share of the whole page a
+  // button's area is negligible beside the page background, so link characters would always outvote it.
+  const actionTotals: Partial<Record<ColourKind, number>> = {};
+  for (const p of out) if (p.interactive || p.nav) actionTotals[p.kind] = (actionTotals[p.kind] ?? 0) + p.weight;
+  const actionKinds = Object.keys(actionTotals).length;
+  for (const p of out) if (p.interactive || p.nav) p.action = p.weight / (actionTotals[p.kind] as number) / actionKinds;
   // Each kind has its own units: normalise per kind, then share equally between kinds present.
   const totals: Partial<Record<ColourKind, number>> = {};
   for (const p of out) totals[p.kind] = (totals[p.kind] ?? 0) + p.weight;
@@ -75,7 +81,7 @@ function cluster(prepared: Prepared[]): Cluster[] {
       cl.interactive = true;
       cl.interactiveWeight += p.weight;
     }
-    if (p.interactive || p.nav) cl.actionWeight += p.weight;
+    cl.actionWeight += p.action;
   }
   return clusters;
 }
@@ -83,7 +89,10 @@ function cluster(prepared: Prepared[]): Cluster[] {
 const dominantKind = (c: Cluster): ColourKind =>
   (Object.keys(c.kinds) as ColourKind[]).reduce((best, k) => (c.kinds[k] > c.kinds[best] ? k : best), 'bg');
 
-/** Output order: primary, accent, primary-n, other chromatic, surface (light to dark), text, border, other; by weight within a role. */
+/**
+ * Output order: primary, accent, primary-n, other chromatic, surface, text, border, other; by weight within a role.
+ * Surfaces run light to dark, or dark to light when the background covering the most area is dark.
+ */
 export function analyseColours(samples: ColourSample[]): ColourToken[] {
   const clusters = cluster(prepare(samples)).filter((c) => c.weight >= MIN_WEIGHT || c.interactive);
   if (!clusters.length) return [];
@@ -115,7 +124,12 @@ export function analyseColours(samples: ColourSample[]): ColourToken[] {
   const kindRole: Record<ColourKind, Role> = { bg: 'surface', text: 'text', border: 'border', fill: 'other' };
   for (const k of ['bg', 'text', 'border', 'fill'] as ColourKind[]) {
     const group = neutral.filter((c) => dominantKind(c) === k);
-    group.sort(k === 'bg' ? (a, b) => b.L - a.L : byWeight);
+    if (k === 'bg' && group.length) {
+      const dark = group.reduce((a, b) => (b.weight > a.weight ? b : a)).L < 0.5;
+      group.sort(dark ? (a, b) => a.L - b.L : (a, b) => b.L - a.L);
+    } else {
+      group.sort(byWeight);
+    }
     for (const c of group) assign(c, kindRole[k]);
   }
 

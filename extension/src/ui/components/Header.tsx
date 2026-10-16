@@ -8,6 +8,8 @@ const THEMES: { value: Settings['theme']; key: string }[] = [
   { value: 'dark', key: 'settings.themeDark' },
   { value: 'system', key: 'settings.themeSystem' },
 ];
+/** Development builds only, so not translated: the literal is compiled out of production bundles (checked by npm run e2e). */
+const DEV_PRO_LABEL = 'Dev: toggle Pro';
 const LANGS: { value: string; key: string }[] = [{ value: 'en', key: 'settings.langEn' }];
 
 export interface HeaderProps {
@@ -102,7 +104,7 @@ export function Header({ subtitle, theme, lang, busy, onTheme, onLang, onRescan,
               </div>
             </fieldset>
             {(import.meta.env.DEV || import.meta.env.MODE === 'development') && onTogglePro && (
-              <button type="button" class="menu-dev" onClick={onTogglePro}>{t('settings.devPro')}</button>
+              <button type="button" class="menu-dev" onClick={onTogglePro}>{DEV_PRO_LABEL}</button>
             )}
           </div>
         )}
