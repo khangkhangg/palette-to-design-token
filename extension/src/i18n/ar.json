@@ -25,7 +25,14 @@
     "themeLight": "فاتح",
     "themeDark": "داكن",
     "themeSystem": "حسب النظام",
-    "language": "اللغة"
+    "language": "اللغة",
+    "enterKey": "أدخل مفتاح الترخيص",
+    "proActive": "Pro مفعّل",
+    "proActiveKey": "Pro مفعّل · {key}",
+    "removeKey": "إزالة المفتاح من هذا المتصفح",
+    "removeConfirm": "إزالة المفتاح؟ سيتوقف Pro في هذا المتصفح حتى تدخله مرة أخرى.",
+    "removeConfirmYes": "إزالة المفتاح",
+    "cancel": "إلغاء"
   },
   "tabs": {
     "label": "الأقسام",
@@ -157,7 +164,8 @@
     "exportFormats": "CSS · Tailwind · Figma · JSON · DESIGN.md للذكاء الاصطناعي",
     "back": "العودة إلى نظام التصميم",
     "dismiss": "تجاهل",
-    "loading": "جارٍ قراءة هذه الصفحة…"
+    "loading": "جارٍ قراءة هذه الصفحة…",
+    "haveKey": "لديك مفتاح؟"
   },
   "export": {
     "title": "تصدير رموز التصميم",

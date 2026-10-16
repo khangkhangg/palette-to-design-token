@@ -99,3 +99,14 @@ export function checkoutUrl(lang: string): string {
 export function lostKeyUrl(lang: string): string {
   return `${API_BASE}/checkout?lang=${encodeURIComponent(lang)}#resend`;
 }
+
+/** The licence stored in this browser, if any. */
+export function currentLicense(): Promise<License | null> {
+  return readLicense();
+}
+
+/** "Remove key from this browser": forget the licence and turn Pro off. The key itself stays valid. */
+export async function removeLicense(): Promise<void> {
+  await chrome.storage.local.remove(LICENSE_KEY);
+  await setSettings({ pro: false });
+}

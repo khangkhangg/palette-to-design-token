@@ -22,10 +22,26 @@ export interface HeaderProps {
   onOpenFull?(): void;
   /** Development builds only: flips Pro for testing the gate. */
   onTogglePro?(): void;
+  /** Pro status and the stored licence key, for the licence section of the menu. */
+  pro?: boolean;
+  licenseKey?: string | null;
+  /** Shown to free users: opens the side panel's unlock view. */
+  onEnterKey?(): void;
+  /** Shown to Pro users, behind an in-menu confirm step. */
+  onRemoveKey?(): void;
 }
 
-export function Header({ subtitle, theme, lang, busy, onTheme, onLang, onRescan, onOpenFull, onTogglePro }: HeaderProps) {
+/** "SDT-…-6789": enough to tell keys apart without showing the key. */
+export function maskKey(key: string): string {
+  return `SDT-…-${key.slice(-4)}`;
+}
+
+export function Header({
+  subtitle, theme, lang, busy, onTheme, onLang, onRescan, onOpenFull, onTogglePro, pro, licenseKey, onEnterKey, onRemoveKey,
+}: HeaderProps) {
   const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  useEffect(() => { if (!open) setConfirming(false); }, [open]);
   const wrap = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
 
@@ -102,6 +118,44 @@ export function Header({ subtitle, theme, lang, busy, onTheme, onLang, onRescan,
                 ))}
               </div>
             </fieldset>
+            {!pro && onEnterKey && (
+              <button
+                type="button"
+                class="menu-action"
+                onClick={() => { setOpen(false); onEnterKey(); }}
+              >
+                <Icon name="key" size={14} />
+                <span>{t('settings.enterKey')}</span>
+              </button>
+            )}
+            {pro && (
+              <div class="menu-license">
+                <p class="menu-pro">
+                  <Icon name="check" size={14} />
+                  <span>{licenseKey ? t('settings.proActiveKey', { key: maskKey(licenseKey) }) : t('settings.proActive')}</span>
+                </p>
+                {onRemoveKey && !confirming && (
+                  <button type="button" class="menu-action menu-action-quiet" onClick={() => setConfirming(true)}>
+                    {t('settings.removeKey')}
+                  </button>
+                )}
+                {onRemoveKey && confirming && (
+                  <div class="menu-confirm" role="group" aria-label={t('settings.removeKey')}>
+                    <p class="menu-confirm-text">{t('settings.removeConfirm')}</p>
+                    <div class="menu-confirm-actions">
+                      <button type="button" class="btn btn-small" onClick={() => setConfirming(false)}>{t('settings.cancel')}</button>
+                      <button
+                        type="button"
+                        class="btn btn-small btn-danger"
+                        onClick={() => { setConfirming(false); onRemoveKey(); }}
+                      >
+                        {t('settings.removeConfirmYes')}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {(import.meta.env.DEV || import.meta.env.MODE === 'development') && onTogglePro && (
               <button type="button" class="menu-dev" onClick={onTogglePro}>{DEV_PRO_LABEL}</button>
             )}

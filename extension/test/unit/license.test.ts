@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { activate, checkoutUrl, lostKeyUrl, recheckIfDue } from '../../src/license';
+import { activate, checkoutUrl, currentLicense, lostKeyUrl, recheckIfDue, removeLicense } from '../../src/license';
 import { getSettings, setSettings } from '../../src/store';
 import { installFakeChrome, uninstallFakeChrome } from './fake-chrome';
 
@@ -176,5 +176,21 @@ describe('checkoutUrl', () => {
 describe('lostKeyUrl', () => {
   it('points at the resend form on the checkout page', () => {
     expect(lostKeyUrl('fr')).toBe('https://vietnamcos.com/palette/checkout?lang=fr#resend');
+  });
+});
+
+describe('currentLicense and removeLicense', () => {
+  it('reads the stored licence, or null', async () => {
+    expect(await currentLicense()).toBeNull();
+    data.license = lic('2026-10-01T00:00:00.000Z');
+    expect(await currentLicense()).toEqual(lic('2026-10-01T00:00:00.000Z'));
+  });
+  it('removing the key forgets the licence and turns Pro off, without a network call', async () => {
+    data.license = lic('2026-10-01T00:00:00.000Z');
+    await setSettings({ pro: true });
+    await removeLicense();
+    expect(data.license).toBeUndefined();
+    expect((await getSettings()).pro).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

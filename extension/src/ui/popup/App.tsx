@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { Tokens } from '../../model/tokens';
 import { scanActiveTab, shownReason, type ShownScanError } from '../../scan';
-import { recheckIfDue } from '../../license';
+import { currentLicense, recheckIfDue, removeLicense } from '../../license';
 import { getSettings, onSettingsChange, saveScan, setSettings, type Settings } from '../../store';
 import { EmptyState } from '../components/EmptyState';
 import { Header } from '../components/Header';
@@ -34,6 +34,8 @@ export function App({ onExport }: AppProps) {
   const [tab, setTab] = useState<string>('colours');
   const [tabId, setTabId] = useState<number | null>(null);
   const [panelError, setPanelError] = useState(false);
+  const [licenseKey, setLicenseKey] = useState<string | null>(null);
+  const loadLicense = () => { void currentLicense().then((l) => setLicenseKey(l?.key ?? null)).catch(() => {}); };
   const { copied, failed, copy } = useCopy();
 
   const scan = async () => {
@@ -70,12 +72,14 @@ export function App({ onExport }: AppProps) {
       setLang(l);
       setLangState(renderedLang());
       setLocal(s);
+      loadLicense();
       void recheckIfDue().catch(() => {});
       await scan();
     })();
     const stop = onSettingsChange((s) => {
       applyTheme(s.theme);
       setLocal(s);
+      loadLicense();
     });
     return () => { live = false; stop(); };
   }, []);
@@ -119,6 +123,14 @@ export function App({ onExport }: AppProps) {
         onTogglePro={() => {
           setLocal({ ...settings, pro: !settings.pro });
           void setSettings({ pro: !settings.pro });
+        }}
+        pro={settings.pro}
+        licenseKey={licenseKey}
+        onEnterKey={() => openPanel('unlock')}
+        onRemoveKey={() => {
+          setLocal({ ...settings, pro: false });
+          setLicenseKey(null);
+          void removeLicense().catch(() => {});
         }}
       />
       {panelError && <p class="note" role="status"><Icon name="alert" size={14} /><span>{t('popup.openFailed')}</span></p>}

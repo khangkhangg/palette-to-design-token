@@ -25,7 +25,10 @@ vi.mock('../../src/scan', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../src/scan')>()),
   scanActiveTab: mocks.scanActiveTab,
 }));
-vi.mock('../../src/license', () => ({ recheckIfDue: mocks.recheckIfDue, activate: mocks.activate, checkoutUrl: () => '', lostKeyUrl: () => '' }));
+vi.mock('../../src/license', () => ({
+  recheckIfDue: mocks.recheckIfDue, activate: mocks.activate, checkoutUrl: () => '', lostKeyUrl: () => '',
+  currentLicense: async () => null, removeLicense: async () => {},
+}));
 
 vi.mock('../../src/store', () => ({
   getSettings: async () => mocks.settings,
@@ -260,6 +263,30 @@ describe('side panel App', () => {
     act(() => mocks.listeners.forEach((l) => l({ ...mocks.settings, theme: 'dark', pro: true })));
     await waitFor(() => expect(screen.queryByText('View only')).toBeNull());
   });
+
+  it('offers Have a key? in the header to free users on the system and export views, opening the unlock view', async () => {
+    mocks.listScans.mockResolvedValue([brewline()]);
+    const { unmount } = render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Have a key?' }));
+    expect(await screen.findByLabelText('License key')).toBeTruthy();
+    unmount();
+    render(<App initialView="export" />);
+    await screen.findByRole('heading', { name: 'Export tokens' });
+    fireEvent.click(screen.getByRole('button', { name: 'Have a key?' }));
+    expect(await screen.findByLabelText('License key')).toBeTruthy();
+  });
+
+  it('hides Have a key? for Pro', async () => {
+    mocks.settings = { ...mocks.settings, pro: true };
+    mocks.listScans.mockResolvedValue([brewline()]);
+    const { unmount } = render(<App />);
+    await screen.findAllByText('#1F5E4B');
+    expect(screen.queryByRole('button', { name: 'Have a key?' })).toBeNull();
+    unmount();
+    render(<App initialView="export" />);
+    await screen.findByRole('heading', { name: 'Export tokens' });
+    expect(screen.queryByRole('button', { name: 'Have a key?' })).toBeNull();
+  });
 });
 
 describe('popup opens the side panel', () => {
@@ -320,6 +347,25 @@ describe('popup opens the side panel', () => {
     await clickWhenReady('Open full view');
     expect((await screen.findByRole('status')).textContent).toContain("Couldn't open the full view.");
     expect(sidePanel.open).not.toHaveBeenCalled();
+    err.mockRestore();
+  });
+
+  it('Enter license key in the settings menu opens the unlock view inside the click', async () => {
+    render(<PopupApp />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+    await clickWhenReady('Enter license key');
+    expect(tabsQuery).not.toHaveBeenCalled();
+    expect(sidePanel.open).toHaveBeenCalledWith({ tabId: 7 });
+    expect(sidePanel.setOptions).toHaveBeenCalledWith({ tabId: 7, path: 'sidepanel.html?view=unlock', enabled: true });
+  });
+
+  it('Enter license key says so when the panel fails to open', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    sidePanel.open.mockRejectedValue(new Error('gesture'));
+    render(<PopupApp />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+    await clickWhenReady('Enter license key');
+    expect((await screen.findByRole('status')).textContent).toContain("Couldn't open the full view.");
     err.mockRestore();
   });
 });

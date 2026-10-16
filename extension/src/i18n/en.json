@@ -17,7 +17,14 @@
     "themeLight": "Light",
     "themeDark": "Dark",
     "themeSystem": "System",
-    "language": "Language"
+    "language": "Language",
+    "enterKey": "Enter license key",
+    "proActive": "Pro active",
+    "proActiveKey": "Pro active · {key}",
+    "removeKey": "Remove key from this browser",
+    "removeConfirm": "Remove the key? Pro turns off in this browser until you enter it again.",
+    "removeConfirmYes": "Remove key",
+    "cancel": "Cancel"
   },
   "tabs": {
     "label": "Sections",
@@ -145,7 +152,8 @@
     "exportFormats": "CSS · Tailwind · Figma · JSON · DESIGN.md for AI",
     "back": "Back to design system",
     "dismiss": "Dismiss",
-    "loading": "Reading this page…"
+    "loading": "Reading this page…",
+    "haveKey": "Have a key?"
   },
   "export": {
     "title": "Export tokens",

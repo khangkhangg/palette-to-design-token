@@ -19,7 +19,14 @@
     "themeLight": "Claro",
     "themeDark": "Oscuro",
     "themeSystem": "Sistema",
-    "language": "Idioma"
+    "language": "Idioma",
+    "enterKey": "Introducir clave de licencia",
+    "proActive": "Pro activo",
+    "proActiveKey": "Pro activo · {key}",
+    "removeKey": "Quitar la clave de este navegador",
+    "removeConfirm": "¿Quitar la clave? Pro se desactiva en este navegador hasta que la vuelvas a introducir.",
+    "removeConfirmYes": "Quitar clave",
+    "cancel": "Cancelar"
   },
   "tabs": {
     "label": "Secciones",
@@ -148,7 +155,8 @@
     "exportFormats": "CSS · Tailwind · Figma · JSON · DESIGN.md para IA",
     "back": "Volver al sistema de diseño",
     "dismiss": "Descartar",
-    "loading": "Leyendo esta página…"
+    "loading": "Leyendo esta página…",
+    "haveKey": "¿Tienes una clave?"
   },
   "export": {
     "title": "Exportar tokens",
