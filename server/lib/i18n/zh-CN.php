@@ -16,4 +16,8 @@ return [
     'api_resend_ok' => '如果该邮箱下存在密钥，我们已将其发送。',
     'api_rate_limited' => '请求过于频繁，请稍后再试。',
     'api_invalid_key' => '该许可密钥无效。',
+    'err_email' => '请输入有效的电子邮箱地址。',
+    'err_consent' => '请确认您了解购买一经完成即不可退款。',
+    'err_paused' => '付款功能暂时停用，请稍后再试。',
+    'err_paypal' => 'PayPal 未能完成此步骤。请重试，或联系 support@vietnamcos.com。',
 ];

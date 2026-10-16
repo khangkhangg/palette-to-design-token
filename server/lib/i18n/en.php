@@ -16,4 +16,8 @@ return [
     'api_resend_ok' => 'If a key exists for that address, we sent it.',
     'api_rate_limited' => 'Too many requests. Please try again later.',
     'api_invalid_key' => 'That license key is not valid.',
+    'err_email' => 'Enter a valid email address.',
+    'err_consent' => 'Please confirm that you understand purchases are final and not refundable.',
+    'err_paused' => 'Payments are paused right now. Please try again later.',
+    'err_paypal' => 'PayPal could not complete this step. Please try again, or contact support@vietnamcos.com.',
 ];

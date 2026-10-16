@@ -20,6 +20,23 @@ If any of these change in companies, this add-on must be updated.
 
 `php migrate.php` creates `palette_orders` and `palette_licenses` (idempotent).
 
+## PayPal
+
+- `lib/orders.php`: orders (`palette_create_order`), idempotent capture (`palette_capture`,
+  `palette_fulfil`: claim-first `UPDATE ... WHERE status='created'` in a transaction, so a page
+  capture racing the webhook issues one key and sends one email) and `palette_webhook`.
+- `webhook.php` is registered with PayPal as `https://www.vietnamcos.com/palette/webhook.php`
+  (events CHECKOUT.ORDER.APPROVED, PAYMENT.CAPTURE.COMPLETED / REFUNDED / REVERSED). An admin
+  opens `setup.php` and presses the button once per PayPal mode; it reuses a webhook already
+  registered for that URL and stores `webhook_id` + `webhook_mode` in the `palette` setting.
+  Re-run it after switching companies' PayPal between sandbox and live.
+- The PayPal app is shared with companies, so each webhook receives the other's events:
+  events whose `custom_id` does not start with `palette:` answer 200 `ignored` here, and
+  companies' webhook finds no row for palette orders and changes nothing.
+- `webhook.php` answers 200 with a short status (including `ignored`, `unknown order`), and
+  400 only when PayPal's signature check fails.
+- A refund or reversal revokes the order's license; the order row keeps status `captured`.
+
 ## Running tests locally
 
 Needs PHP 8.4 (mysqli) and a MariaDB/MySQL server on 127.0.0.1 with database

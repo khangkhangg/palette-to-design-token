@@ -16,4 +16,8 @@ return [
     'api_resend_ok' => 'Si une clé existe pour cette adresse, nous l\'avons envoyée.',
     'api_rate_limited' => 'Trop de requêtes. Veuillez réessayer plus tard.',
     'api_invalid_key' => 'Cette clé de licence n\'est pas valide.',
+    'err_email' => 'Saisissez une adresse e-mail valide.',
+    'err_consent' => 'Veuillez confirmer que vous comprenez que les achats sont définitifs et non remboursables.',
+    'err_paused' => 'Les paiements sont suspendus pour le moment. Veuillez réessayer plus tard.',
+    'err_paypal' => 'PayPal n\'a pas pu terminer cette étape. Veuillez réessayer ou écrire à support@vietnamcos.com.',
 ];
