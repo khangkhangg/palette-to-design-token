@@ -1,42 +1,7 @@
-import type { Tokens, TypeToken } from '../../model/tokens';
+import type { Tokens } from '../../model/tokens';
 import { EmptyState } from '../components/EmptyState';
+import { firstFamily, TypeRow } from '../components/TokenViews';
 import { t } from '../i18n';
-
-const MAX_SAMPLE_PX = 40;
-
-export function firstFamily(family: string): string {
-  const first = family.split(',')[0]?.trim() ?? '';
-  return first.replace(/^["']|["']$/g, '');
-}
-
-function sampleName(name: string): string {
-  const key = `type.sampleName.${name}`;
-  const s = t(key);
-  return s === key ? name : s;
-}
-
-function TypeRow({ token }: { token: TypeToken }) {
-  const family = firstFamily(token.family);
-  const lineHeight = token.lineHeightPx === null ? '–' : `${token.lineHeightPx}`;
-  return (
-    <li class="type-row">
-      <span class="type-name">{token.name}</span>
-      <span
-        class="type-sample"
-        style={{
-          fontFamily: token.family,
-          fontSize: `${Math.min(token.sizePx, MAX_SAMPLE_PX)}px`,
-          fontWeight: token.weight,
-        }}
-      >
-        {t('type.sample', { name: sampleName(token.name) })}
-      </span>
-      <span class="type-meta">
-        {t('type.meta', { family, weight: token.weight, size: token.sizePx, lineHeight })}
-      </span>
-    </li>
-  );
-}
 
 export function TypeTab({ fonts, type }: Pick<Tokens, 'fonts' | 'type'>) {
   if (fonts.length === 0 && type.length === 0) {

@@ -45,6 +45,14 @@ const PATHS = {
     </>
   ),
   wand: <path d="m15 4-1 4 4-1M4 20 14.5 9.5M18 8l2-2M18 14l2 1M10 6 9 4" />,
+  download: <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />,
+  panel: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M15 3v18" />
+    </>
+  ),
+  back: <path d="M19 12H5M11 6l-6 6 6 6" />,
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
 } satisfies Record<string, JSX.Element>;
 

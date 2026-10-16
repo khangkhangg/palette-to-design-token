@@ -51,7 +51,8 @@
     "restrictedBody": "Browser pages and the Chrome Web Store block extensions. Open a regular website and try again.",
     "failedTitle": "Couldn't scan this page",
     "failedBody": "Something went wrong while reading the page. Reload it, then retry.",
-    "retry": "Retry"
+    "retry": "Retry",
+    "openFullView": "Open full view"
   },
   "type": {
     "fonts": "Fonts",
@@ -126,5 +127,23 @@
     "uses_one": "{n} use",
     "uses_other": "{n} uses",
     "noFix": "No automatic fix found — try a darker or lighter shade by hand."
+  },
+  "panel": {
+    "title": "Design system",
+    "scanned": "{site} · scanned {when}",
+    "viewOnly": "View only",
+    "colours": "Colours",
+    "colourRoles": "Colour roles",
+    "typography": "Typography",
+    "spacing": "Spacing",
+    "radius": "Radius",
+    "shadows": "Shadows",
+    "exportDesignSystem": "Export design system",
+    "exportFormats": "CSS · Tailwind · Figma · JSON · DESIGN.md for AI",
+    "back": "Back to design system",
+    "loading": "Reading this page…"
+  },
+  "export": {
+    "comingSoon": "Export is coming in the next update."
   }
 }

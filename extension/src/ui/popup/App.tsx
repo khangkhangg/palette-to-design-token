@@ -8,6 +8,7 @@ import { Icon } from '../components/Icon';
 import { Tabs } from '../components/Tabs';
 import { plural, renderedLang, resolveLang, setLang, t } from '../i18n';
 import { applyTheme } from '../theme';
+import { openSidePanel } from '../sidepanel/open';
 import { ColoursTab, orderedColours, useCopy } from './ColoursTab';
 import { ContrastTab } from './ContrastTab';
 import { SpacingTab } from './SpacingTab';
@@ -21,11 +22,13 @@ type State =
 const TAB_IDS = ['colours', 'type', 'spacing', 'contrast'] as const;
 
 export interface AppProps {
-  /** Export flow is wired in a later task. */
+  /** Defaults to opening the side panel on its export view. */
   onExport?(tokens: Tokens, settings: Settings): void;
 }
 
-export function App({ onExport = () => {} }: AppProps) {
+const openPanel = (view: 'system' | 'export') => { void openSidePanel(view).catch(() => {}); };
+
+export function App({ onExport = () => openPanel('export') }: AppProps) {
   const [settings, setLocal] = useState<Settings | null>(null);
   const [lang, setLangState] = useState('en');
   const [state, setState] = useState<State>({ kind: 'scanning' });
@@ -97,6 +100,7 @@ export function App({ onExport = () => {} }: AppProps) {
         onTheme={changeTheme}
         onLang={changeLang}
         onRescan={scan}
+        onOpenFull={() => openPanel('system')}
       />
       {state.kind === 'scanning' && (
         <div class="status" role="status">

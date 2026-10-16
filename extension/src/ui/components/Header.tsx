@@ -18,9 +18,10 @@ export interface HeaderProps {
   onTheme(theme: Settings['theme']): void;
   onLang(lang: string): void;
   onRescan(): void;
+  onOpenFull?(): void;
 }
 
-export function Header({ subtitle, theme, lang, busy, onTheme, onLang, onRescan }: HeaderProps) {
+export function Header({ subtitle, theme, lang, busy, onTheme, onLang, onRescan, onOpenFull }: HeaderProps) {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -101,6 +102,11 @@ export function Header({ subtitle, theme, lang, busy, onTheme, onLang, onRescan 
           </div>
         )}
       </div>
+      {onOpenFull && (
+        <button type="button" class="icon-btn" aria-label={t('popup.openFullView')} onClick={onOpenFull}>
+          <Icon name="panel" />
+        </button>
+      )}
       <button
         type="button"
         class="icon-btn"
