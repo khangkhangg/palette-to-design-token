@@ -15,6 +15,9 @@ describe('manifest', () => {
     expect([...manifest.permissions].sort()).toEqual(['activeTab', 'scripting', 'sidePanel', 'storage']);
     expect(manifest.host_permissions).toBeUndefined();
   });
+  it('requires Chrome 123+ (light-dark() in the theme)', () => {
+    expect(manifest.minimum_chrome_version).toBe('123');
+  });
   it('wires side panel, popup and service worker', () => {
     expect(manifest.side_panel.default_path).toBe('sidepanel.html');
     expect(manifest.action.default_popup).toBe('popup.html');

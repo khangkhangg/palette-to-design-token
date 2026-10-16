@@ -2,6 +2,7 @@
   "manifest_version": 3,
   "name": "Site to Design Token",
   "version": "0.1.0",
+  "minimum_chrome_version": "123",
   "description": "Turn any website into design tokens: colours, type, spacing, radius, shadows and contrast.",
   "permissions": ["activeTab", "scripting", "sidePanel", "storage"],
   "action": {
