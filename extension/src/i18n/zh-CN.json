@@ -22,7 +22,8 @@
     "removeKey": "从此浏览器移除密钥",
     "removeConfirm": "要移除密钥吗？在你重新输入之前，此浏览器中的 Pro 将关闭。",
     "removeConfirmYes": "移除密钥",
-    "cancel": "取消"
+    "cancel": "取消",
+    "removeFailed": "无法移除密钥，请重试"
   },
   "tabs": {
     "label": "分区",

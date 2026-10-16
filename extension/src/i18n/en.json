@@ -24,7 +24,8 @@
     "removeKey": "Remove key from this browser",
     "removeConfirm": "Remove the key? Pro turns off in this browser until you enter it again.",
     "removeConfirmYes": "Remove key",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "removeFailed": "Couldn't remove the key — try again"
   },
   "tabs": {
     "label": "Sections",

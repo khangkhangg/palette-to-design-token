@@ -36,12 +36,31 @@ export function maskKey(key: string): string {
   return `SDT-…-${key.slice(-4)}`;
 }
 
+const MARK = '';
+
+/** "Pro active · {key}" with the key isolated left-to-right, so RTL text does not reorder it. */
+function ProActiveKey({ keyText }: { keyText: string }) {
+  const [before, after = ''] = t('settings.proActiveKey', { key: MARK }).split(MARK);
+  return <>{before}<bdi dir="ltr">{keyText}</bdi>{after}</>;
+}
+
 export function Header({
   subtitle, theme, lang, busy, onTheme, onLang, onRescan, onOpenFull, onTogglePro, pro, licenseKey, onEnterKey, onRemoveKey,
 }: HeaderProps) {
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   useEffect(() => { if (!open) setConfirming(false); }, [open]);
+  const cancelBtn = useRef<HTMLButtonElement>(null);
+  const removeBtn = useRef<HTMLButtonElement>(null);
+  /** Set by Cancel: focus goes back to the remove button once it is rendered again. */
+  const backToRemove = useRef(false);
+  useEffect(() => {
+    if (confirming) cancelBtn.current?.focus();
+    else if (backToRemove.current) {
+      backToRemove.current = false;
+      removeBtn.current?.focus();
+    }
+  }, [confirming]);
   const wrap = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
 
@@ -132,10 +151,10 @@ export function Header({
               <div class="menu-license">
                 <p class="menu-pro">
                   <Icon name="check" size={14} />
-                  <span>{licenseKey ? t('settings.proActiveKey', { key: maskKey(licenseKey) }) : t('settings.proActive')}</span>
+                  <span>{licenseKey ? <ProActiveKey keyText={maskKey(licenseKey)} /> : t('settings.proActive')}</span>
                 </p>
                 {onRemoveKey && !confirming && (
-                  <button type="button" class="menu-action menu-action-quiet" onClick={() => setConfirming(true)}>
+                  <button ref={removeBtn} type="button" class="menu-action menu-action-quiet" onClick={() => setConfirming(true)}>
                     {t('settings.removeKey')}
                   </button>
                 )}
@@ -143,7 +162,14 @@ export function Header({
                   <div class="menu-confirm" role="group" aria-label={t('settings.removeKey')}>
                     <p class="menu-confirm-text">{t('settings.removeConfirm')}</p>
                     <div class="menu-confirm-actions">
-                      <button type="button" class="btn btn-small" onClick={() => setConfirming(false)}>{t('settings.cancel')}</button>
+                      <button
+                        ref={cancelBtn}
+                        type="button"
+                        class="btn btn-small"
+                        onClick={() => { backToRemove.current = true; setConfirming(false); }}
+                      >
+                        {t('settings.cancel')}
+                      </button>
                       <button
                         type="button"
                         class="btn btn-small btn-danger"

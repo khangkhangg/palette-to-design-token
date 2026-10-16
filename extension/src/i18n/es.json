@@ -26,7 +26,8 @@
     "removeKey": "Quitar la clave de este navegador",
     "removeConfirm": "¿Quitar la clave? Pro se desactiva en este navegador hasta que la vuelvas a introducir.",
     "removeConfirmYes": "Quitar clave",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "removeFailed": "No se pudo quitar la clave. Inténtalo de nuevo"
   },
   "tabs": {
     "label": "Secciones",

@@ -26,7 +26,8 @@
     "removeKey": "Retirer la clé de ce navigateur",
     "removeConfirm": "Retirer la clé ? Pro sera désactivé dans ce navigateur jusqu’à ce que vous la saisissiez à nouveau.",
     "removeConfirmYes": "Retirer la clé",
-    "cancel": "Annuler"
+    "cancel": "Annuler",
+    "removeFailed": "Impossible de retirer la clé. Réessayez"
   },
   "tabs": {
     "label": "Sections",

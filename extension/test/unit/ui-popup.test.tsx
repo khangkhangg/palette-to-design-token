@@ -243,7 +243,7 @@ describe('popup App', () => {
       mocks.scanActiveTab.mockResolvedValue(brewline());
       render(<App />);
       await openMenu();
-      expect(await screen.findByText('Pro active · SDT-…-6789')).toBeTruthy();
+      expect((await screen.findByText(/Pro active/)).textContent).toBe('Pro active · SDT-…-6789');
       expect(document.body.textContent).not.toContain('ABCD');
       expect(screen.queryByRole('button', { name: 'Enter license key' })).toBeNull();
     });
@@ -266,6 +266,47 @@ describe('popup App', () => {
       expect(screen.queryByText(/Pro active/)).toBeNull();
       expect(confirmSpy).not.toHaveBeenCalled();
       confirmSpy.mockRestore();
+    });
+
+    const proWithKey = () => {
+      mocks.settings = { ...mocks.settings, pro: true };
+      mocks.currentLicense.mockResolvedValue({ key: 'SDT-ABCD-2345-6789', verifiedAt: '2026-10-01T00:00:00.000Z', emailMasked: null });
+      mocks.scanActiveTab.mockResolvedValue(brewline());
+    };
+
+    it('shows the masked key left-to-right inside a bdi', async () => {
+      proWithKey();
+      render(<App />);
+      await openMenu();
+      const status = await screen.findByText(/Pro active/);
+      const bdi = status.querySelector('bdi');
+      expect(bdi?.getAttribute('dir')).toBe('ltr');
+      expect(bdi?.textContent).toBe('SDT-…-6789');
+    });
+
+    it('moves focus into the confirm step, and back to the remove button on Cancel', async () => {
+      proWithKey();
+      render(<App />);
+      await openMenu();
+      fireEvent.click(await screen.findByRole('button', { name: 'Remove key from this browser' }));
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' })));
+      expect(screen.getByRole('group', { name: 'Remove key from this browser' }).contains(document.activeElement)).toBe(true);
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Remove key from this browser' })));
+    });
+
+    it('restores Pro and says so when removing the key fails', async () => {
+      const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+      proWithKey();
+      mocks.removeLicense.mockRejectedValue(new Error('storage'));
+      render(<App />);
+      await openMenu();
+      fireEvent.click(await screen.findByRole('button', { name: 'Remove key from this browser' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Remove key' }));
+      expect((await screen.findByRole('status')).textContent).toContain("Couldn't remove the key — try again");
+      expect(await screen.findByText(/Pro active/)).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Enter license key' })).toBeNull();
+      err.mockRestore();
     });
   });
 });

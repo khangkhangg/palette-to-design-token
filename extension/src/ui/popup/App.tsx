@@ -35,6 +35,7 @@ export function App({ onExport }: AppProps) {
   const [tabId, setTabId] = useState<number | null>(null);
   const [panelError, setPanelError] = useState(false);
   const [licenseKey, setLicenseKey] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState(false);
   const loadLicense = () => { void currentLicense().then((l) => setLicenseKey(l?.key ?? null)).catch(() => {}); };
   const { copied, failed, copy } = useCopy();
 
@@ -128,12 +129,20 @@ export function App({ onExport }: AppProps) {
         licenseKey={licenseKey}
         onEnterKey={() => openPanel('unlock')}
         onRemoveKey={() => {
+          const before = { settings, licenseKey };
+          setRemoveError(false);
           setLocal({ ...settings, pro: false });
           setLicenseKey(null);
-          void removeLicense().catch(() => {});
+          removeLicense().catch((e) => {
+            console.error('Could not remove the license key', e);
+            setLocal(before.settings);
+            setLicenseKey(before.licenseKey);
+            setRemoveError(true);
+          });
         }}
       />
       {panelError && <p class="note" role="status"><Icon name="alert" size={14} /><span>{t('popup.openFailed')}</span></p>}
+      {removeError && <p class="note" role="status"><Icon name="alert" size={14} /><span>{t('settings.removeFailed')}</span></p>}
       {state.kind === 'scanning' && (
         <div class="status" role="status">
           <span class="spinner" aria-hidden="true" />
