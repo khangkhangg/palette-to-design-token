@@ -75,11 +75,29 @@ describe('parts and empty sections', () => {
     const j = JSON.parse(exportFile(t, 'json', o).text);
     expect(j.text.body.$value).not.toHaveProperty('lineHeight');
   });
-  it('tailwind v4 omits --spacing when base is null', () => {
+  it('tailwind v4 omits the base comment when base is null', () => {
     const t = { ...brewline, spacing: { base: null, scale: [5, 7] } };
     const text = exportFile(t, 'tailwind', o).text;
     expect(text).not.toMatch(/--spacing:/);
-    expect(text).toContain('--spacing-1: 5px;');
+    expect(text).not.toContain('detected base');
+    expect(text).toContain('--spacing-space-1: 5px;');
+  });
+  it('tailwind v4 never overrides the numeric spacing scale (R17)', () => {
+    const text = exportFile(brewline, 'tailwind', o).text;
+    expect(text).not.toMatch(/--spacing-\d/);
+    // --spacing: only inside a comment
+    const uncommented = text.replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(uncommented).not.toMatch(/--spacing:/);
+    expect(text).toContain('/* detected base: 4px — set --spacing: 4px; to adopt it */');
+    expect(text).toContain('--spacing-space-1: 4px;');
+    expect(text).toMatch(/\/\*[^*]*space-[^*]*numeric[^*]*\*\//);
+  });
+  it('tailwind v3 spacing keys are space-n, never numeric (R17)', () => {
+    const text = exportFile(brewline, 'tailwind', { ...o, tailwind: 3 }).text;
+    const spacing = /spacing: \{([\s\S]*?)\n {6}\},/.exec(text)![1];
+    expect(spacing).not.toMatch(/^\s*"?\d+"?:/m);
+    expect(spacing).toContain('"space-1": "4px",');
+    expect(text).toMatch(/\/\/[^\n]*space-[^\n]*numeric/);
   });
 });
 

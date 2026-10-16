@@ -28,14 +28,15 @@
   --text-small--font-weight: 500;
 
   /* Spacing */
-  --spacing: 4px;
-  --spacing-1: 4px;
-  --spacing-2: 8px;
-  --spacing-3: 12px;
-  --spacing-4: 16px;
-  --spacing-5: 24px;
-  --spacing-6: 32px;
-  --spacing-7: 48px;
+  /* Named space-1, space-2… (p-space-3, gap-space-2) so they add to Tailwind's numeric scale instead of replacing p-1, p-2… */
+  /* detected base: 4px — set --spacing: 4px; to adopt it */
+  --spacing-space-1: 4px;
+  --spacing-space-2: 8px;
+  --spacing-space-3: 12px;
+  --spacing-space-4: 16px;
+  --spacing-space-5: 24px;
+  --spacing-space-6: 32px;
+  --spacing-space-7: 48px;
 
   /* Radius */
   --radius-sm: 4px;

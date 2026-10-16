@@ -4,6 +4,10 @@ import {
 } from './model';
 import type { ExportOptions } from './types';
 
+/** Why spacing tokens are space-n: numeric keys would collide with Tailwind's own spacing scale. */
+const SPACING_NOTE =
+  "Named space-1, space-2… (p-space-3, gap-space-2) so they add to Tailwind's numeric scale instead of replacing p-1, p-2…";
+
 export function toTailwind4(t: Tokens, o: ExportOptions): string {
   const typography: string[] = [];
   if (wants(o, 'typography')) {
@@ -16,8 +20,14 @@ export function toTailwind4(t: Tokens, o: ExportOptions): string {
   }
   const spacing: string[] = [];
   if (wants(o, 'spacing')) {
-    if (t.spacing.base !== null) spacing.push(`  --spacing: ${px(t.spacing.base)};`);
-    for (const e of spaceEntries(t)) spacing.push(`  --spacing-${e.name}: ${px(e.value)};`);
+    const entries = spaceEntries(t);
+    if (entries.length) spacing.push(`  /* ${SPACING_NOTE} */`);
+    // Setting --spacing would rescale every numeric utility (p-4 = 4 × --spacing): offered, not applied.
+    if (t.spacing.base !== null) {
+      const base = px(t.spacing.base);
+      spacing.push(`  /* detected base: ${base} — set --spacing: ${base}; to adopt it */`);
+    }
+    for (const e of entries) spacing.push(`  --spacing-space-${e.name}: ${px(e.value)};`);
   }
   const body = joinSections([
     section('Colours', wants(o, 'colours') ? colourEntries(t).map((e) => `  --color-${e.name}: ${e.value};`) : []),
@@ -32,8 +42,10 @@ export function toTailwind4(t: Tokens, o: ExportOptions): string {
 const key = (k: string) => (/^[A-Za-z_$][\w$]*$/.test(k) ? k : JSON.stringify(k));
 const str = (s: string) => JSON.stringify(s);
 const kv = (es: { name: string; value: string }[]) => es.map((e) => `${key(e.name)}: ${str(e.value)}`);
-const group = (name: string, rows: string[]) =>
-  rows.length ? [`      ${name}: {`, ...rows.map((r) => `        ${r},`), '      },'] : [];
+const group = (name: string, rows: string[], note?: string) =>
+  rows.length
+    ? [`      ${name}: {`, ...(note ? [`        // ${note}`] : []), ...rows.map((r) => `        ${r},`), '      },']
+    : [];
 
 export function toTailwind3(t: Tokens, o: ExportOptions): string {
   const typo = wants(o, 'typography');
@@ -50,7 +62,11 @@ export function toTailwind3(t: Tokens, o: ExportOptions): string {
     group('colors', wants(o, 'colours') ? kv(colourEntries(t)) : []),
     group('fontFamily', typo ? families : []),
     group('fontSize', typo ? fontSize : []),
-    group('spacing', wants(o, 'spacing') ? sized(spaceEntries(t)) : []),
+    group(
+      'spacing',
+      wants(o, 'spacing') ? sized(spaceEntries(t).map((e) => ({ ...e, name: `space-${e.name}` }))) : [],
+      SPACING_NOTE,
+    ),
     group('borderRadius', wants(o, 'radius') ? sized(radiusEntries(t)) : []),
     group('boxShadow', wants(o, 'shadows') ? kv(shadowEntries(t)) : []),
   ].flat();

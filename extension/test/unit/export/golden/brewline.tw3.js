@@ -23,13 +23,14 @@ export default {
         small: ["13px", { lineHeight: "18px", fontWeight: "500" }],
       },
       spacing: {
-        "1": "4px",
-        "2": "8px",
-        "3": "12px",
-        "4": "16px",
-        "5": "24px",
-        "6": "32px",
-        "7": "48px",
+        // Named space-1, space-2… (p-space-3, gap-space-2) so they add to Tailwind's numeric scale instead of replacing p-1, p-2…
+        "space-1": "4px",
+        "space-2": "8px",
+        "space-3": "12px",
+        "space-4": "16px",
+        "space-5": "24px",
+        "space-6": "32px",
+        "space-7": "48px",
       },
       borderRadius: {
         sm: "4px",
