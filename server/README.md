@@ -56,3 +56,11 @@ companies repo (`PALETTE_COMPANIES_DIR`, default `C:\Projects\companies`).
 ## Known limitations
 
 - `palette_resend` must run after the HTTP response is flushed (it does DB and Resend work only for existing addresses, which would otherwise leak address existence through response timing).
+
+## JSON API (`api.php?action=...`)
+
+`api.php` is a thin adapter over `palette_api_handle()` in `lib/api.php` (tested by `tests/api-test.php`).
+Actions: `config` (GET), `create`, `capture`, `resend`, `claim` (POST, CSRF form `palette_checkout`, token in `csrf`), `verify` (POST, no CSRF, 30/min/IP).
+Errors are `{ok:false, error:<i18n key>, message:<localised>}`; 419 bad CSRF, 429 rate limited, 503 `err_retry` when a paid order's key is not ready yet.
+`verify` sends CORS headers only for `chrome-extension://<id>` origins whose id is in the `extension_ids` setting; the client IP is `REMOTE_ADDR` only.
+`resend` answers first and runs `palette_resend` after `fastcgi_finish_request()` (ruling S4); on servers without it (CLI, `php -S`) the work stays synchronous.

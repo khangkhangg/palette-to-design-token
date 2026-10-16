@@ -20,4 +20,11 @@ return [
     'err_consent' => 'Confirma que entiendes que las compras son definitivas y no reembolsables.',
     'err_paused' => 'Los pagos están en pausa en este momento. Inténtalo de nuevo más tarde.',
     'err_paypal' => 'PayPal no pudo completar este paso. Inténtalo de nuevo o escribe a support@vietnamcos.com.',
+    'err_retry' => 'Recibimos el pago, pero tu clave aún no está lista. Revisa tu correo en unos minutos.',
+    'err_login' => 'Inicia sesión para añadir esta clave a tu cuenta.',
+    'err_csrf' => 'Tu sesión caducó. Recarga la página e inténtalo de nuevo.',
+    'err_method' => 'No se permite este método de solicitud.',
+    'err_unknown_action' => 'Solicitud desconocida.',
+    'err_invalid_key' => 'Esa clave de licencia no es válida.',
+    'err_bad_request' => 'La solicitud estaba incompleta. Revisa tus datos.',
 ];

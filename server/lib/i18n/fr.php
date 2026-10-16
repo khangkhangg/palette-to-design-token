@@ -20,4 +20,11 @@ return [
     'err_consent' => 'Veuillez confirmer que vous comprenez que les achats sont définitifs et non remboursables.',
     'err_paused' => 'Les paiements sont suspendus pour le moment. Veuillez réessayer plus tard.',
     'err_paypal' => 'PayPal n\'a pas pu terminer cette étape. Veuillez réessayer ou écrire à support@vietnamcos.com.',
+    'err_retry' => 'Paiement reçu, mais votre clé n\'est pas encore prête. Consultez votre e-mail dans quelques minutes.',
+    'err_login' => 'Connectez-vous pour ajouter cette clé à votre compte.',
+    'err_csrf' => 'Votre session a expiré. Rechargez la page et réessayez.',
+    'err_method' => 'Cette méthode de requête n\'est pas autorisée.',
+    'err_unknown_action' => 'Requête inconnue.',
+    'err_invalid_key' => 'Cette clé de licence n\'est pas valide.',
+    'err_bad_request' => 'La requête était incomplète. Vérifiez vos informations.',
 ];

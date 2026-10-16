@@ -20,4 +20,11 @@ return [
     'err_consent' => 'Please confirm that you understand purchases are final and not refundable.',
     'err_paused' => 'Payments are paused right now. Please try again later.',
     'err_paypal' => 'PayPal could not complete this step. Please try again, or contact support@vietnamcos.com.',
+    'err_retry' => 'Payment received but your key isn\'t ready yet. Check your email in a few minutes.',
+    'err_login' => 'Sign in to add this key to your account.',
+    'err_csrf' => 'Your session expired. Reload the page and try again.',
+    'err_method' => 'This request method is not allowed.',
+    'err_unknown_action' => 'Unknown request.',
+    'err_invalid_key' => 'That license key is not valid.',
+    'err_bad_request' => 'That request was incomplete. Please check your details.',
 ];
