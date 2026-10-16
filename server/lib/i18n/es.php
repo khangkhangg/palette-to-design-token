@@ -1,0 +1,19 @@
+<?php
+return [
+    'email_license_subject' => 'Tu clave de Site to Design Token',
+    'email_license_title' => 'Gracias por comprar Pro',
+    'email_license_intro' => 'Aquí está tu clave de licencia de Site to Design Token Pro. Guarda este correo; puedes usar la clave en cualquiera de tus navegadores.',
+    'email_key_label' => 'Clave de licencia',
+    'email_steps_title' => 'Cómo activarla',
+    'email_step1' => 'Abre el panel lateral de Site to Design Token y elige Desbloquear Pro.',
+    'email_step2' => 'Pega tu clave de licencia.',
+    'email_step3' => 'Selecciona Activar. Pro se desbloquea al instante.',
+    'email_account_text' => 'Para guardar tu clave en una cuenta, inicia sesión y añádela aquí:',
+    'email_refund' => 'Todas las ventas son definitivas. Como Pro se desbloquea al instante y cuesta 1,49 USD, no ofrecemos reembolsos después de la compra.',
+    'email_resend_subject' => 'Tus claves de Site to Design Token',
+    'email_resend_title' => 'Tus claves de licencia',
+    'email_resend_intro' => 'Nos pediste que te enviáramos de nuevo tus claves de Site to Design Token. Claves asociadas a esta dirección: {count}.',
+    'api_resend_ok' => 'Si existe una clave para esa dirección, te la hemos enviado.',
+    'api_rate_limited' => 'Demasiadas solicitudes. Inténtalo de nuevo más tarde.',
+    'api_invalid_key' => 'Esa clave de licencia no es válida.',
+];

@@ -1,0 +1,19 @@
+<?php
+return [
+    'email_license_subject' => 'مفتاحك لـ Site to Design Token',
+    'email_license_title' => 'شكرًا لشرائك Pro',
+    'email_license_intro' => 'مفتاح ترخيص Site to Design Token Pro الخاص بك أدناه. احتفظ بهذه الرسالة؛ يمكنك استخدام المفتاح في أي من متصفحاتك.',
+    'email_key_label' => 'مفتاح الترخيص',
+    'email_steps_title' => 'طريقة التفعيل',
+    'email_step1' => 'افتح اللوحة الجانبية لـ Site to Design Token واختر "فتح Pro".',
+    'email_step2' => 'الصق مفتاح الترخيص.',
+    'email_step3' => 'اختر "تفعيل". يُفتح Pro فورًا.',
+    'email_account_text' => 'للاحتفاظ بمفتاحك في حساب، سجّل الدخول وأضفه هنا:',
+    'email_refund' => 'جميع المبيعات نهائية. لأن Pro يُفتح فورًا وسعره 1.49 دولار، لا نقدّم استرداد المبالغ بعد الشراء.',
+    'email_resend_subject' => 'مفاتيحك لـ Site to Design Token',
+    'email_resend_title' => 'مفاتيح الترخيص الخاصة بك',
+    'email_resend_intro' => 'طلبت إعادة إرسال مفاتيح Site to Design Token. عدد المفاتيح على هذا العنوان: {count}.',
+    'api_resend_ok' => 'إذا كان هناك مفتاح لهذا العنوان، فقد أرسلناه.',
+    'api_rate_limited' => 'عدد كبير جدًا من الطلبات. حاول مرة أخرى لاحقًا.',
+    'api_invalid_key' => 'مفتاح الترخيص هذا غير صالح.',
+];

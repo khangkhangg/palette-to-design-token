@@ -1,0 +1,19 @@
+<?php
+return [
+    'email_license_subject' => 'আপনার Site to Design Token কী',
+    'email_license_title' => 'Pro কেনার জন্য ধন্যবাদ',
+    'email_license_intro' => 'আপনার Site to Design Token Pro লাইসেন্স কী নিচে দেওয়া হলো। এই ইমেইলটি সংরক্ষণ করুন; আপনি আপনার যেকোনো ব্রাউজারে এই কী ব্যবহার করতে পারবেন।',
+    'email_key_label' => 'লাইসেন্স কী',
+    'email_steps_title' => 'সক্রিয় করার নিয়ম',
+    'email_step1' => 'Site to Design Token-এর সাইড প্যানেল খুলে "Pro আনলক করুন" বেছে নিন।',
+    'email_step2' => 'আপনার লাইসেন্স কী পেস্ট করুন।',
+    'email_step3' => '"সক্রিয় করুন" নির্বাচন করুন। Pro সঙ্গে সঙ্গে আনলক হয়ে যায়।',
+    'email_account_text' => 'আপনার কী একটি অ্যাকাউন্টে রাখতে সাইন ইন করে এখানে যোগ করুন:',
+    'email_refund' => 'সব বিক্রয় চূড়ান্ত। Pro সঙ্গে সঙ্গে আনলক হয় এবং এর দাম $1.49, তাই কেনার পরে আমরা টাকা ফেরত দিই না।',
+    'email_resend_subject' => 'আপনার Site to Design Token কী-গুলো',
+    'email_resend_title' => 'আপনার লাইসেন্স কী-গুলো',
+    'email_resend_intro' => 'আপনি আপনার Site to Design Token কী আবার পাঠাতে বলেছিলেন। এই ঠিকানায় কী-র সংখ্যা: {count}।',
+    'api_resend_ok' => 'ওই ঠিকানার জন্য কোনো কী থাকলে আমরা তা পাঠিয়ে দিয়েছি।',
+    'api_rate_limited' => 'অনেক বেশি অনুরোধ। অনুগ্রহ করে পরে আবার চেষ্টা করুন।',
+    'api_invalid_key' => 'এই লাইসেন্স কী বৈধ নয়।',
+];

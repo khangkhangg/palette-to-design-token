@@ -1,0 +1,19 @@
+<?php
+return [
+    'email_license_subject' => 'Your Site to Design Token key',
+    'email_license_title' => 'Thank you for buying Pro',
+    'email_license_intro' => 'Your Site to Design Token Pro license key is below. Keep this email; you can use the key on any of your browsers.',
+    'email_key_label' => 'License key',
+    'email_steps_title' => 'How to activate',
+    'email_step1' => 'Open the Site to Design Token side panel and choose Unlock Pro.',
+    'email_step2' => 'Paste your license key.',
+    'email_step3' => 'Select Activate. Pro unlocks right away.',
+    'email_account_text' => 'To keep your key in an account, sign in and add it here:',
+    'email_refund' => 'All sales are final. Because Pro unlocks instantly and costs $1.49, we do not offer refunds after purchase.',
+    'email_resend_subject' => 'Your Site to Design Token keys',
+    'email_resend_title' => 'Your license keys',
+    'email_resend_intro' => 'You asked us to send your Site to Design Token keys again. Keys on this address: {count}.',
+    'api_resend_ok' => 'If a key exists for that address, we sent it.',
+    'api_rate_limited' => 'Too many requests. Please try again later.',
+    'api_invalid_key' => 'That license key is not valid.',
+];
