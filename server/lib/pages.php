@@ -198,14 +198,17 @@ function palette_render_checkout(array $ctx): string
     $money = palette_money_settings($settings);
     $ready = pp_ready(pp_settings($conn));
     $ca = $money['tax_mode'] === 'ca';
-    $price = '$' . palette_money($money['price']);
+    // French writes "1,49 $ US" (no-break space before $) everywhere: checkout, extension, listing.
+    $fr = $lang === 'fr';
+    $usd = fn(string $amount): string => $fr ? str_replace('.', ',', $amount) . "\u{a0}\$ US" : '$' . $amount;
+    $price = $usd(palette_money($money['price']));
     $withTax = palette_total($settings, 'US', 'CA');
 
     $summary = '<div class="summary">'
         . '<div class="sum-row"><span>' . $t('co_item') . '</span><span class="num" dir="ltr">' . $price . '</span></div>'
-        . ($ca ? '<div class="sum-row sum-tax" id="tax-row" hidden><span>' . $t('co_tax') . '</span><span class="num" dir="ltr">$' . palette_h($withTax['tax']) . '</span></div>' : '')
+        . ($ca ? '<div class="sum-row sum-tax" id="tax-row" hidden><span>' . $t('co_tax') . '</span><span class="num" dir="ltr">' . palette_h($usd($withTax['tax'])) . '</span></div>' : '')
         . '<div class="sum-rule"></div>'
-        . '<div class="sum-row sum-total"><span>' . $t('co_total') . '</span><span class="num" dir="ltr"><span id="total">' . $price . '</span> USD</span></div>'
+        . '<div class="sum-row sum-total"><span>' . $t('co_total') . '</span><span class="num" dir="ltr"><span id="total">' . $price . '</span>' . ($fr ? '' : ' USD') . '</span></div>'
         . ($ca ? '<p class="sum-note">' . $t('co_tax_note') . '</p>' : '')
         . '</div>';
 
@@ -279,7 +282,7 @@ function palette_render_checkout(array $ctx): string
     $strings = [];
     foreach (PALETTE_SCRIPT_STRINGS as $k) $strings[$k] = palette_t($lang, $k);
     return palette_page_shell('checkout', $lang, $keep, palette_t($lang, 'co_title'), $main,
-        ['t' => $strings, 'total' => $price, 'total_ca' => '$' . $withTax['amount']]);
+        ['t' => $strings, 'total' => $price, 'total_ca' => $usd($withTax['amount'])]);
 }
 
 function palette_session_user(array $session): int

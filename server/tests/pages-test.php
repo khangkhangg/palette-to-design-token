@@ -4,7 +4,8 @@ require __DIR__ . '/helpers.php';
 require __DIR__ . '/pp-stub.php';
 
 const LANGS = ['en', 'zh-CN', 'hi', 'es', 'ar', 'fr', 'bn'];
-const NATIVE = ['English', '中文', 'हिन्दी', 'Español', 'العربية', 'Français', 'বাংলা'];
+const FR_PRICE = "1,49\u{a0}\$ US";   // French price, no-break space before $
+const NATIVE =['English', '中文', 'हिन्दी', 'Español', 'العربية', 'Français', 'বাংলা'];
 // Emoji, dingbats, geometric shapes, arrows and misc symbols (house rule: icons are inline SVG).
 const EMOJI_RE = '/[\x{1F000}-\x{1FAFF}\x{2600}-\x{27BF}\x{25A0}-\x{25FF}\x{2190}-\x{21FF}\x{2B00}-\x{2BFF}\x{FE0F}]/u';
 
@@ -49,7 +50,7 @@ foreach (LANGS as $l) {
     ok("checkout $l: refund line", str_contains($html, h(palette_t($l, 'co_refund'))));
     ok("checkout $l: consent checkbox required", preg_match('/<input[^>]*type="checkbox"[^>]*id="consent"[^>]*required/', $html) === 1
         && str_contains($html, h(palette_t($l, 'co_consent'))));
-    ok("checkout $l: price", str_contains($html, '$1.49'));
+    ok("checkout $l: price", $l === 'fr' ? str_contains($html, FR_PRICE) && !str_contains($html, '$1.49') : str_contains($html, '$1.49'));
     $sw = true;
     foreach (LANGS as $i => $o) {
         if (!str_contains($html, 'href="/palette/checkout?lang=' . rawurlencode($o) . '"') || !str_contains($html, NATIVE[$i])) $sw = false;
@@ -203,4 +204,10 @@ foreach (LANGS as $l) {
 ok('co_key_emailed in every language with {email}', $missing === []);
 ok('co_key_emailed passed to the script', preg_match('#id="palette-data">(.*?)</script>#s', $en, $m) === 1
     && (json_decode($m[1], true)['t']['co_key_emailed'] ?? '') === palette_t('en', 'co_key_emailed'));
+$fr = '';
+foreach (palette_strings('fr') as $v) $fr .= $v . ' | ';
+ok('fr strings write the price as 1,49 $ US only', str_contains($fr, FR_PRICE) && preg_match('/1[,.]49/', str_replace(FR_PRICE, '', $fr)) === 0);
+$frPage = checkout(['lang' => 'fr']);
+ok('fr summary total is 1,49 $ US (no extra USD)', str_contains($frPage, '<span id="total">' . FR_PRICE . '</span></span>')
+    && preg_match('#id="palette-data">(.*?)</script>#s', $frPage, $m) === 1 && (json_decode($m[1], true)['total'] ?? '') === FR_PRICE);
 ok('co_consent en exact', palette_t('en', 'co_consent') === $consentEn && palette_t('en', 'co_refund') === $refundEn);

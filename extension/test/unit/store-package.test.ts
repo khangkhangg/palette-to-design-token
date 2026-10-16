@@ -67,4 +67,19 @@ describe('store listings', () => {
     for (const p of ['activeTab', 'scripting', 'storage', 'sidePanel', 'externally_connectable']) expect(md).toContain(`- ${p}`);
     expect(md).toContain('## Single purpose');
   });
+  it('English listing justifies externally_connectable for both the apex and www checkout pages', () => {
+    const md = readFileSync(resolve(docs, 'listing.en.md'), 'utf8');
+    const line = md.split(/\r?\n/).find((l) => l.startsWith('- externally_connectable')) ?? '';
+    expect(line).toContain('https://vietnamcos.com/palette/*');
+    expect(line).toContain('https://www.vietnamcos.com/palette/*');
+  });
+  it('French writes the price one way everywhere: 1,49 $ US', () => {
+    const md = readFileSync(resolve(docs, 'listing.fr.md'), 'utf8');
+    const ui = readFileSync(resolve(import.meta.dirname, '../../src/i18n/fr.json'), 'utf8');
+    const price = '1,49 $ US'; // no-break space keeps the amount and the symbol together
+    for (const text of [md, ui]) {
+      expect(text).toContain(price);
+      expect(text.replaceAll(price, '')).not.toMatch(/1[,.]49/);
+    }
+  });
 });

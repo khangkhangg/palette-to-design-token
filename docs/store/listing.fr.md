@@ -29,7 +29,7 @@ Gratuit
 - Résultats de contraste : réussite et échec.
 - Sites enregistrés : les 3 derniers.
 
-Pro, un déblocage unique à 1,49 USD
+Pro, un déblocage unique à 1,49 $ US
 - Tout ce que contient la version gratuite.
 - Export en CSS, Tailwind, variables Figma, JSON, DESIGN.md pour les outils de code IA, ou un zip de l’ensemble.
 - Corrections de contraste suggérées.
@@ -41,4 +41,4 @@ L’analyse se fait sur votre appareil. L’extension lit les couleurs et les st
 
 Remboursements
 
-Toutes les ventes sont définitives. Comme Pro se débloque instantanément et coûte 1,49 USD, nous ne proposons pas de remboursement après l’achat.
+Toutes les ventes sont définitives. Comme Pro se débloque instantanément et coûte 1,49 $ US, nous ne proposons pas de remboursement après l’achat.

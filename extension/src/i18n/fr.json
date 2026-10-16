@@ -240,6 +240,6 @@
     "errRevoked": "Cette clé a été remboursée et ne fonctionne plus.",
     "errNetwork": "Impossible de joindre le serveur — réessayez.",
     "errRateLimited": "Trop de tentatives — patientez une minute, puis réessayez.",
-    "refund": "Toutes les ventes sont définitives. Pro se débloque instantanément et coûte 1,49 $, nous ne proposons donc aucun remboursement après l'achat."
+    "refund": "Toutes les ventes sont définitives. Pro se débloque instantanément et coûte 1,49 $ US, nous ne proposons donc aucun remboursement après l'achat."
   }
 }
