@@ -94,7 +94,6 @@
     "unknown": "need a manual check",
     "empty": "No colour pairs found",
     "emptyBody": "No text and background pairs could be read on this page.",
-    "uses": "{n} uses",
     "imageOrGradient": "image or gradient",
     "where": {
       "body text": "Body text",
@@ -111,12 +110,21 @@
       "unknown": "Check manually"
     },
     "ratio": "{ratio}:1",
-    "fixTitle": "Suggested fix for {where}",
+    "fixTitle": {
+      "body text": "Suggested fix for body text",
+      "headings": "Suggested fix for headings",
+      "links": "Suggested fix for links",
+      "buttons": "Suggested fix for the button",
+      "other": "Suggested fix"
+    },
     "fixLocked": "Unlock to see the fix",
     "unlock": "Unlock",
     "before": "Before",
     "after": "After",
     "sampleButton": "Sample",
-    "fixedRatio": "Fixed ratio {ratio}:1"
+    "fixedRatio": "Fixed ratio {ratio}:1",
+    "uses_one": "{n} use",
+    "uses_other": "{n} uses",
+    "noFix": "No automatic fix found — try a darker or lighter shade by hand."
   }
 }

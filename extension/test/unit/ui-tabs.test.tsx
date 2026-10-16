@@ -37,6 +37,7 @@ const PAIRS: ContrastPair[] = [
     fg: '#FFFFFF', bg: '#E0763A', ratio: 2.999, uses: 9, where: 'buttons', grade: 'fail',
     fix: { fg: '#FFFFFF', bg: '#B4501A', ratio: 4.7 },
   }),
+  pair({ fg: '#777777', bg: '#FFFFFF', ratio: 4.48, large: true, uses: 1, where: 'headings', grade: 'AA-large' }),
   pair({ fg: '#333333', bg: 'none', ratio: null, uses: 3, where: 'headings', grade: 'unknown' }),
 ];
 
@@ -90,7 +91,7 @@ describe('ContrastTab', () => {
   it('summarises pass, fail and unknown counts', () => {
     const { container } = render(<ContrastTab contrast={PAIRS} pro={false} />);
     const n = (c: string) => container.querySelector(`.${c} .sum-n`)?.textContent;
-    expect(n('sum-pass')).toBe('3');
+    expect(n('sum-pass')).toBe('4');
     expect(n('sum-fail')).toBe('1');
     expect(n('sum-unknown')).toBe('1');
   });
@@ -102,18 +103,20 @@ describe('ContrastTab', () => {
     render(<ContrastTab contrast={PAIRS} pro={false} />);
     expect(screen.getByText('#1B1A17 on #FFFDF8')).toBeTruthy();
     expect(screen.getByText('Body text · 212 uses')).toBeTruthy();
-    expect(screen.getByText('17.40:1')).toBeTruthy();
+    expect(screen.getByText('17.4:1')).toBeTruthy();
     expect(screen.getAllByText('AAA', { selector: '.grade' })).toHaveLength(2);
     expect(screen.getByText('2.99:1')).toBeTruthy();
     expect(screen.getByText('Fails')).toBeTruthy();
     expect(screen.getByText('AA', { selector: '.grade' })).toBeTruthy();
     expect(screen.getByText('Check manually')).toBeTruthy();
+    expect(screen.getByText('AA large', { selector: '.grade' })).toBeTruthy();
+    expect(screen.getByText('Headings · 1 use')).toBeTruthy();
     expect(screen.getByText('#333333 on image or gradient')).toBeTruthy();
   });
   it('floors ratios instead of rounding up', () => {
     expect(formatRatio(4.499)).toBe('4.49');
-    expect(formatRatio(4.5)).toBe('4.50');
-    expect(formatRatio(2.9)).toBe('2.90');
+    expect(formatRatio(4.5)).toBe('4.5');
+    expect(formatRatio(2.9)).toBe('2.9');
   });
   it('locks the fix for free users without revealing fix colours', () => {
     const onUnlock = vi.fn();
@@ -133,7 +136,13 @@ describe('ContrastTab', () => {
     expect(buttons).toHaveLength(2);
     expect(buttons[0].style.background).toBe('rgb(224, 118, 58)');
     expect(buttons[1].style.background).toBe('rgb(180, 80, 26)');
-    expect(screen.getByText('Fixed ratio 4.70:1')).toBeTruthy();
+    expect(screen.getByText('Fixed ratio 4.7:1')).toBeTruthy();
+  });
+  it('says no automatic fix exists for a Pro fail without a fix', () => {
+    const noFix = pair({ fg: '#FFFFFF', bg: '#E0763A', ratio: 2.9, where: 'buttons', grade: 'fail' });
+    render(<ContrastTab contrast={[noFix]} pro />);
+    expect(screen.getByText(/No automatic fix found/)).toBeTruthy();
+    expect(screen.queryByText('Sample')).toBeNull();
   });
   it('shows an empty state with no pairs', () => {
     render(<ContrastTab contrast={[]} pro={false} />);

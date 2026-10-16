@@ -1,11 +1,11 @@
 import type { ContrastPair, Grade, Tokens } from '../../model/tokens';
 import { EmptyState } from '../components/EmptyState';
 import { Icon } from '../components/Icon';
-import { t } from '../i18n';
+import { plural, t } from '../i18n';
 
 /** Floors to 2 decimals so a failing ratio is never shown as a passing number. */
 export function formatRatio(ratio: number): string {
-  return (Math.floor(ratio * 100 + 1e-9) / 100).toFixed(2);
+  return String(Math.floor(ratio * 100 + 1e-9) / 100);
 }
 
 const PASSING: Grade[] = ['AAA', 'AA', 'AA-large'];
@@ -29,12 +29,11 @@ function Chip({ fg, bg }: { fg: string; bg: string }) {
 }
 
 function FixCard({ pair, pro, onUnlock }: { pair: ContrastPair; pro: boolean; onUnlock(): void }) {
-  const where = t(`contrast.where.${pair.where}`).toLowerCase();
   return (
     <div class={pro ? 'fix' : 'fix fix-locked'}>
       <div class="fix-head">
         <Icon name="wand" />
-        <span>{t('contrast.fixTitle', { where })}</span>
+        <span>{t(`contrast.fixTitle.${pair.where}`)}</span>
         {!pro && <span class="pro-pill">{t('popup.pro')}</span>}
       </div>
       {!pro && (
@@ -43,6 +42,9 @@ function FixCard({ pair, pro, onUnlock }: { pair: ContrastPair; pro: boolean; on
           <span class="fix-lock-text">{t('contrast.fixLocked')}</span>
           <button type="button" class="btn btn-small" onClick={onUnlock}>{t('contrast.unlock')}</button>
         </div>
+      )}
+      {pro && !pair.fix && (
+        <div class="fix-body"><span class="fix-lock-text">{t('contrast.noFix')}</span></div>
       )}
       {pro && pair.fix && (
         <div class="fix-body">
@@ -87,7 +89,7 @@ export function ContrastTab({ contrast, pro, onUnlock = () => {} }: ContrastTabP
                 <span class="pair-colours">
                   {p.fg} on {p.bg === 'none' ? t('contrast.imageOrGradient') : p.bg}
                 </span>
-                <span class="pair-where">{t(`contrast.where.${p.where}`)} · {t('contrast.uses', { n: p.uses })}</span>
+                <span class="pair-where">{t(`contrast.where.${p.where}`)} · {plural('contrast.uses', p.uses)}</span>
               </div>
               <div class="pair-score">
                 <span class="pair-ratio">{ratioText(p.ratio)}</span>
