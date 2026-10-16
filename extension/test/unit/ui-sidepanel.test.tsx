@@ -12,6 +12,8 @@ import { viewFromSearch } from '../../src/ui/sidepanel/open';
 
 const mocks = vi.hoisted(() => ({
   scanActiveTab: vi.fn(),
+  recheckIfDue: vi.fn(),
+  activate: vi.fn(),
   listScans: vi.fn(),
   saveScan: vi.fn(),
   setSettings: vi.fn(),
@@ -23,6 +25,8 @@ vi.mock('../../src/scan', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../src/scan')>()),
   scanActiveTab: mocks.scanActiveTab,
 }));
+vi.mock('../../src/license', () => ({ recheckIfDue: mocks.recheckIfDue, activate: mocks.activate, checkoutUrl: () => '', lostKeyUrl: () => '' }));
+
 vi.mock('../../src/store', () => ({
   getSettings: async () => mocks.settings,
   setSettings: mocks.setSettings,
@@ -65,6 +69,7 @@ beforeEach(() => {
   mocks.settings = { theme: 'system', lang: '', pro: false };
   mocks.listeners = [];
   mocks.scanActiveTab.mockReset().mockResolvedValue(brewline());
+  mocks.recheckIfDue.mockReset().mockResolvedValue(undefined);
   mocks.listScans.mockReset().mockResolvedValue([]);
   mocks.saveScan.mockReset().mockResolvedValue(undefined);
   mocks.setSettings.mockReset().mockResolvedValue(undefined);
@@ -153,6 +158,12 @@ describe('side panel App', () => {
     expect(await screen.findByRole('heading', { name: 'Export tokens' })).toBeTruthy();
   });
 
+  it('starts the 30-day licence re-check on open', async () => {
+    mocks.listScans.mockResolvedValue([brewline()]);
+    render(<App />);
+    await waitFor(() => expect(mocks.recheckIfDue).toHaveBeenCalledTimes(1));
+  });
+
   it('renders the unlock sheet full-panel for view=unlock, and Back returns to the system view', async () => {
     mocks.listScans.mockResolvedValue([brewline()]);
     render(<App initialView="unlock" />);
@@ -160,6 +171,16 @@ describe('side panel App', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Back to design system' }));
     expect((await screen.findAllByText('#1F5E4B')).length).toBeGreaterThan(0);
+  });
+
+  it('activating a key on the unlock view returns to the export view', async () => {
+    mocks.listScans.mockResolvedValue([brewline()]);
+    mocks.activate.mockResolvedValue({ ok: true });
+    render(<App initialView="unlock" />);
+    fireEvent.input(await screen.findByLabelText('License key'), { target: { value: 'SDT-ABCD-2345-6789' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Activate' }));
+    expect(await screen.findByText('Pro unlocked')).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Export tokens' }, { timeout: 3000 })).toBeTruthy();
   });
 
   it('parses ?view= for export and unlock', () => {

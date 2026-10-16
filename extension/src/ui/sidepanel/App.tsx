@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { Tokens } from '../../model/tokens';
 import { scanActiveTab, shownReason, type ShownScanError } from '../../scan';
+import { recheckIfDue } from '../../license';
 import { getSettings, listScans, onSettingsChange, saveScan, type Settings } from '../../store';
 import { EmptyState } from '../components/EmptyState';
 import { Icon } from '../components/Icon';
@@ -74,6 +75,7 @@ export function App({ initialView = viewFromSearch(location.search) }: AppProps)
       applyTheme(s.theme);
       setLang(resolveLang(s.lang, navigator.language));
       setLocal(s);
+      void recheckIfDue().catch(() => {});
       const saved = await newestScanFor(await activeHost());
       if (!live) return;
       if (saved) {
@@ -90,7 +92,7 @@ export function App({ initialView = viewFromSearch(location.search) }: AppProps)
   }, []);
 
   if (!settings) return <div class="sp" />;
-  if (view === 'unlock') return <UnlockSheet variant="page" onClose={() => setView('system')} />;
+  if (view === 'unlock') return <UnlockSheet variant="page" onClose={() => setView('system')} onUnlocked={() => setView(tokens ? 'export' : 'system')} />;
 
   if (view === 'export' && tokens) {
     return <ExportScreen tokens={tokens} pro={settings.pro} onBack={() => setView('system')} />;

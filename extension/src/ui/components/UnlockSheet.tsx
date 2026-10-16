@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'preact/hooks';
-import { t } from '../i18n';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { activate, checkoutUrl, lostKeyUrl } from '../../license';
+import { renderedLang, t } from '../i18n';
 import { Icon } from './Icon';
 
 const PERKS = ['export', 'designMd', 'system', 'contrast', 'scans'] as const;
@@ -9,9 +10,42 @@ export interface UnlockSheetProps {
   /** `overlay` is a modal sheet over the current screen; `page` fills the panel with a Back button. */
   variant: 'overlay' | 'page';
   onClose(): void;
+  /** Called shortly after a key activates; defaults to `onClose`. */
+  onUnlocked?(): void;
 }
 
-function Content() {
+const UNLOCKED_MS = 900;
+const ERROR_KEY = {
+  invalid: 'unlock.errInvalid',
+  revoked: 'unlock.errRevoked',
+  network: 'unlock.errNetwork',
+  rate_limited: 'unlock.errRateLimited',
+} as const;
+
+function Content({ onDone }: { onDone(): void }) {
+  const [key, setKey] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<keyof typeof ERROR_KEY | null>(null);
+  const [done, setDone] = useState(false);
+  const doneRef = useRef(onDone);
+  doneRef.current = onDone;
+  useEffect(() => {
+    if (!done) return;
+    const id = setTimeout(() => doneRef.current(), UNLOCKED_MS);
+    return () => clearTimeout(id);
+  }, [done]);
+
+  const submit = async (e: Event) => {
+    e.preventDefault();
+    if (busy || done) return;
+    setBusy(true);
+    setError(null);
+    const r = await activate(key).catch(() => ({ ok: false as const, reason: 'network' as const }));
+    setBusy(false);
+    if (r.ok) setDone(true);
+    else setError(r.reason);
+  };
+
   return (
     <>
       <div class="unlock-hero">
@@ -34,25 +68,41 @@ function Content() {
         ))}
       </ul>
       <div class="unlock-actions">
-        <button type="button" class="paypal" disabled>
+        <button type="button" class="paypal" onClick={() => { void chrome.tabs.create({ url: checkoutUrl(renderedLang()) }); }}>
           <span>{t('unlock.paypal')}</span>
-          <span class="paypal-soon">{t('unlock.comingSoon')}</span>
         </button>
         <div class="divider"><span>{t('unlock.alreadyPaid')}</span></div>
-        <div class="key-row">
+        <form class="key-row" onSubmit={submit}>
           <label class="key-field">
             <span class="sr-only">{t('unlock.keyLabel')}</span>
-            <input class="key-input" type="text" disabled placeholder={t('unlock.keyPlaceholder')} />
+            <input
+              class="key-input"
+              type="text"
+              value={key}
+              disabled={busy || done}
+              placeholder={t('unlock.keyPlaceholder')}
+              autocomplete="off"
+              spellcheck={false}
+              aria-invalid={error ? 'true' : undefined}
+              aria-describedby={error ? 'key-status' : undefined}
+              onInput={(e) => { setKey((e.target as HTMLInputElement).value); if (error) setError(null); }}
+            />
           </label>
-          <button type="button" class="key-activate" disabled>{t('unlock.activate')}</button>
+          <button type="submit" class="key-activate" disabled={busy || done || key.trim() === ''}>
+            {busy ? t('unlock.activating') : t('unlock.activate')}
+          </button>
+        </form>
+        <div id="key-status" class={done ? 'key-ok' : 'key-error'} role="status">
+          {done ? t('unlock.unlocked') : error ? t(ERROR_KEY[error]) : null}
         </div>
+        <a class="lost-key" href={lostKeyUrl(renderedLang())} target="_blank" rel="noopener noreferrer">{t('unlock.lostKey')}</a>
         <p class="refund">{t('unlock.refund')}</p>
       </div>
     </>
   );
 }
 
-export function UnlockSheet({ variant, onClose }: UnlockSheetProps) {
+export function UnlockSheet({ variant, onClose, onUnlocked }: UnlockSheetProps) {
   const dialog = useRef<HTMLDivElement>(null);
   const closeBtn = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
@@ -93,7 +143,7 @@ export function UnlockSheet({ variant, onClose }: UnlockSheetProps) {
             <Icon name="back" />
           </button>
         </div>
-        <Content />
+        <Content onDone={onUnlocked ?? onClose} />
       </div>
     );
   }
@@ -113,7 +163,7 @@ export function UnlockSheet({ variant, onClose }: UnlockSheetProps) {
         <button ref={closeBtn} type="button" class="icon-btn sheet-close" aria-label={t('unlock.close')} onClick={onClose}>
           <Icon name="close" />
         </button>
-        <Content />
+        <Content onDone={onUnlocked ?? onClose} />
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ import { App } from '../../src/ui/popup/App';
 
 const mocks = vi.hoisted(() => ({
   scanActiveTab: vi.fn(),
+  recheckIfDue: vi.fn(),
   setSettings: vi.fn(),
   saveScan: vi.fn(),
   settings: { theme: 'system', lang: '', pro: false } as Settings,
@@ -18,6 +19,8 @@ vi.mock('../../src/scan', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../src/scan')>()),
   scanActiveTab: mocks.scanActiveTab,
 }));
+
+vi.mock('../../src/license', () => ({ recheckIfDue: mocks.recheckIfDue }));
 
 vi.mock('../../src/store', () => ({
   getSettings: async () => mocks.settings,
@@ -48,6 +51,7 @@ const writeText = vi.fn(async (_s: string) => {});
 beforeEach(() => {
   mocks.settings = { theme: 'system', lang: '', pro: false };
   mocks.scanActiveTab.mockReset();
+  mocks.recheckIfDue.mockReset().mockResolvedValue(undefined);
   mocks.setSettings.mockReset().mockResolvedValue(undefined);
   mocks.saveScan.mockReset().mockResolvedValue(undefined);
   writeText.mockClear();
@@ -56,6 +60,12 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('popup App', () => {
+  it('starts the 30-day licence re-check on open without waiting for the scan', async () => {
+    mocks.scanActiveTab.mockReturnValue(new Promise<Tokens>(() => {}));
+    render(<App />);
+    await waitFor(() => expect(mocks.recheckIfDue).toHaveBeenCalledTimes(1));
+  });
+
   it('shows a scanning state, then saves the scan', async () => {
     let resolve!: (t: Tokens) => void;
     mocks.scanActiveTab.mockReturnValue(new Promise<Tokens>((r) => { resolve = r; }));

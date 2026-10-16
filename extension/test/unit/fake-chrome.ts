@@ -5,11 +5,13 @@ export interface FakeChrome {
     local: {
       get(key: string): Promise<Record<string, unknown>>;
       set(items: Record<string, unknown>): Promise<void>;
+      remove(key: string): Promise<void>;
     };
     onChanged: { addListener(l: Listener): void; removeListener(l: Listener): void };
   };
   scripting: { executeScript: (injection: unknown) => Promise<{ result?: unknown }[]> };
-  tabs: { query: (q: unknown) => Promise<{ id?: number }[]> };
+  tabs: { query: (q: unknown) => Promise<{ id?: number }[]>; create: (p: unknown) => Promise<unknown> };
+  runtime: { id: string };
 }
 
 export interface FakeOptions {
@@ -24,6 +26,11 @@ export function installFakeChrome(opts: FakeOptions = {}): { chrome: FakeChrome;
     storage: {
       local: {
         async get(key) { return key in data ? { [key]: structuredClone(data[key]) } : {}; },
+        async remove(key) {
+          const changes = { [key]: { oldValue: data[key], newValue: undefined } };
+          delete data[key];
+          listeners.forEach((l) => l(changes, 'local'));
+        },
         async set(items) {
           const changes: Record<string, { oldValue?: unknown; newValue?: unknown }> = {};
           for (const [k, v] of Object.entries(items)) {
@@ -39,7 +46,8 @@ export function installFakeChrome(opts: FakeOptions = {}): { chrome: FakeChrome;
       },
     },
     scripting: { executeScript: opts.executeScript ?? (async () => [{}]) },
-    tabs: { query: async () => opts.tabs ?? [] },
+    tabs: { query: async () => opts.tabs ?? [], create: async () => ({}) },
+    runtime: { id: 'abcdefghijklmnopabcdefghijklmnop' },
   };
   (globalThis as any).chrome = chrome;
   return { chrome, data };

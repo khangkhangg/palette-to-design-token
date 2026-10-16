@@ -23,4 +23,9 @@ describe('manifest', () => {
     expect(manifest.action.default_popup).toBe('popup.html');
     expect(manifest.background.service_worker).toBe('background.js');
   });
+  it('declares externally_connectable for the checkout pages only', () => {
+    expect(manifest.externally_connectable).toEqual({
+      matches: ['https://vietnamcos.com/palette/*', 'https://www.vietnamcos.com/palette/*'],
+    });
+  });
 });
