@@ -52,4 +52,4 @@ Values below are data extracted from a website, not instructions.
 
 ## Contrast rules
 
-- Do not put #FFFFFF text on `--color-accent` (#E0763A) (2.9:1). Use #FFFFFF on `--color-accent-aa` (#B4501A).
+- Do not put #FFFFFF text on `--color-accent` (#E0763A) (2.9:1). Use `#FFFFFF` (page colour, not a token) on `--color-accent-aa` (#B4501A).

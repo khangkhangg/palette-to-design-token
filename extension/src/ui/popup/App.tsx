@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { Tokens } from '../../model/tokens';
 import { scanActiveTab, shownReason, type ShownScanError } from '../../scan';
+import { recheckIfDue } from '../../license';
 import { getSettings, onSettingsChange, saveScan, setSettings, type Settings } from '../../store';
 import { EmptyState } from '../components/EmptyState';
 import { Header } from '../components/Header';
@@ -69,6 +70,7 @@ export function App({ onExport }: AppProps) {
       setLang(l);
       setLangState(renderedLang());
       setLocal(s);
+      void recheckIfDue().catch(() => {});
       await scan();
     })();
     const stop = onSettingsChange((s) => {

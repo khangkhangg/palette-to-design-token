@@ -15,6 +15,15 @@ describe('goldens', () => {
     expect(f.filename).toBe('tokens.css');
     expect(f.text).toBe(golden('brewline.css'));
   });
+  it('css type variables use the Tailwind v4 names', () => {
+    const css = exportFile(brewline, 'css', o).text;
+    const tw = exportFile(brewline, 'tailwind', o).text;
+    for (const l of ['--text-h1: 24px;', '--text-h1--line-height: 32px;', '--text-h1--font-weight: 600;']) {
+      expect(css).toContain(`  ${l}\n`);
+      expect(tw).toContain(`  ${l}\n`);
+    }
+    expect(css).not.toMatch(/--text-[a-z0-9]+-(size|weight|line-height):/);
+  });
   it('tailwind v4 (default)', () => {
     const f = exportFile(brewline, 'tailwind', o);
     expect(f.filename).toBe('tailwind.css');

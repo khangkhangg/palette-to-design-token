@@ -1,0 +1,239 @@
+{
+  "app": {
+    "name": "Site to Design Token"
+  },
+  "header": {
+    "subtitle": "{site} · {counts}",
+    "counts": "{colours} · {fonts}",
+    "colours_other": "{n} 种颜色",
+    "fonts_other": "{n} 种字体",
+    "rescan": "重新扫描页面",
+    "settings": "设置"
+  },
+  "settings": {
+    "theme": "主题",
+    "themeLight": "浅色",
+    "themeDark": "深色",
+    "themeSystem": "跟随系统",
+    "language": "语言"
+  },
+  "tabs": {
+    "label": "分区",
+    "colours": "颜色",
+    "type": "排版",
+    "spacing": "间距",
+    "contrast": "对比度"
+  },
+  "roles": {
+    "primary": "主色",
+    "accent": "强调色",
+    "surface": "背景色",
+    "text": "文字",
+    "border": "边框",
+    "other": "其他"
+  },
+  "colours": {
+    "copy": "复制 {hex}，占颜色用量的 {share}",
+    "copied": "已复制",
+    "copyFailed": "复制失败",
+    "lessThanOne": "<1%",
+    "foundLittle": "这个网站的品牌色很少，因此没有明确的主色或强调色。以下是我们找到的全部颜色。",
+    "none": "此页面上未找到颜色。"
+  },
+  "popup": {
+    "scanning": "正在扫描页面…",
+    "copyHexList": "复制色值列表",
+    "exportTokens": "导出 Token",
+    "pro": "PRO",
+    "restrictedTitle": "无法扫描此页面",
+    "restrictedBody": "浏览器内置页面和 Chrome 网上应用店会阻止扩展程序。请打开普通网站后重试。",
+    "noAccess": "在此页面上点击 Site to Design Token 图标即可扫描。",
+    "failedTitle": "页面扫描失败",
+    "failedBody": "读取页面时出了问题。请刷新页面后重试。",
+    "retry": "重试",
+    "openFullView": "打开完整视图",
+    "openFailed": "无法打开完整视图。"
+  },
+  "type": {
+    "fonts": "字体",
+    "scale": "字号层级",
+    "empty": "未找到文字样式",
+    "emptyBody": "此页面没有可读取的文字样式。",
+    "fontRole": {
+      "body": "正文",
+      "heading": "标题",
+      "mono": "等宽"
+    },
+    "sampleName": {
+      "display": "展示标题",
+      "h1": "一级标题",
+      "h2": "二级标题",
+      "h3": "三级标题",
+      "h4": "四级标题",
+      "body": "正文",
+      "small": "小号文字",
+      "caption": "说明文字",
+      "xs": "超小号文字"
+    },
+    "sample": "Aa {name}",
+    "meta": "{family} {weight} · {size}/{lineHeight}"
+  },
+  "spacing": {
+    "scale": "间距层级",
+    "radius": "圆角",
+    "shadow": "阴影",
+    "base": "基准 {n}px",
+    "noBase": "没有统一基准",
+    "empty": "未找到间距",
+    "emptyBody": "此页面没有可显示的间距、圆角或阴影值。",
+    "px": "{n}px",
+    "full": "全圆角"
+  },
+  "contrast": {
+    "pass": "通过 WCAG AA",
+    "fail": "未通过，需修复",
+    "unknown": "需人工检查",
+    "empty": "未找到颜色组合",
+    "emptyBody": "此页面上无法读取任何文字与背景的颜色组合。",
+    "imageOrGradient": "图片或渐变",
+    "pairColours": "{bg} 上的 {fg}",
+    "where": {
+      "body text": "正文",
+      "headings": "标题",
+      "links": "链接",
+      "buttons": "按钮",
+      "other": "其他"
+    },
+    "grade": {
+      "AAA": "AAA",
+      "AA": "AA",
+      "AA-large": "AA 大字号",
+      "fail": "未通过",
+      "unknown": "需人工检查"
+    },
+    "ratio": "{ratio}:1",
+    "fixTitle": {
+      "body text": "正文修复建议",
+      "headings": "标题修复建议",
+      "links": "链接修复建议",
+      "buttons": "按钮修复建议",
+      "other": "修复建议"
+    },
+    "fixLocked": "解锁后查看修复方案",
+    "unlock": "解锁",
+    "before": "修复前",
+    "after": "修复后",
+    "sampleButton": "示例",
+    "fixedRatio": "修复后 {ratio}:1",
+    "uses_other": "使用 {n} 次",
+    "noFix": "未找到自动修复方案，请手动尝试更深或更浅的色调。"
+  },
+  "panel": {
+    "title": "设计系统",
+    "scanned": "{site} · 扫描于 {when}",
+    "viewOnly": "仅查看",
+    "colours": "颜色",
+    "colourRoles": "颜色角色",
+    "typography": "排版",
+    "spacing": "间距",
+    "radius": "圆角",
+    "shadows": "阴影",
+    "exportDesignSystem": "导出设计系统",
+    "exportFormats": "CSS · Tailwind · Figma · JSON · DESIGN.md（供 AI 使用）",
+    "back": "返回设计系统",
+    "dismiss": "关闭",
+    "loading": "正在读取此页面…"
+  },
+  "export": {
+    "title": "导出 Token",
+    "proUnlocked": "Pro 已解锁",
+    "format": "格式",
+    "formatLabel": "导出格式",
+    "include": "包含",
+    "preview": "预览",
+    "previewLabel": "{file} 预览",
+    "copy": "复制",
+    "copied": "已复制",
+    "copyFailed": "复制失败",
+    "download": "下载 {file}",
+    "tailwindVersion": "Tailwind 版本",
+    "v4": "v4",
+    "v3": "v3",
+    "formats": {
+      "md": {
+        "label": "DESIGN.md",
+        "sub": "供 AI 编程使用"
+      },
+      "css": {
+        "label": "CSS",
+        "sub": "变量"
+      },
+      "tailwind": {
+        "label": "Tailwind",
+        "sub": "主题配置"
+      },
+      "figma": {
+        "label": "Figma",
+        "sub": "变量"
+      },
+      "json": {
+        "label": "JSON",
+        "sub": "W3C Token"
+      },
+      "all": {
+        "label": "全部",
+        "sub": ".zip 压缩包"
+      }
+    },
+    "parts": {
+      "colours": "颜色",
+      "typography": "排版",
+      "spacing": "间距",
+      "radius": "圆角",
+      "shadows": "阴影"
+    },
+    "zipSummary": "{count} 个文件 · {size} KB",
+    "zipBuilding": "正在打包…"
+  },
+  "unlock": {
+    "title": "把整套设计系统带走",
+    "price": "1.49 美元",
+    "priceNote": "一次付款 · 永久使用",
+    "perks": {
+      "export": {
+        "title": "导出 Token",
+        "text": "支持 CSS、Tailwind、Figma 或 JSON"
+      },
+      "designMd": {
+        "title": "DESIGN.md",
+        "text": "让 Claude、Cursor 或 Copilot 按品牌风格生成代码"
+      },
+      "system": {
+        "title": "完整设计系统",
+        "text": "字体、间距、圆角、阴影"
+      },
+      "contrast": {
+        "title": "对比度修复",
+        "text": "不只告诉你是否通过"
+      },
+      "scans": {
+        "title": "无限保存网站",
+        "text": "不再只保留最近 3 个"
+      }
+    },
+    "paypal": "使用 PayPal 付款",
+    "alreadyPaid": "已经付过款？",
+    "keyLabel": "许可密钥",
+    "keyPlaceholder": "SDT-XXXX-XXXX-XXXX",
+    "activate": "激活",
+    "close": "关闭",
+    "lostKey": "密钥丢失了？",
+    "activating": "正在激活…",
+    "unlocked": "Pro 已解锁",
+    "errInvalid": "该密钥无效。",
+    "errRevoked": "此密钥已退款，无法再使用。",
+    "errNetwork": "无法连接服务器，请重试。",
+    "errRateLimited": "尝试次数过多，请等待一分钟后重试。",
+    "refund": "所有销售均为最终交易。由于 Pro 即时解锁且价格仅为 1.49 美元，购买后恕不退款。"
+  }
+}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Settings } from '../../store';
-import { t } from '../i18n';
+import { AVAILABLE_LANGS, LANG_NAMES, t } from '../i18n';
 import { Icon } from './Icon';
 
 const THEMES: { value: Settings['theme']; key: string }[] = [
@@ -10,7 +10,6 @@ const THEMES: { value: Settings['theme']; key: string }[] = [
 ];
 /** Development builds only, so not translated: the literal is compiled out of production bundles (checked by npm run e2e). */
 const DEV_PRO_LABEL = 'Dev: toggle Pro';
-const LANGS: { value: string; key: string }[] = [{ value: 'en', key: 'settings.langEn' }];
 
 export interface HeaderProps {
   subtitle?: string;
@@ -88,16 +87,16 @@ export function Header({ subtitle, theme, lang, busy, onTheme, onLang, onRescan,
             <fieldset class="menu-group">
               <legend class="menu-label">{t('settings.language')}</legend>
               <div class="menu-list">
-                {LANGS.map((o) => (
-                  <label class="menu-opt" key={o.value}>
+                {AVAILABLE_LANGS.map((code) => (
+                  <label class="menu-opt" key={code}>
                     <input
                       type="radio"
                       name="sdt-lang"
-                      value={o.value}
-                      checked={lang === o.value}
-                      onChange={() => onLang(o.value)}
+                      value={code}
+                      checked={lang === code}
+                      onChange={() => onLang(code)}
                     />
-                    <span>{t(o.key)}</span>
+                    <span lang={code}>{LANG_NAMES[code]}</span>
                     <span class="menu-check"><Icon name="check" size={14} /></span>
                   </label>
                 ))}

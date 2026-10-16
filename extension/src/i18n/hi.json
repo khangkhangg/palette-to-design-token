@@ -1,0 +1,242 @@
+{
+  "app": {
+    "name": "Site to Design Token"
+  },
+  "header": {
+    "subtitle": "{site} · {counts}",
+    "counts": "{colours} · {fonts}",
+    "colours_one": "{n} रंग",
+    "colours_other": "{n} रंग",
+    "fonts_one": "{n} फ़ॉन्ट",
+    "fonts_other": "{n} फ़ॉन्ट",
+    "rescan": "पेज फिर से स्कैन करें",
+    "settings": "सेटिंग्स"
+  },
+  "settings": {
+    "theme": "थीम",
+    "themeLight": "लाइट",
+    "themeDark": "डार्क",
+    "themeSystem": "सिस्टम",
+    "language": "भाषा"
+  },
+  "tabs": {
+    "label": "सेक्शन",
+    "colours": "रंग",
+    "type": "टाइप",
+    "spacing": "स्पेसिंग",
+    "contrast": "कंट्रास्ट"
+  },
+  "roles": {
+    "primary": "प्राइमरी",
+    "accent": "एक्सेंट",
+    "surface": "सरफ़ेस",
+    "text": "टेक्स्ट",
+    "border": "बॉर्डर",
+    "other": "अन्य"
+  },
+  "colours": {
+    "copy": "{hex} कॉपी करें, रंगों के इस्तेमाल का {share}",
+    "copied": "कॉपी हो गया",
+    "copyFailed": "कॉपी नहीं हो सका",
+    "lessThanOne": "<1%",
+    "foundLittle": "यह साइट बहुत कम ब्रांड रंग इस्तेमाल करती है, इसलिए कोई साफ़ प्राइमरी या एक्सेंट रंग नहीं है। हमें जो भी मिला, वह सब यहाँ है।",
+    "none": "इस पेज पर कोई रंग नहीं मिला।"
+  },
+  "popup": {
+    "scanning": "पेज स्कैन हो रहा है…",
+    "copyHexList": "हेक्स सूची कॉपी करें",
+    "exportTokens": "टोकन एक्सपोर्ट करें",
+    "pro": "PRO",
+    "restrictedTitle": "यह पेज स्कैन नहीं किया जा सकता",
+    "restrictedBody": "ब्राउज़र के अपने पेज और Chrome Web Store एक्सटेंशन को ब्लॉक करते हैं। कोई सामान्य वेबसाइट खोलकर फिर से कोशिश करें।",
+    "noAccess": "इस पेज को स्कैन करने के लिए यहाँ Site to Design Token आइकन पर क्लिक करें।",
+    "failedTitle": "यह पेज स्कैन नहीं हो सका",
+    "failedBody": "पेज पढ़ते समय कुछ गड़बड़ हो गई। पेज रीलोड करें, फिर दोबारा कोशिश करें।",
+    "retry": "फिर कोशिश करें",
+    "openFullView": "पूरा व्यू खोलें",
+    "openFailed": "पूरा व्यू नहीं खुल सका।"
+  },
+  "type": {
+    "fonts": "फ़ॉन्ट",
+    "scale": "स्केल",
+    "empty": "कोई टाइप स्टाइल नहीं मिली",
+    "emptyBody": "इस पेज पर पढ़ने लायक कोई टेक्स्ट स्टाइल नहीं है।",
+    "fontRole": {
+      "body": "बॉडी",
+      "heading": "हेडिंग",
+      "mono": "मोनो"
+    },
+    "sampleName": {
+      "display": "डिस्प्ले",
+      "h1": "हेडिंग 1",
+      "h2": "हेडिंग 2",
+      "h3": "हेडिंग 3",
+      "h4": "हेडिंग 4",
+      "body": "बॉडी टेक्स्ट",
+      "small": "छोटा टेक्स्ट",
+      "caption": "कैप्शन",
+      "xs": "बहुत छोटा"
+    },
+    "sample": "Aa {name}",
+    "meta": "{family} {weight} · {size}/{lineHeight}"
+  },
+  "spacing": {
+    "scale": "स्पेसिंग स्केल",
+    "radius": "रेडियस",
+    "shadow": "शैडो",
+    "base": "{n}px बेस",
+    "noBase": "कोई एक जैसा बेस नहीं",
+    "empty": "कोई स्पेसिंग नहीं मिली",
+    "emptyBody": "इस पेज पर दिखाने के लिए स्पेसिंग, रेडियस या शैडो की कोई वैल्यू नहीं है।",
+    "px": "{n}px",
+    "full": "पूरा"
+  },
+  "contrast": {
+    "pass": "WCAG AA में पास",
+    "fail": "फ़ेल, इन्हें ठीक करें",
+    "unknown": "ख़ुद जाँचना होगा",
+    "empty": "कोई रंग-जोड़ी नहीं मिली",
+    "emptyBody": "इस पेज पर टेक्स्ट और बैकग्राउंड की कोई जोड़ी पढ़ी नहीं जा सकी।",
+    "imageOrGradient": "इमेज या ग्रेडिएंट",
+    "pairColours": "{bg} पर {fg}",
+    "where": {
+      "body text": "बॉडी टेक्स्ट",
+      "headings": "हेडिंग",
+      "links": "लिंक",
+      "buttons": "बटन",
+      "other": "अन्य"
+    },
+    "grade": {
+      "AAA": "AAA",
+      "AA": "AA",
+      "AA-large": "AA बड़ा टेक्स्ट",
+      "fail": "फ़ेल",
+      "unknown": "ख़ुद जाँचें"
+    },
+    "ratio": "{ratio}:1",
+    "fixTitle": {
+      "body text": "बॉडी टेक्स्ट के लिए सुझाया गया सुधार",
+      "headings": "हेडिंग के लिए सुझाया गया सुधार",
+      "links": "लिंक के लिए सुझाया गया सुधार",
+      "buttons": "बटन के लिए सुझाया गया सुधार",
+      "other": "सुझाया गया सुधार"
+    },
+    "fixLocked": "सुधार देखने के लिए अनलॉक करें",
+    "unlock": "अनलॉक करें",
+    "before": "पहले",
+    "after": "सुधार के बाद",
+    "sampleButton": "नमूना",
+    "fixedRatio": "सुधार के बाद {ratio}:1",
+    "uses_one": "{n} बार इस्तेमाल",
+    "uses_other": "{n} बार इस्तेमाल",
+    "noFix": "कोई अपने-आप होने वाला सुधार नहीं मिला — ख़ुद कोई गहरा या हल्का शेड आज़माएँ।"
+  },
+  "panel": {
+    "title": "डिज़ाइन सिस्टम",
+    "scanned": "{site} · {when} को स्कैन किया गया",
+    "viewOnly": "सिर्फ़ देखने के लिए",
+    "colours": "रंग",
+    "colourRoles": "रंगों की भूमिकाएँ",
+    "typography": "टाइपोग्राफ़ी",
+    "spacing": "स्पेसिंग",
+    "radius": "रेडियस",
+    "shadows": "शैडो",
+    "exportDesignSystem": "डिज़ाइन सिस्टम एक्सपोर्ट करें",
+    "exportFormats": "CSS · Tailwind · Figma · JSON · AI के लिए DESIGN.md",
+    "back": "डिज़ाइन सिस्टम पर वापस जाएँ",
+    "dismiss": "बंद करें",
+    "loading": "यह पेज पढ़ा जा रहा है…"
+  },
+  "export": {
+    "title": "टोकन एक्सपोर्ट करें",
+    "proUnlocked": "Pro अनलॉक हो गया",
+    "format": "फ़ॉर्मैट",
+    "formatLabel": "एक्सपोर्ट फ़ॉर्मैट",
+    "include": "शामिल करें",
+    "preview": "प्रीव्यू",
+    "previewLabel": "{file} का प्रीव्यू",
+    "copy": "कॉपी करें",
+    "copied": "कॉपी हो गया",
+    "copyFailed": "कॉपी नहीं हो सका",
+    "download": "{file} डाउनलोड करें",
+    "tailwindVersion": "Tailwind वर्शन",
+    "v4": "v4",
+    "v3": "v3",
+    "formats": {
+      "md": {
+        "label": "DESIGN.md",
+        "sub": "AI कोडिंग के लिए"
+      },
+      "css": {
+        "label": "CSS",
+        "sub": "वैरिएबल"
+      },
+      "tailwind": {
+        "label": "Tailwind",
+        "sub": "थीम कॉन्फ़िग"
+      },
+      "figma": {
+        "label": "Figma",
+        "sub": "वैरिएबल"
+      },
+      "json": {
+        "label": "JSON",
+        "sub": "W3C टोकन"
+      },
+      "all": {
+        "label": "सभी",
+        "sub": ".zip बंडल"
+      }
+    },
+    "parts": {
+      "colours": "रंग",
+      "typography": "टाइपोग्राफ़ी",
+      "spacing": "स्पेसिंग",
+      "radius": "रेडियस",
+      "shadows": "शैडो"
+    },
+    "zipSummary": "{count} फ़ाइलें · {size} KB",
+    "zipBuilding": "बंडल बन रहा है…"
+  },
+  "unlock": {
+    "title": "डिज़ाइन सिस्टम अपने साथ ले जाएँ",
+    "price": "$1.49",
+    "priceNote": "एक बार · हमेशा के लिए आपका",
+    "perks": {
+      "export": {
+        "title": "टोकन एक्सपोर्ट",
+        "text": "CSS, Tailwind, Figma या JSON में"
+      },
+      "designMd": {
+        "title": "DESIGN.md",
+        "text": "ताकि Claude, Cursor या Copilot ब्रांड के मुताबिक़ बनाएँ"
+      },
+      "system": {
+        "title": "पूरा डिज़ाइन सिस्टम",
+        "text": "टाइप, स्पेसिंग, रेडियस, शैडो"
+      },
+      "contrast": {
+        "title": "कंट्रास्ट सुधार",
+        "text": "सिर्फ़ पास या फ़ेल नहीं"
+      },
+      "scans": {
+        "title": "असीमित सेव की गई साइटें",
+        "text": "सिर्फ़ आख़िरी 3 नहीं"
+      }
+    },
+    "paypal": "PayPal से भुगतान करें",
+    "alreadyPaid": "भुगतान कर चुके हैं?",
+    "keyLabel": "लाइसेंस कुंजी",
+    "keyPlaceholder": "SDT-XXXX-XXXX-XXXX",
+    "activate": "एक्टिवेट करें",
+    "close": "बंद करें",
+    "lostKey": "कुंजी खो गई?",
+    "activating": "एक्टिवेट हो रहा है…",
+    "unlocked": "Pro अनलॉक हो गया",
+    "errInvalid": "यह कुंजी मान्य नहीं है।",
+    "errRevoked": "इस कुंजी का रिफ़ंड हो चुका है, अब यह काम नहीं करती।",
+    "errNetwork": "सर्वर तक नहीं पहुँच सके — फिर से कोशिश करें।",
+    "errRateLimited": "बहुत ज़्यादा कोशिशें — एक मिनट रुककर फिर से कोशिश करें।",
+    "refund": "सभी बिक्री अंतिम होती है। Pro तुरंत अनलॉक हो जाता है और इसकी कीमत $1.49 है, इसलिए खरीद के बाद हम धनवापसी नहीं करते।"
+  }
+}

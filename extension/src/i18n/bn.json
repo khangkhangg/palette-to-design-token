@@ -1,0 +1,242 @@
+{
+  "app": {
+    "name": "Site to Design Token"
+  },
+  "header": {
+    "subtitle": "{site} · {counts}",
+    "counts": "{colours} · {fonts}",
+    "colours_one": "{n}টি রং",
+    "colours_other": "{n}টি রং",
+    "fonts_one": "{n}টি ফন্ট",
+    "fonts_other": "{n}টি ফন্ট",
+    "rescan": "পেজটি আবার স্ক্যান করুন",
+    "settings": "সেটিংস"
+  },
+  "settings": {
+    "theme": "থিম",
+    "themeLight": "লাইট",
+    "themeDark": "ডার্ক",
+    "themeSystem": "সিস্টেম",
+    "language": "ভাষা"
+  },
+  "tabs": {
+    "label": "বিভাগ",
+    "colours": "রং",
+    "type": "টাইপ",
+    "spacing": "স্পেসিং",
+    "contrast": "কনট্রাস্ট"
+  },
+  "roles": {
+    "primary": "প্রাইমারি",
+    "accent": "অ্যাকসেন্ট",
+    "surface": "সারফেস",
+    "text": "টেক্সট",
+    "border": "বর্ডার",
+    "other": "অন্যান্য"
+  },
+  "colours": {
+    "copy": "{hex} কপি করুন, রং ব্যবহারের {share}",
+    "copied": "কপি হয়েছে",
+    "copyFailed": "কপি করা যায়নি",
+    "lessThanOne": "<1%",
+    "foundLittle": "এই সাইটে ব্র্যান্ডের রং খুব কম, তাই স্পষ্ট কোনো প্রাইমারি বা অ্যাকসেন্ট রং নেই। আমরা যা পেয়েছি, সবই এখানে।",
+    "none": "এই পেজে কোনো রং পাওয়া যায়নি।"
+  },
+  "popup": {
+    "scanning": "পেজ স্ক্যান হচ্ছে…",
+    "copyHexList": "হেক্স তালিকা কপি করুন",
+    "exportTokens": "টোকেন এক্সপোর্ট করুন",
+    "pro": "PRO",
+    "restrictedTitle": "এই পেজ স্ক্যান করা যাবে না",
+    "restrictedBody": "ব্রাউজারের নিজস্ব পেজ এবং Chrome Web Store এক্সটেনশন ব্লক করে। একটি সাধারণ ওয়েবসাইট খুলে আবার চেষ্টা করুন।",
+    "noAccess": "এই পেজ স্ক্যান করতে এখানে Site to Design Token আইকনে ক্লিক করুন।",
+    "failedTitle": "এই পেজ স্ক্যান করা যায়নি",
+    "failedBody": "পেজটি পড়ার সময় কিছু ভুল হয়েছে। রিলোড করে আবার চেষ্টা করুন।",
+    "retry": "আবার চেষ্টা করুন",
+    "openFullView": "পূর্ণ ভিউ খুলুন",
+    "openFailed": "পূর্ণ ভিউ খোলা যায়নি।"
+  },
+  "type": {
+    "fonts": "ফন্ট",
+    "scale": "স্কেল",
+    "empty": "কোনো টাইপ স্টাইল পাওয়া যায়নি",
+    "emptyBody": "এই পেজে পড়ার মতো কোনো টেক্সট স্টাইল নেই।",
+    "fontRole": {
+      "body": "বডি",
+      "heading": "হেডিং",
+      "mono": "মনো"
+    },
+    "sampleName": {
+      "display": "ডিসপ্লে",
+      "h1": "হেডিং 1",
+      "h2": "হেডিং 2",
+      "h3": "হেডিং 3",
+      "h4": "হেডিং 4",
+      "body": "বডি টেক্সট",
+      "small": "ছোট টেক্সট",
+      "caption": "ক্যাপশন",
+      "xs": "অতি ছোট"
+    },
+    "sample": "Aa {name}",
+    "meta": "{family} {weight} · {size}/{lineHeight}"
+  },
+  "spacing": {
+    "scale": "স্পেসিং স্কেল",
+    "radius": "রেডিয়াস",
+    "shadow": "শ্যাডো",
+    "base": "{n}px বেস",
+    "noBase": "কোনো নির্দিষ্ট বেস নেই",
+    "empty": "কোনো স্পেসিং পাওয়া যায়নি",
+    "emptyBody": "এই পেজে দেখানোর মতো কোনো স্পেসিং, রেডিয়াস বা শ্যাডোর মান নেই।",
+    "px": "{n}px",
+    "full": "পূর্ণ"
+  },
+  "contrast": {
+    "pass": "WCAG AA পাস করেছে",
+    "fail": "ফেল করেছে, ঠিক করুন",
+    "unknown": "নিজে যাচাই করতে হবে",
+    "empty": "কোনো রঙের জোড়া পাওয়া যায়নি",
+    "emptyBody": "এই পেজে টেক্সট ও ব্যাকগ্রাউন্ডের কোনো জোড়া পড়া যায়নি।",
+    "imageOrGradient": "ছবি বা গ্রেডিয়েন্ট",
+    "pairColours": "{bg}-এর ওপর {fg}",
+    "where": {
+      "body text": "বডি টেক্সট",
+      "headings": "হেডিং",
+      "links": "লিংক",
+      "buttons": "বাটন",
+      "other": "অন্যান্য"
+    },
+    "grade": {
+      "AAA": "AAA",
+      "AA": "AA",
+      "AA-large": "AA বড় টেক্সট",
+      "fail": "ফেল",
+      "unknown": "নিজে যাচাই করুন"
+    },
+    "ratio": "{ratio}:1",
+    "fixTitle": {
+      "body text": "বডি টেক্সটের জন্য প্রস্তাবিত সমাধান",
+      "headings": "হেডিংয়ের জন্য প্রস্তাবিত সমাধান",
+      "links": "লিংকের জন্য প্রস্তাবিত সমাধান",
+      "buttons": "বাটনের জন্য প্রস্তাবিত সমাধান",
+      "other": "প্রস্তাবিত সমাধান"
+    },
+    "fixLocked": "সমাধান দেখতে আনলক করুন",
+    "unlock": "আনলক করুন",
+    "before": "আগে",
+    "after": "পরে",
+    "sampleButton": "নমুনা",
+    "fixedRatio": "ঠিক করার পর {ratio}:1",
+    "uses_one": "{n} বার ব্যবহৃত",
+    "uses_other": "{n} বার ব্যবহৃত",
+    "noFix": "স্বয়ংক্রিয় কোনো সমাধান পাওয়া যায়নি — নিজে একটু গাঢ় বা হালকা শেড চেষ্টা করুন।"
+  },
+  "panel": {
+    "title": "ডিজাইন সিস্টেম",
+    "scanned": "{site} · স্ক্যান করা হয়েছে {when}",
+    "viewOnly": "শুধু দেখার জন্য",
+    "colours": "রং",
+    "colourRoles": "রঙের ভূমিকা",
+    "typography": "টাইপোগ্রাফি",
+    "spacing": "স্পেসিং",
+    "radius": "রেডিয়াস",
+    "shadows": "শ্যাডো",
+    "exportDesignSystem": "ডিজাইন সিস্টেম এক্সপোর্ট করুন",
+    "exportFormats": "CSS · Tailwind · Figma · JSON · AI-এর জন্য DESIGN.md",
+    "back": "ডিজাইন সিস্টেমে ফিরে যান",
+    "dismiss": "বন্ধ করুন",
+    "loading": "এই পেজটি পড়া হচ্ছে…"
+  },
+  "export": {
+    "title": "টোকেন এক্সপোর্ট করুন",
+    "proUnlocked": "Pro আনলক হয়েছে",
+    "format": "ফরম্যাট",
+    "formatLabel": "এক্সপোর্ট ফরম্যাট",
+    "include": "অন্তর্ভুক্ত করুন",
+    "preview": "প্রিভিউ",
+    "previewLabel": "{file}-এর প্রিভিউ",
+    "copy": "কপি করুন",
+    "copied": "কপি হয়েছে",
+    "copyFailed": "কপি করা যায়নি",
+    "download": "{file} ডাউনলোড করুন",
+    "tailwindVersion": "Tailwind ভার্সন",
+    "v4": "v4",
+    "v3": "v3",
+    "formats": {
+      "md": {
+        "label": "DESIGN.md",
+        "sub": "AI দিয়ে কোডিংয়ের জন্য"
+      },
+      "css": {
+        "label": "CSS",
+        "sub": "ভেরিয়েবল"
+      },
+      "tailwind": {
+        "label": "Tailwind",
+        "sub": "থিম কনফিগ"
+      },
+      "figma": {
+        "label": "Figma",
+        "sub": "ভেরিয়েবল"
+      },
+      "json": {
+        "label": "JSON",
+        "sub": "W3C টোকেন"
+      },
+      "all": {
+        "label": "সব",
+        "sub": ".zip বান্ডেল"
+      }
+    },
+    "parts": {
+      "colours": "রং",
+      "typography": "টাইপোগ্রাফি",
+      "spacing": "স্পেসিং",
+      "radius": "রেডিয়াস",
+      "shadows": "শ্যাডো"
+    },
+    "zipSummary": "{count}টি ফাইল · {size} KB",
+    "zipBuilding": "বান্ডেল তৈরি হচ্ছে…"
+  },
+  "unlock": {
+    "title": "ডিজাইন সিস্টেম সঙ্গে নিয়ে যান",
+    "price": "$1.49",
+    "priceNote": "একবারই · চিরকাল আপনার",
+    "perks": {
+      "export": {
+        "title": "টোকেন এক্সপোর্ট",
+        "text": "CSS, Tailwind, Figma বা JSON হিসেবে"
+      },
+      "designMd": {
+        "title": "DESIGN.md",
+        "text": "যাতে Claude, Cursor বা Copilot ব্র্যান্ড মেনে তৈরি করে"
+      },
+      "system": {
+        "title": "পূর্ণ ডিজাইন সিস্টেম",
+        "text": "টাইপ, স্পেসিং, রেডিয়াস, শ্যাডো"
+      },
+      "contrast": {
+        "title": "কনট্রাস্টের সমাধান",
+        "text": "শুধু পাস বা ফেল নয়"
+      },
+      "scans": {
+        "title": "সীমাহীন সেভ করা সাইট",
+        "text": "শুধু শেষ 3টি নয়"
+      }
+    },
+    "paypal": "PayPal দিয়ে পেমেন্ট করুন",
+    "alreadyPaid": "আগেই পেমেন্ট করেছেন?",
+    "keyLabel": "লাইসেন্স কী",
+    "keyPlaceholder": "SDT-XXXX-XXXX-XXXX",
+    "activate": "অ্যাক্টিভেট করুন",
+    "close": "বন্ধ করুন",
+    "lostKey": "কী হারিয়ে গেছে?",
+    "activating": "অ্যাক্টিভেট হচ্ছে…",
+    "unlocked": "Pro আনলক হয়েছে",
+    "errInvalid": "এই কী বৈধ নয়।",
+    "errRevoked": "এই কী-এর টাকা ফেরত দেওয়া হয়েছে, তাই এটি আর কাজ করে না।",
+    "errNetwork": "সার্ভারে পৌঁছানো যায়নি — আবার চেষ্টা করুন।",
+    "errRateLimited": "অনেকবার চেষ্টা করা হয়েছে — এক মিনিট অপেক্ষা করে আবার চেষ্টা করুন।",
+    "refund": "সব বিক্রয় চূড়ান্ত। Pro সঙ্গে সঙ্গে আনলক হয় এবং এর দাম $1.49, তাই কেনার পরে আমরা টাকা ফেরত দিই না।"
+  }
+}

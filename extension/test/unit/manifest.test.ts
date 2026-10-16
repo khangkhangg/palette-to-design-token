@@ -7,9 +7,12 @@ const manifest = JSON.parse(
 );
 
 describe('manifest', () => {
-  it('is MV3 with the product name', () => {
+  it('is MV3 with a localised name and description (default locale en)', () => {
     expect(manifest.manifest_version).toBe(3);
-    expect(manifest.name).toBe('Site to Design Token');
+    expect(manifest.name).toBe('__MSG_appName__');
+    expect(manifest.description).toBe('__MSG_appDesc__');
+    expect(manifest.default_locale).toBe('en');
+    expect(manifest.action.default_title).toBe('__MSG_appName__');
   });
   it('requests exactly the allowed permissions and no host permissions', () => {
     expect([...manifest.permissions].sort()).toEqual(['activeTab', 'scripting', 'sidePanel', 'storage']);
@@ -22,5 +25,10 @@ describe('manifest', () => {
     expect(manifest.side_panel.default_path).toBe('sidepanel.html');
     expect(manifest.action.default_popup).toBe('popup.html');
     expect(manifest.background.service_worker).toBe('background.js');
+  });
+  it('declares externally_connectable for the checkout pages only', () => {
+    expect(manifest.externally_connectable).toEqual({
+      matches: ['https://vietnamcos.com/palette/*', 'https://www.vietnamcos.com/palette/*'],
+    });
   });
 });

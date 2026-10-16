@@ -1,0 +1,8 @@
+{
+  "appName": {
+    "message": "Site to Design Token"
+  },
+  "appDesc": {
+    "message": "Turn any website into design tokens: colours, type, spacing, radius, shadows and contrast. Export CSS, Tailwind, Figma and JSON."
+  }
+}

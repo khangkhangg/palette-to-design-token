@@ -26,11 +26,16 @@ const useFor = (e: ColourEntry): string => {
 /** Names a colour by its token, hex in parentheses, when the export has one; bare hex otherwise. */
 type Label = (hex: string) => string;
 
-function contrastLine(p: ContrastPair, label: Label): string | null {
+/** Like `Label`, for the side of a fix that did not change: a hex that is no token is said to be the page's own colour. */
+type PageLabel = (hex: string) => string;
+
+function contrastLine(p: ContrastPair, label: Label, page: PageLabel): string | null {
   if (p.grade === 'unknown') return `- Check manually: ${label(p.fg)} text on ${IMAGE}.`;
   if (p.grade !== 'fail') return null;
   const base = `- Do not put ${label(p.fg)} text on ${p.bg === 'none' ? IMAGE : label(p.bg)} (${ratio(p.ratio)}:1).`;
-  return p.fix ? `${base} Use ${label(p.fix.fg)} on ${label(p.fix.bg)}.` : base;
+  if (!p.fix) return base;
+  const fixed = (hex: string, was: string): string => (hex.toLowerCase() === was.toLowerCase() ? page(hex) : label(hex));
+  return `${base} Use ${fixed(p.fix.fg, p.fg)} on ${fixed(p.fix.bg, p.bg)}.`;
 }
 
 export function toDesignMd(t: Tokens, o: ExportOptions): string {
@@ -79,7 +84,8 @@ export function toDesignMd(t: Tokens, o: ExportOptions): string {
     const name = colours ? colourTokenFor(t, hex) : null;
     return name ? `\`--color-${name}\` (${hex})` : hex;
   };
-  add('Contrast rules', t.contrast.map((p) => contrastLine(p, label)).filter((l): l is string => l !== null));
+  const page: PageLabel = (hex) => (colours && !colourTokenFor(t, hex) ? `\`${hex}\` (page colour, not a token)` : label(hex));
+  add('Contrast rules', t.contrast.map((p) => contrastLine(p, label, page)).filter((l): l is string => l !== null));
 
   return blocks.flatMap((b, i) => (i ? ['', ...b] : b)).join('\n') + '\n';
 }

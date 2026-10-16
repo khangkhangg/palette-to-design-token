@@ -9,6 +9,7 @@ import { App } from '../../src/ui/popup/App';
 
 const mocks = vi.hoisted(() => ({
   scanActiveTab: vi.fn(),
+  recheckIfDue: vi.fn(),
   setSettings: vi.fn(),
   saveScan: vi.fn(),
   settings: { theme: 'system', lang: '', pro: false } as Settings,
@@ -18,6 +19,8 @@ vi.mock('../../src/scan', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../src/scan')>()),
   scanActiveTab: mocks.scanActiveTab,
 }));
+
+vi.mock('../../src/license', () => ({ recheckIfDue: mocks.recheckIfDue }));
 
 vi.mock('../../src/store', () => ({
   getSettings: async () => mocks.settings,
@@ -48,6 +51,7 @@ const writeText = vi.fn(async (_s: string) => {});
 beforeEach(() => {
   mocks.settings = { theme: 'system', lang: '', pro: false };
   mocks.scanActiveTab.mockReset();
+  mocks.recheckIfDue.mockReset().mockResolvedValue(undefined);
   mocks.setSettings.mockReset().mockResolvedValue(undefined);
   mocks.saveScan.mockReset().mockResolvedValue(undefined);
   writeText.mockClear();
@@ -56,6 +60,12 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('popup App', () => {
+  it('starts the 30-day licence re-check on open without waiting for the scan', async () => {
+    mocks.scanActiveTab.mockReturnValue(new Promise<Tokens>(() => {}));
+    render(<App />);
+    await waitFor(() => expect(mocks.recheckIfDue).toHaveBeenCalledTimes(1));
+  });
+
   it('shows a scanning state, then saves the scan', async () => {
     let resolve!: (t: Tokens) => void;
     mocks.scanActiveTab.mockReturnValue(new Promise<Tokens>((r) => { resolve = r; }));
@@ -134,8 +144,8 @@ describe('popup App', () => {
     expect(screen.queryByText("This page can't be scanned")).toBeNull();
   });
 
-  it('renders English with an English lang attribute for an unshipped browser language', async () => {
-    mocks.settings = { ...mocks.settings, lang: 'es' };
+  it('renders English with an English lang attribute for an unsupported language', async () => {
+    mocks.settings = { ...mocks.settings, lang: 'de' };
     mocks.scanActiveTab.mockResolvedValue({ ...brewline(), colours: [c('primary', 'primary', '#1F5E4B', 1)], fonts: [{ name: 'body', family: 'Inter' }] });
     render(<App />);
     expect(await screen.findByText('brewline.co · 1 colour · 1 font')).toBeTruthy();
@@ -143,6 +153,28 @@ describe('popup App', () => {
     expect(document.documentElement.dir).toBe('ltr');
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     expect((screen.getByRole('radio', { name: 'English' }) as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('lists the seven languages by native name and switches live', async () => {
+    mocks.settings = { ...mocks.settings, lang: 'es' };
+    mocks.scanActiveTab.mockResolvedValue({ ...brewline(), colours: [c('primary', 'primary', '#1F5E4B', 1)], fonts: [{ name: 'body', family: 'Inter' }] });
+    render(<App />);
+    expect(await screen.findByText('brewline.co · 1 color · 1 fuente')).toBeTruthy();
+    expect(document.documentElement.lang).toBe('es');
+    fireEvent.click(screen.getByRole('button', { name: 'Ajustes' }));
+    const radios = screen.getAllByRole('radio').filter((r) => (r as HTMLInputElement).name === 'sdt-lang');
+    expect(radios.map((r) => r.closest('label')!.textContent)).toEqual(
+      ['English', '中文', 'हिन्दी', 'Español', 'العربية', 'Français', 'বাংলা'],
+    );
+    expect(radios.map((r) => r.closest('label')!.querySelector('[lang]')?.getAttribute('lang'))).toEqual(
+      ['en', 'zh-CN', 'hi', 'es', 'ar', 'fr', 'bn'],
+    );
+    expect((screen.getByRole('radio', { name: 'Español' }) as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole('radio', { name: 'العربية' }));
+    expect(document.documentElement.dir).toBe('rtl');
+    expect(document.documentElement.lang).toBe('ar');
+    expect(mocks.setSettings).toHaveBeenCalledWith({ lang: 'ar' });
+    expect(screen.getByRole('button', { name: 'الإعدادات' })).toBeTruthy();
   });
 
   it('offers Retry when the scan fails', async () => {

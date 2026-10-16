@@ -9,9 +9,9 @@ export function toCss(t: Tokens, o: ExportOptions): string {
   if (wants(o, 'typography')) {
     for (const f of fontEntries(t)) typography.push(`  --font-${f.name}: ${f.value};`);
     for (const x of t.type) {
-      typography.push(`  --text-${x.name}-size: ${px(x.sizePx)};`);
-      if (x.lineHeightPx !== null) typography.push(`  --text-${x.name}-line-height: ${px(x.lineHeightPx)};`);
-      typography.push(`  --text-${x.name}-weight: ${x.weight};`);
+      typography.push(`  --text-${x.name}: ${px(x.sizePx)};`);
+      if (x.lineHeightPx !== null) typography.push(`  --text-${x.name}--line-height: ${px(x.lineHeightPx)};`);
+      typography.push(`  --text-${x.name}--font-weight: ${x.weight};`);
     }
   }
   const body = joinSections([

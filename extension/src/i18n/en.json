@@ -17,8 +17,7 @@
     "themeLight": "Light",
     "themeDark": "Dark",
     "themeSystem": "System",
-    "language": "Language",
-    "langEn": "English"
+    "language": "Language"
   },
   "tabs": {
     "label": "Sections",
@@ -226,12 +225,18 @@
       }
     },
     "paypal": "Pay with PayPal",
-    "comingSoon": "Coming soon",
     "alreadyPaid": "already paid?",
     "keyLabel": "License key",
     "keyPlaceholder": "SDT-XXXX-XXXX-XXXX",
     "activate": "Activate",
     "close": "Close",
+    "lostKey": "Lost your key?",
+    "activating": "Activating…",
+    "unlocked": "Pro unlocked",
+    "errInvalid": "That key isn't valid.",
+    "errRevoked": "This key was refunded and no longer works.",
+    "errNetwork": "Couldn't reach the server — try again.",
+    "errRateLimited": "Too many attempts — wait a minute and try again.",
     "refund": "All sales are final. Because Pro unlocks instantly and costs $1.49, we do not offer refunds after purchase."
   }
 }

@@ -174,20 +174,19 @@ describe('UnlockSheet', () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 
-  it('shows price, five perks, a disabled PayPal button, inert key entry and the refund line', () => {
+  it('shows price, five perks, a live PayPal button, key entry and the refund line', () => {
     render(<UnlockSheet variant="overlay" onClose={() => {}} />);
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText('$1.49')).toBeTruthy();
     expect(within(dialog).getByText('once · yours forever')).toBeTruthy();
     expect(dialog.querySelectorAll('.perk').length).toBe(5);
     const paypal = within(dialog).getByRole('button', { name: /Pay with PayPal/ }) as HTMLButtonElement;
-    expect(paypal.disabled).toBe(true);
-    expect(within(dialog).getByText('Coming soon')).toBeTruthy();
+    expect(paypal.disabled).toBe(false);
     expect(within(dialog).getByText('already paid?')).toBeTruthy();
     const key = within(dialog).getByLabelText('License key') as HTMLInputElement;
     expect(key.placeholder).toBe('SDT-XXXX-XXXX-XXXX');
-    expect(key.disabled).toBe(true);
-    expect((within(dialog).getByRole('button', { name: 'Activate' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(key.disabled).toBe(false);
+    expect(within(dialog).getByRole('button', { name: 'Activate' })).toBeTruthy();
     expect(within(dialog).getByText(
       'All sales are final. Because Pro unlocks instantly and costs $1.49, we do not offer refunds after purchase.',
     )).toBeTruthy();

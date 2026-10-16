@@ -1,0 +1,245 @@
+{
+  "app": {
+    "name": "Site to Design Token"
+  },
+  "header": {
+    "subtitle": "{site} · {counts}",
+    "counts": "{colours} · {fonts}",
+    "colours_one": "{n} color",
+    "colours_many": "{n} de colores",
+    "colours_other": "{n} colores",
+    "fonts_one": "{n} fuente",
+    "fonts_many": "{n} de fuentes",
+    "fonts_other": "{n} fuentes",
+    "rescan": "Volver a analizar la página",
+    "settings": "Ajustes"
+  },
+  "settings": {
+    "theme": "Tema",
+    "themeLight": "Claro",
+    "themeDark": "Oscuro",
+    "themeSystem": "Sistema",
+    "language": "Idioma"
+  },
+  "tabs": {
+    "label": "Secciones",
+    "colours": "Colores",
+    "type": "Tipografía",
+    "spacing": "Espaciado",
+    "contrast": "Contraste"
+  },
+  "roles": {
+    "primary": "Primario",
+    "accent": "Acento",
+    "surface": "Superficie",
+    "text": "Texto",
+    "border": "Borde",
+    "other": "Otros"
+  },
+  "colours": {
+    "copy": "Copiar {hex}, {share} del uso de color",
+    "copied": "Copiado",
+    "copyFailed": "No se pudo copiar",
+    "lessThanOne": "<1%",
+    "foundLittle": "Este sitio usa pocos colores de marca, así que no hay un primario ni un acento claros. Aquí tienes todo lo que encontramos.",
+    "none": "No se encontraron colores en esta página."
+  },
+  "popup": {
+    "scanning": "Analizando la página…",
+    "copyHexList": "Copiar lista hex",
+    "exportTokens": "Exportar tokens",
+    "pro": "PRO",
+    "restrictedTitle": "Esta página no se puede analizar",
+    "restrictedBody": "Las páginas del navegador y Chrome Web Store bloquean las extensiones. Abre un sitio web normal y vuelve a intentarlo.",
+    "noAccess": "Haz clic en el icono de Site to Design Token en esta página para analizarla.",
+    "failedTitle": "No se pudo analizar esta página",
+    "failedBody": "Algo falló al leer la página. Recárgala y vuelve a intentarlo.",
+    "retry": "Reintentar",
+    "openFullView": "Abrir vista completa",
+    "openFailed": "No se pudo abrir la vista completa."
+  },
+  "type": {
+    "fonts": "Fuentes",
+    "scale": "Escala",
+    "empty": "No se encontraron estilos de texto",
+    "emptyBody": "Esta página no tiene estilos de texto legibles.",
+    "fontRole": {
+      "body": "Cuerpo",
+      "heading": "Títulos",
+      "mono": "Monoespaciada"
+    },
+    "sampleName": {
+      "display": "Display",
+      "h1": "Título 1",
+      "h2": "Título 2",
+      "h3": "Título 3",
+      "h4": "Título 4",
+      "body": "Texto de cuerpo",
+      "small": "Texto pequeño",
+      "caption": "Leyenda",
+      "xs": "Extrapequeño"
+    },
+    "sample": "Aa {name}",
+    "meta": "{family} {weight} · {size}/{lineHeight}"
+  },
+  "spacing": {
+    "scale": "Escala de espaciado",
+    "radius": "Radio",
+    "shadow": "Sombra",
+    "base": "Base de {n}px",
+    "noBase": "Sin base uniforme",
+    "empty": "No se encontró espaciado",
+    "emptyBody": "Esta página no tiene valores de espaciado, radio ni sombra que mostrar.",
+    "px": "{n}px",
+    "full": "Completo"
+  },
+  "contrast": {
+    "pass": "cumplen WCAG AA",
+    "fail": "no cumplen, corrígelos",
+    "unknown": "requieren revisión manual",
+    "empty": "No se encontraron pares de colores",
+    "emptyBody": "No se pudo leer ningún par de texto y fondo en esta página.",
+    "imageOrGradient": "imagen o degradado",
+    "pairColours": "{fg} sobre {bg}",
+    "where": {
+      "body text": "Texto de cuerpo",
+      "headings": "Títulos",
+      "links": "Enlaces",
+      "buttons": "Botones",
+      "other": "Otros"
+    },
+    "grade": {
+      "AAA": "AAA",
+      "AA": "AA",
+      "AA-large": "AA grande",
+      "fail": "No cumple",
+      "unknown": "Revisar a mano"
+    },
+    "ratio": "{ratio}:1",
+    "fixTitle": {
+      "body text": "Corrección sugerida para el texto de cuerpo",
+      "headings": "Corrección sugerida para los títulos",
+      "links": "Corrección sugerida para los enlaces",
+      "buttons": "Corrección sugerida para el botón",
+      "other": "Corrección sugerida"
+    },
+    "fixLocked": "Desbloquea para ver la corrección",
+    "unlock": "Desbloquear",
+    "before": "Antes",
+    "after": "Después",
+    "sampleButton": "Muestra",
+    "fixedRatio": "Corregido {ratio}:1",
+    "uses_one": "{n} uso",
+    "uses_many": "{n} de usos",
+    "uses_other": "{n} usos",
+    "noFix": "No se encontró una corrección automática: prueba a mano un tono más oscuro o más claro."
+  },
+  "panel": {
+    "title": "Sistema de diseño",
+    "scanned": "{site} · analizado el {when}",
+    "viewOnly": "Solo lectura",
+    "colours": "Colores",
+    "colourRoles": "Roles de color",
+    "typography": "Tipografía",
+    "spacing": "Espaciado",
+    "radius": "Radio",
+    "shadows": "Sombras",
+    "exportDesignSystem": "Exportar sistema de diseño",
+    "exportFormats": "CSS · Tailwind · Figma · JSON · DESIGN.md para IA",
+    "back": "Volver al sistema de diseño",
+    "dismiss": "Descartar",
+    "loading": "Leyendo esta página…"
+  },
+  "export": {
+    "title": "Exportar tokens",
+    "proUnlocked": "Pro desbloqueado",
+    "format": "Formato",
+    "formatLabel": "Formato de exportación",
+    "include": "Incluir",
+    "preview": "Vista previa",
+    "previewLabel": "Vista previa de {file}",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "copyFailed": "No se pudo copiar",
+    "download": "Descargar {file}",
+    "tailwindVersion": "Versión de Tailwind",
+    "v4": "v4",
+    "v3": "v3",
+    "formats": {
+      "md": {
+        "label": "DESIGN.md",
+        "sub": "para programar con IA"
+      },
+      "css": {
+        "label": "CSS",
+        "sub": "variables"
+      },
+      "tailwind": {
+        "label": "Tailwind",
+        "sub": "config. del tema"
+      },
+      "figma": {
+        "label": "Figma",
+        "sub": "variables"
+      },
+      "json": {
+        "label": "JSON",
+        "sub": "tokens W3C"
+      },
+      "all": {
+        "label": "Todo",
+        "sub": "paquete .zip"
+      }
+    },
+    "parts": {
+      "colours": "Colores",
+      "typography": "Tipografía",
+      "spacing": "Espaciado",
+      "radius": "Radio",
+      "shadows": "Sombras"
+    },
+    "zipSummary": "{count} archivos · {size} KB",
+    "zipBuilding": "Creando el paquete…"
+  },
+  "unlock": {
+    "title": "Llévate el sistema de diseño",
+    "price": "1,49 USD",
+    "priceNote": "pago único · tuyo para siempre",
+    "perks": {
+      "export": {
+        "title": "Exporta tokens",
+        "text": "en CSS, Tailwind, Figma o JSON"
+      },
+      "designMd": {
+        "title": "DESIGN.md",
+        "text": "para que Claude, Cursor o Copilot programen fieles a la marca"
+      },
+      "system": {
+        "title": "Sistema de diseño completo",
+        "text": "tipografía, espaciado, radios y sombras"
+      },
+      "contrast": {
+        "title": "Correcciones de contraste",
+        "text": "no solo si cumple o no"
+      },
+      "scans": {
+        "title": "Sitios guardados ilimitados",
+        "text": "en lugar de los 3 últimos"
+      }
+    },
+    "paypal": "Pagar con PayPal",
+    "alreadyPaid": "¿ya pagaste?",
+    "keyLabel": "Clave de licencia",
+    "keyPlaceholder": "SDT-XXXX-XXXX-XXXX",
+    "activate": "Activar",
+    "close": "Cerrar",
+    "lostKey": "¿Perdiste tu clave?",
+    "activating": "Activando…",
+    "unlocked": "Pro desbloqueado",
+    "errInvalid": "Esa clave no es válida.",
+    "errRevoked": "Esta clave se reembolsó y ya no funciona.",
+    "errNetwork": "No se pudo conectar con el servidor. Inténtalo de nuevo.",
+    "errRateLimited": "Demasiados intentos. Espera un minuto y vuelve a intentarlo.",
+    "refund": "Todas las ventas son definitivas. Como Pro se desbloquea al instante y cuesta 1,49 USD, no ofrecemos reembolsos después de la compra."
+  }
+}

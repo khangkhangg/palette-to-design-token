@@ -17,8 +17,39 @@ describe('DESIGN.md', () => {
   });
   it('writes the fail pair with its fix as a named token (R16)', () => {
     expect(md()).toContain(
-      '- Do not put #FFFFFF text on `--color-accent` (#E0763A) (2.9:1). Use #FFFFFF on `--color-accent-aa` (#B4501A).\n',
+      '- Do not put #FFFFFF text on `--color-accent` (#E0763A) (2.9:1). '
+      + 'Use `#FFFFFF` (page colour, not a token) on `--color-accent-aa` (#B4501A).\n',
     );
+  });
+  it('names the unchanged side of a fix when it is a token, "page colour" when it is not', () => {
+    const t = {
+      ...brewline,
+      contrast: [
+        { fg: '#5C574E', bg: '#F3EEE4', ratio: 4.1, large: false, uses: 3, where: 'body text' as const, grade: 'fail' as const, fix: { fg: '#4A463F', bg: '#F3EEE4', ratio: 6 } },
+        { fg: '#111111', bg: '#E0763A', ratio: 2.1, large: false, uses: 1, where: 'other' as const, grade: 'fail' as const, fix: { fg: '#111111', bg: '#B4501A', ratio: 4.7 } },
+      ],
+    };
+    const text = md(t);
+    expect(text).toContain('Use `--color-text-aa` (#4A463F) on `--color-surface-2` (#F3EEE4).');
+    expect(text).toContain('Use `#111111` (page colour, not a token) on `--color-accent-aa` (#B4501A).');
+  });
+  it('mentions only variables that tokens.css defines (DESIGN.md is a subset)', () => {
+    const NAME = '--[a-z0-9]+(?:-[a-z0-9]+)*';
+    const defined = (css: string) => new Set(css.match(new RegExp(`${NAME}(?=:)`, 'g')));
+    const mentioned = (doc: string) => {
+      const out = new Set<string>();
+      for (const m of doc.matchAll(/`([^`]*)`|var\(([^)]*)\)/g)) {
+        for (const n of (m[1] ?? m[2]).matchAll(new RegExp(`${NAME}(?![a-z0-9-]|…)`, 'g'))) out.add(n[0]);
+      }
+      return out;
+    };
+    const noLh = { ...brewline, type: [{ ...brewline.type[0], lineHeightPx: null }] };
+    for (const t of [brewline, noLh]) {
+      const css = defined(exportFile(t, 'css', o).text);
+      const used = mentioned(md(t));
+      expect(used.size).toBeGreaterThan(10);
+      for (const n of used) expect(css.has(n), n).toBe(true);
+    }
   });
   it('lists the fix token in the colour roles table, so "use only these tokens" holds', () => {
     expect(md()).toMatch(/\| accent \| `--color-accent-aa` \| #B4501A \| [^|]+ \|\n/);

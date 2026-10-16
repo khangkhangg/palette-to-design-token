@@ -1,0 +1,254 @@
+{
+  "app": {
+    "name": "Site to Design Token"
+  },
+  "header": {
+    "subtitle": "{site} · {counts}",
+    "counts": "{colours} · {fonts}",
+    "colours_zero": "لا ألوان",
+    "colours_one": "لون واحد",
+    "colours_two": "لونان",
+    "colours_few": "{n} ألوان",
+    "colours_many": "{n} لونًا",
+    "colours_other": "{n} لون",
+    "fonts_zero": "لا خطوط",
+    "fonts_one": "خط واحد",
+    "fonts_two": "خطّان",
+    "fonts_few": "{n} خطوط",
+    "fonts_many": "{n} خطًا",
+    "fonts_other": "{n} خط",
+    "rescan": "إعادة فحص الصفحة",
+    "settings": "الإعدادات"
+  },
+  "settings": {
+    "theme": "المظهر",
+    "themeLight": "فاتح",
+    "themeDark": "داكن",
+    "themeSystem": "حسب النظام",
+    "language": "اللغة"
+  },
+  "tabs": {
+    "label": "الأقسام",
+    "colours": "الألوان",
+    "type": "الخطوط",
+    "spacing": "المسافات",
+    "contrast": "التباين"
+  },
+  "roles": {
+    "primary": "الأساسي",
+    "accent": "المميِّز",
+    "surface": "السطح",
+    "text": "النص",
+    "border": "الحدود",
+    "other": "أخرى"
+  },
+  "colours": {
+    "copy": "نسخ {hex}، {share} من استخدام الألوان",
+    "copied": "تم النسخ",
+    "copyFailed": "تعذّر النسخ",
+    "lessThanOne": "<1%",
+    "foundLittle": "يستخدم هذا الموقع ألوانًا قليلة لعلامته التجارية، لذا لا يوجد لون أساسي أو مميِّز واضح. إليك كل ما وجدناه.",
+    "none": "لم يتم العثور على ألوان في هذه الصفحة."
+  },
+  "popup": {
+    "scanning": "جارٍ فحص الصفحة…",
+    "copyHexList": "نسخ رموز hex",
+    "exportTokens": "تصدير رموز التصميم",
+    "pro": "PRO",
+    "restrictedTitle": "لا يمكن فحص هذه الصفحة",
+    "restrictedBody": "تمنع صفحات المتصفح نفسه ومتجر Chrome Web Store الإضافات. افتح موقعًا عاديًا وحاول مرة أخرى.",
+    "noAccess": "انقر على أيقونة Site to Design Token في هذه الصفحة لفحصها.",
+    "failedTitle": "تعذّر فحص هذه الصفحة",
+    "failedBody": "حدث خطأ أثناء قراءة الصفحة. أعد تحميلها ثم حاول مرة أخرى.",
+    "retry": "إعادة المحاولة",
+    "openFullView": "فتح العرض الكامل",
+    "openFailed": "تعذّر فتح العرض الكامل."
+  },
+  "type": {
+    "fonts": "الخطوط",
+    "scale": "سلّم الأحجام",
+    "empty": "لم يتم العثور على أنماط نصوص",
+    "emptyBody": "لا تحتوي هذه الصفحة على أنماط نصوص يمكن قراءتها.",
+    "fontRole": {
+      "body": "النص",
+      "heading": "العناوين",
+      "mono": "ثابت العرض"
+    },
+    "sampleName": {
+      "display": "عنوان بارز",
+      "h1": "عنوان 1",
+      "h2": "عنوان 2",
+      "h3": "عنوان 3",
+      "h4": "عنوان 4",
+      "body": "نص أساسي",
+      "small": "نص صغير",
+      "caption": "تعليق توضيحي",
+      "xs": "صغير جدًا"
+    },
+    "sample": "Aa {name}",
+    "meta": "{family} {weight} · {size}/{lineHeight}"
+  },
+  "spacing": {
+    "scale": "سلّم المسافات",
+    "radius": "استدارة الزوايا",
+    "shadow": "الظل",
+    "base": "الأساس {n}px",
+    "noBase": "لا يوجد أساس ثابت",
+    "empty": "لم يتم العثور على مسافات",
+    "emptyBody": "لا تحتوي هذه الصفحة على قيم مسافات أو استدارة أو ظلال لعرضها.",
+    "px": "{n}px",
+    "full": "كاملة"
+  },
+  "contrast": {
+    "pass": "تجتاز WCAG AA",
+    "fail": "لا تجتاز، أصلحها",
+    "unknown": "تحتاج إلى فحص يدوي",
+    "empty": "لم يتم العثور على أزواج ألوان",
+    "emptyBody": "تعذّرت قراءة أي زوج من النص والخلفية في هذه الصفحة.",
+    "imageOrGradient": "صورة أو تدرّج",
+    "pairColours": "{fg} على {bg}",
+    "where": {
+      "body text": "النص الأساسي",
+      "headings": "العناوين",
+      "links": "الروابط",
+      "buttons": "الأزرار",
+      "other": "أخرى"
+    },
+    "grade": {
+      "AAA": "AAA",
+      "AA": "AA",
+      "AA-large": "AA للنص الكبير",
+      "fail": "لا يجتاز",
+      "unknown": "افحص يدويًا"
+    },
+    "ratio": "{ratio}:1",
+    "fixTitle": {
+      "body text": "إصلاح مقترح للنص الأساسي",
+      "headings": "إصلاح مقترح للعناوين",
+      "links": "إصلاح مقترح للروابط",
+      "buttons": "إصلاح مقترح للزر",
+      "other": "إصلاح مقترح"
+    },
+    "fixLocked": "افتح القفل لرؤية الإصلاح",
+    "unlock": "فتح القفل",
+    "before": "قبل",
+    "after": "بعد",
+    "sampleButton": "مثال",
+    "fixedRatio": "بعد الإصلاح {ratio}:1",
+    "uses_zero": "لا استخدامات",
+    "uses_one": "استخدام واحد",
+    "uses_two": "استخدامان",
+    "uses_few": "{n} استخدامات",
+    "uses_many": "{n} استخدامًا",
+    "uses_other": "{n} استخدام",
+    "noFix": "لم نجد إصلاحًا تلقائيًا — جرّب يدويًا درجة أغمق أو أفتح."
+  },
+  "panel": {
+    "title": "نظام التصميم",
+    "scanned": "{site} · فُحص في {when}",
+    "viewOnly": "للعرض فقط",
+    "colours": "الألوان",
+    "colourRoles": "أدوار الألوان",
+    "typography": "الخطوط",
+    "spacing": "المسافات",
+    "radius": "استدارة الزوايا",
+    "shadows": "الظلال",
+    "exportDesignSystem": "تصدير نظام التصميم",
+    "exportFormats": "CSS · Tailwind · Figma · JSON · DESIGN.md للذكاء الاصطناعي",
+    "back": "العودة إلى نظام التصميم",
+    "dismiss": "تجاهل",
+    "loading": "جارٍ قراءة هذه الصفحة…"
+  },
+  "export": {
+    "title": "تصدير رموز التصميم",
+    "proUnlocked": "تم فتح Pro",
+    "format": "التنسيق",
+    "formatLabel": "تنسيق التصدير",
+    "include": "تضمين",
+    "preview": "معاينة",
+    "previewLabel": "معاينة {file}",
+    "copy": "نسخ",
+    "copied": "تم النسخ",
+    "copyFailed": "تعذّر النسخ",
+    "download": "تنزيل {file}",
+    "tailwindVersion": "إصدار Tailwind",
+    "v4": "v4",
+    "v3": "v3",
+    "formats": {
+      "md": {
+        "label": "DESIGN.md",
+        "sub": "للبرمجة بالذكاء الاصطناعي"
+      },
+      "css": {
+        "label": "CSS",
+        "sub": "متغيرات"
+      },
+      "tailwind": {
+        "label": "Tailwind",
+        "sub": "إعدادات السمة"
+      },
+      "figma": {
+        "label": "Figma",
+        "sub": "متغيرات"
+      },
+      "json": {
+        "label": "JSON",
+        "sub": "رموز W3C"
+      },
+      "all": {
+        "label": "الكل",
+        "sub": "حزمة ZIP"
+      }
+    },
+    "parts": {
+      "colours": "الألوان",
+      "typography": "الخطوط",
+      "spacing": "المسافات",
+      "radius": "استدارة الزوايا",
+      "shadows": "الظلال"
+    },
+    "zipSummary": "عدد الملفات: {count} · {size} KB",
+    "zipBuilding": "جارٍ إنشاء الحزمة…"
+  },
+  "unlock": {
+    "title": "خذ نظام التصميم معك",
+    "price": "1.49 دولار",
+    "priceNote": "دفعة واحدة · لك إلى الأبد",
+    "perks": {
+      "export": {
+        "title": "تصدير رموز التصميم",
+        "text": "بصيغة CSS أو Tailwind أو Figma أو JSON"
+      },
+      "designMd": {
+        "title": "DESIGN.md",
+        "text": "ليبني Claude أو Cursor أو Copilot بهوية العلامة نفسها"
+      },
+      "system": {
+        "title": "نظام تصميم كامل",
+        "text": "الخطوط والمسافات والزوايا والظلال"
+      },
+      "contrast": {
+        "title": "إصلاحات التباين",
+        "text": "لا مجرد نجاح أو فشل"
+      },
+      "scans": {
+        "title": "مواقع محفوظة بلا حدود",
+        "text": "بدلًا من آخر 3 فقط"
+      }
+    },
+    "paypal": "الدفع عبر PayPal",
+    "alreadyPaid": "دفعت بالفعل؟",
+    "keyLabel": "مفتاح الترخيص",
+    "keyPlaceholder": "SDT-XXXX-XXXX-XXXX",
+    "activate": "تفعيل",
+    "close": "إغلاق",
+    "lostKey": "فقدت مفتاحك؟",
+    "activating": "جارٍ التفعيل…",
+    "unlocked": "تم فتح Pro",
+    "errInvalid": "هذا المفتاح غير صالح.",
+    "errRevoked": "تم استرداد ثمن هذا المفتاح ولم يعد يعمل.",
+    "errNetwork": "تعذّر الوصول إلى الخادم — حاول مرة أخرى.",
+    "errRateLimited": "محاولات كثيرة جدًا — انتظر دقيقة ثم حاول مرة أخرى.",
+    "refund": "جميع المبيعات نهائية. لأن Pro يُفتح فورًا وسعره 1.49 دولار، لا نقدّم استرداد المبالغ بعد الشراء."
+  }
+}

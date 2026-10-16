@@ -1,0 +1,245 @@
+{
+  "app": {
+    "name": "Site to Design Token"
+  },
+  "header": {
+    "subtitle": "{site} · {counts}",
+    "counts": "{colours} · {fonts}",
+    "colours_one": "{n} couleur",
+    "colours_many": "{n} de couleurs",
+    "colours_other": "{n} couleurs",
+    "fonts_one": "{n} police",
+    "fonts_many": "{n} de polices",
+    "fonts_other": "{n} polices",
+    "rescan": "Relancer l’analyse de la page",
+    "settings": "Paramètres"
+  },
+  "settings": {
+    "theme": "Thème",
+    "themeLight": "Clair",
+    "themeDark": "Sombre",
+    "themeSystem": "Système",
+    "language": "Langue"
+  },
+  "tabs": {
+    "label": "Sections",
+    "colours": "Couleurs",
+    "type": "Typo",
+    "spacing": "Espacement",
+    "contrast": "Contraste"
+  },
+  "roles": {
+    "primary": "Primaire",
+    "accent": "Accent",
+    "surface": "Surface",
+    "text": "Texte",
+    "border": "Bordure",
+    "other": "Autres"
+  },
+  "colours": {
+    "copy": "Copier {hex}, {share} de l’usage des couleurs",
+    "copied": "Copié",
+    "copyFailed": "Copie impossible",
+    "lessThanOne": "<1%",
+    "foundLittle": "Ce site utilise peu de couleurs de marque : il n’y a donc pas de couleur primaire ni d’accent évidents. Voici tout ce que nous avons trouvé.",
+    "none": "Aucune couleur trouvée sur cette page."
+  },
+  "popup": {
+    "scanning": "Analyse de la page…",
+    "copyHexList": "Copier les hex",
+    "exportTokens": "Exporter les tokens",
+    "pro": "PRO",
+    "restrictedTitle": "Impossible d’analyser cette page",
+    "restrictedBody": "Les pages du navigateur et le Chrome Web Store bloquent les extensions. Ouvrez un site web classique et réessayez.",
+    "noAccess": "Cliquez sur l’icône Site to Design Token sur cette page pour l’analyser.",
+    "failedTitle": "L’analyse de cette page a échoué",
+    "failedBody": "Un problème est survenu lors de la lecture de la page. Rechargez-la, puis réessayez.",
+    "retry": "Réessayer",
+    "openFullView": "Ouvrir la vue complète",
+    "openFailed": "Impossible d’ouvrir la vue complète."
+  },
+  "type": {
+    "fonts": "Polices",
+    "scale": "Échelle",
+    "empty": "Aucun style de texte trouvé",
+    "emptyBody": "Cette page ne contient aucun style de texte lisible.",
+    "fontRole": {
+      "body": "Texte",
+      "heading": "Titres",
+      "mono": "Mono"
+    },
+    "sampleName": {
+      "display": "Display",
+      "h1": "Titre 1",
+      "h2": "Titre 2",
+      "h3": "Titre 3",
+      "h4": "Titre 4",
+      "body": "Texte courant",
+      "small": "Petit texte",
+      "caption": "Légende",
+      "xs": "Très petit"
+    },
+    "sample": "Aa {name}",
+    "meta": "{family} {weight} · {size}/{lineHeight}"
+  },
+  "spacing": {
+    "scale": "Échelle d’espacement",
+    "radius": "Arrondi",
+    "shadow": "Ombre",
+    "base": "Base {n}px",
+    "noBase": "Pas de base régulière",
+    "empty": "Aucun espacement trouvé",
+    "emptyBody": "Cette page n’a aucune valeur d’espacement, d’arrondi ou d’ombre à afficher.",
+    "px": "{n}px",
+    "full": "Complet"
+  },
+  "contrast": {
+    "pass": "conformes WCAG AA",
+    "fail": "non conformes, à corriger",
+    "unknown": "à vérifier à la main",
+    "empty": "Aucune paire de couleurs trouvée",
+    "emptyBody": "Aucune paire texte/arrière-plan n’a pu être lue sur cette page.",
+    "imageOrGradient": "image ou dégradé",
+    "pairColours": "{fg} sur {bg}",
+    "where": {
+      "body text": "Texte courant",
+      "headings": "Titres",
+      "links": "Liens",
+      "buttons": "Boutons",
+      "other": "Autres"
+    },
+    "grade": {
+      "AAA": "AAA",
+      "AA": "AA",
+      "AA-large": "AA grand texte",
+      "fail": "Échec",
+      "unknown": "À vérifier"
+    },
+    "ratio": "{ratio}:1",
+    "fixTitle": {
+      "body text": "Correction suggérée pour le texte courant",
+      "headings": "Correction suggérée pour les titres",
+      "links": "Correction suggérée pour les liens",
+      "buttons": "Correction suggérée pour le bouton",
+      "other": "Correction suggérée"
+    },
+    "fixLocked": "Débloquez Pro pour voir la correction",
+    "unlock": "Débloquer",
+    "before": "Avant",
+    "after": "Après",
+    "sampleButton": "Exemple",
+    "fixedRatio": "Corrigé : {ratio}:1",
+    "uses_one": "{n} utilisation",
+    "uses_many": "{n} d’utilisations",
+    "uses_other": "{n} utilisations",
+    "noFix": "Aucune correction automatique trouvée — essayez à la main une nuance plus foncée ou plus claire."
+  },
+  "panel": {
+    "title": "Design system",
+    "scanned": "{site} · analysé le {when}",
+    "viewOnly": "Lecture seule",
+    "colours": "Couleurs",
+    "colourRoles": "Rôles des couleurs",
+    "typography": "Typographie",
+    "spacing": "Espacement",
+    "radius": "Arrondis",
+    "shadows": "Ombres",
+    "exportDesignSystem": "Exporter le design system",
+    "exportFormats": "CSS · Tailwind · Figma · JSON · DESIGN.md pour l’IA",
+    "back": "Retour au design system",
+    "dismiss": "Ignorer",
+    "loading": "Lecture de la page…"
+  },
+  "export": {
+    "title": "Exporter les tokens",
+    "proUnlocked": "Pro débloqué",
+    "format": "Format",
+    "formatLabel": "Format d’export",
+    "include": "Inclure",
+    "preview": "Aperçu",
+    "previewLabel": "Aperçu de {file}",
+    "copy": "Copier",
+    "copied": "Copié",
+    "copyFailed": "Copie impossible",
+    "download": "Télécharger {file}",
+    "tailwindVersion": "Version de Tailwind",
+    "v4": "v4",
+    "v3": "v3",
+    "formats": {
+      "md": {
+        "label": "DESIGN.md",
+        "sub": "pour coder avec l’IA"
+      },
+      "css": {
+        "label": "CSS",
+        "sub": "variables"
+      },
+      "tailwind": {
+        "label": "Tailwind",
+        "sub": "config du thème"
+      },
+      "figma": {
+        "label": "Figma",
+        "sub": "variables"
+      },
+      "json": {
+        "label": "JSON",
+        "sub": "tokens W3C"
+      },
+      "all": {
+        "label": "Tout",
+        "sub": "archive .zip"
+      }
+    },
+    "parts": {
+      "colours": "Couleurs",
+      "typography": "Typographie",
+      "spacing": "Espacement",
+      "radius": "Arrondis",
+      "shadows": "Ombres"
+    },
+    "zipSummary": "{count} fichiers · {size} Ko",
+    "zipBuilding": "Création de l’archive…"
+  },
+  "unlock": {
+    "title": "Emportez le design system",
+    "price": "1,49 $ US",
+    "priceNote": "paiement unique · à vous pour toujours",
+    "perks": {
+      "export": {
+        "title": "Export des tokens",
+        "text": "en CSS, Tailwind, Figma ou JSON"
+      },
+      "designMd": {
+        "title": "DESIGN.md",
+        "text": "pour que Claude, Cursor ou Copilot codent dans le style de la marque"
+      },
+      "system": {
+        "title": "Design system complet",
+        "text": "typo, espacements, arrondis, ombres"
+      },
+      "contrast": {
+        "title": "Corrections de contraste",
+        "text": "pas seulement conforme ou non"
+      },
+      "scans": {
+        "title": "Sites enregistrés illimités",
+        "text": "au lieu des 3 derniers"
+      }
+    },
+    "paypal": "Payer avec PayPal",
+    "alreadyPaid": "déjà payé ?",
+    "keyLabel": "Clé de licence",
+    "keyPlaceholder": "SDT-XXXX-XXXX-XXXX",
+    "activate": "Activer",
+    "close": "Fermer",
+    "lostKey": "Clé perdue ?",
+    "activating": "Activation…",
+    "unlocked": "Pro débloqué",
+    "errInvalid": "Cette clé n’est pas valide.",
+    "errRevoked": "Cette clé a été remboursée et ne fonctionne plus.",
+    "errNetwork": "Impossible de joindre le serveur — réessayez.",
+    "errRateLimited": "Trop de tentatives — patientez une minute, puis réessayez.",
+    "refund": "Toutes les ventes sont définitives. Pro se débloque instantanément et coûte 1,49 $ US, nous ne proposons donc aucun remboursement après l'achat."
+  }
+}

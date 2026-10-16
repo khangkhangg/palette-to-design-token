@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { Tokens } from '../../model/tokens';
 import { scanActiveTab, shownReason, type ShownScanError } from '../../scan';
+import { recheckIfDue } from '../../license';
 import { getSettings, listScans, onSettingsChange, saveScan, type Settings } from '../../store';
 import { EmptyState } from '../components/EmptyState';
 import { Icon } from '../components/Icon';
-import { renderedLang, resolveLang, setLang, t } from '../i18n';
+import { formatDateTime, resolveLang, setLang, t } from '../i18n';
 import { applyTheme } from '../theme';
 import { viewFromSearch, type PanelView } from './open';
 import { UnlockSheet } from '../components/UnlockSheet';
@@ -33,12 +34,6 @@ const NOTE_KEY: Record<ShownScanError, string> = {
   'no-access': 'popup.noAccess',
   failed: 'popup.failedTitle',
 };
-
-function scannedWhen(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return new Intl.DateTimeFormat(renderedLang(), { dateStyle: 'medium', timeStyle: 'short' }).format(d);
-}
 
 export interface AppProps {
   initialView?: PanelView;
@@ -74,6 +69,7 @@ export function App({ initialView = viewFromSearch(location.search) }: AppProps)
       applyTheme(s.theme);
       setLang(resolveLang(s.lang, navigator.language));
       setLocal(s);
+      void recheckIfDue().catch(() => {});
       const saved = await newestScanFor(await activeHost());
       if (!live) return;
       if (saved) {
@@ -90,7 +86,7 @@ export function App({ initialView = viewFromSearch(location.search) }: AppProps)
   }, []);
 
   if (!settings) return <div class="sp" />;
-  if (view === 'unlock') return <UnlockSheet variant="page" onClose={() => setView('system')} />;
+  if (view === 'unlock') return <UnlockSheet variant="page" onClose={() => setView('system')} onUnlocked={() => setView(tokens ? 'export' : 'system')} />;
 
   if (view === 'export' && tokens) {
     return <ExportScreen tokens={tokens} pro={settings.pro} onBack={() => setView('system')} />;
@@ -104,7 +100,7 @@ export function App({ initialView = viewFromSearch(location.search) }: AppProps)
           <span class="header-name">{t('panel.title')}</span>
           {tokens && (
             <span class="header-sub">
-              {t('panel.scanned', { site: tokens.site, when: scannedWhen(tokens.scannedAt) })}
+              {t('panel.scanned', { site: tokens.site, when: formatDateTime(tokens.scannedAt) })}
             </span>
           )}
         </div>
