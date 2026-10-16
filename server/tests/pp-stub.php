@@ -23,7 +23,7 @@ function stub_reset(mysqli $c): void
             return ['status' => 200, 'json' => ['id' => 'mail' . count($GLOBALS['mails'])]];
         }
         $path = (string)preg_replace('#^https://api-m\.(sandbox\.)?paypal\.com#', '', $url);
-        $GLOBALS['pp_calls'][] = ['method' => $method, 'path' => $path, 'body' => $body === null ? null : json_decode($body, true)];
+        $GLOBALS['pp_calls'][] = ['method' => $method, 'path' => $path, 'headers' => $headers, 'raw' => $body, 'body' => $body === null ? null : json_decode($body, true)];
         $r = $GLOBALS['pp_routes']["$method $path"] ?? ['status' => 500, 'json' => ['message' => 'unrouted']];
         return is_callable($r) ? $r($body === null ? null : json_decode($body, true)) : $r;
     };

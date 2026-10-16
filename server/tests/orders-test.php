@@ -104,6 +104,19 @@ ok('second capture returns same key', $c2 === $c1);
 ok('second capture: no PayPal call, no email, no license', count(calls_to('POST', '/v2/checkout/orders/ORD-A/capture')) === 1
     && count($GLOBALS['mails']) === 1 && license_count($conn) === 1);
 
+$capCall = calls_to('POST', '/v2/checkout/orders/ORD-A/capture')[0] ?? ['headers' => []];
+ok('capture sends PayPal-Request-Id', in_array('PayPal-Request-Id: palette-capture-ORD-A', $capCall['headers'], true));
+
+// transient vs final capture failures
+make_order($conn, 'ORD-T');
+$GLOBALS['pp_routes']['POST /v2/checkout/orders/ORD-T/capture'] = ['status' => 503, 'json' => ['message' => 'unavailable']];
+ok('PayPal 503 on capture -> retry', palette_capture($conn, 'ORD-T') === ['ok' => false, 'error' => 'err_paypal', 'retry' => true]);
+$GLOBALS['pp_routes']['POST /v2/checkout/orders/ORD-T/capture'] = ['status' => 0, 'json' => ['message' => 'timeout']];
+ok('PayPal timeout on capture -> retry', !empty(palette_capture($conn, 'ORD-T')['retry']));
+$GLOBALS['pp_routes']['POST /v2/checkout/orders/ORD-T/capture'] = ['status' => 422, 'json' => ['details' => [['issue' => 'ORDER_NOT_APPROVED']]]];
+ok('PayPal 422 on capture -> no retry', palette_capture($conn, 'ORD-T') === ['ok' => false, 'error' => 'err_paypal']);
+ok('transient failures leave the order created', order_row($conn, 'ORD-T')['status'] === 'created' && license_count($conn) === 1);
+
 // ORDER_ALREADY_CAPTURED re-reads the order
 make_order($conn, 'ORD-B');
 $GLOBALS['pp_routes']['POST /v2/checkout/orders/ORD-B/capture'] = ['status' => 422, 'json' => ['name' => 'UNPROCESSABLE_ENTITY', 'details' => [['issue' => 'ORDER_ALREADY_CAPTURED']]]];
@@ -159,7 +172,6 @@ $weird['amount']['value'] = '1.49abc';
 make_order($conn, 'ORD-W');
 ok('malformed amount rejected', palette_fulfil($conn, order_row($conn, 'ORD-W'), $weird, '')['ok'] === false && order_row($conn, 'ORD-W')['status'] === 'failed');
 
-unset($GLOBALS['pp_http']);
 stub_reset($conn);
 unset($GLOBALS['pp_http']);
 $conn->query("DELETE FROM admin_settings WHERE setting_key IN ('palette', 'paypal', 'resend_api_key')");

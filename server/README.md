@@ -11,7 +11,7 @@ directory of this folder.
 - `includes/functions.php`: `generateCSRFToken`, `verifyCSRFToken`, `getAdminSetting`
 - `getAdminSetting('resend_api_key')`: Resend API key; mail is sent only via Resend (`POST https://api.resend.com/emails`) using `pp_http`, never PHP `mail()`
 - `includes/ip_rate_limit.php`: `checkRateLimit` (table `api_rate_limits`, migration `013-api-rate-limits.sql`)
-- `includes/paypal.php`: `pp_settings`, `pp_ready`, `pp_api`, `pp_http` (test hook `$GLOBALS['pp_http']`)
+- `includes/paypal.php`: `pp_settings`, `pp_ready`, `pp_api`, `pp_token`, `pp_base`, `pp_http` (test hook `$GLOBALS['pp_http']`; `pp_token` + `pp_base` are used for the two calls that need a raw body or extra headers: capture with `PayPal-Request-Id`, and verify-webhook-signature with the event spliced in byte for byte)
 - Tables owned by companies: `admin_settings` (settings key `palette`, JSON), `api_rate_limits`
 
 If any of these change in companies, this add-on must be updated.
@@ -33,8 +33,12 @@ If any of these change in companies, this add-on must be updated.
 - The PayPal app is shared with companies, so each webhook receives the other's events:
   events whose `custom_id` does not start with `palette:` answer 200 `ignored` here, and
   companies' webhook finds no row for palette orders and changes nothing.
-- `webhook.php` answers 200 with a short status (including `ignored`, `unknown order`), and
-  400 only when PayPal's signature check fails.
+- `webhook.php` answers 200 with a short status (including `ignored`, `unknown order`, and
+  validation failures such as an underpaid capture), 400 when PayPal's signature check fails,
+  503 `retry` on a transient failure (a database error while fulfilling, or PayPal timing out /
+  answering 429 or 5xx during capture) so PayPal redelivers, and 413 for bodies over 64 KB.
+- When the stored `webhook_mode` differs from companies' current PayPal mode, every webhook
+  call logs it; re-run `setup.php`.
 - A refund or reversal revokes the order's license; the order row keeps status `captured`.
 
 ## Running tests locally

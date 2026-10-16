@@ -7,6 +7,39 @@ const PALETTE_WEBHOOK_URL = 'https://www.vietnamcos.com/palette/webhook.php';
 const PALETTE_WEBHOOK_EVENTS = ['CHECKOUT.ORDER.APPROVED', 'PAYMENT.CAPTURE.COMPLETED', 'PAYMENT.CAPTURE.REFUNDED', 'PAYMENT.CAPTURE.REVERSED'];
 const PALETTE_PAYPAL_ID_RE = '/^[A-Za-z0-9-]{1,40}$/';
 
+const PALETTE_WEBHOOK_MAX_BYTES = 65536;
+
+// Like companies' pp_api, but with a raw JSON body and extra headers.
+function palette_pp(array $pp, string $method, string $path, ?string $rawBody, array $extraHeaders = []): array
+{
+    $err = '';
+    $tok = pp_token($pp, $err);
+    if ($tok === '') return ['status' => 0, 'json' => ['message' => $err]];
+    return pp_http($method, pp_base($pp) . $path,
+                   array_merge(['Authorization: Bearer ' . $tok, 'Content-Type: application/json', 'Accept: application/json'], $extraHeaders), $rawBody);
+}
+
+// No answer, rate limited or a server error: worth PayPal redelivering the webhook.
+function palette_transient(int $status): bool
+{
+    return $status === 0 || $status === 429 || $status >= 500;
+}
+
+// Webhook status for a capture/fulfil result: transient failures become 'retry' (HTTP 503).
+function palette_outcome(array $r, string $done, string $failed): string
+{
+    if ($r['ok']) return empty($r['already']) ? $done : 'already';
+    return empty($r['retry']) ? $failed : 'retry';
+}
+
+// [HTTP status, text] for webhook.php: 413 oversized, 400 unverified, 503 retry, else 200.
+function palette_webhook_response(mysqli $c, array $headersLower, string $body): array
+{
+    if (strlen($body) > PALETTE_WEBHOOK_MAX_BYTES) return [413, 'too large'];
+    $r = palette_webhook($c, $headersLower, $body);
+    return [$r === 'unverified' ? 400 : ($r === 'retry' ? 503 : 200), $r];
+}
+
 // "1.49" -> 149; null unless a plain non-negative amount with at most 2 decimals.
 function palette_cents(mixed $v): ?int
 {
@@ -137,13 +170,18 @@ function palette_capture(mysqli $c, string $orderId): array
 
     $pp = pp_settings($c);
     $path = '/v2/checkout/orders/' . rawurlencode($orderId);
-    $r = pp_api($pp, 'POST', $path . '/capture', []);
+    // PayPal-Request-Id makes a repeated capture call idempotent on PayPal's side too.
+    $r = palette_pp($pp, 'POST', $path . '/capture', '{}', ['PayPal-Request-Id: palette-capture-' . $orderId]);
     $j = (array)($r['json'] ?? []);
-    if (($j['details'][0]['issue'] ?? '') === 'ORDER_ALREADY_CAPTURED') $j = (array)(pp_api($pp, 'GET', $path)['json'] ?? []);
+    if (($j['details'][0]['issue'] ?? '') === 'ORDER_ALREADY_CAPTURED') {
+        $r = pp_api($pp, 'GET', $path);
+        $j = (array)($r['json'] ?? []);
+    }
     $cap = $j['purchase_units'][0]['payments']['captures'][0] ?? null;
     if (($j['status'] ?? '') !== 'COMPLETED' || !is_array($cap) || ($cap['status'] ?? '') !== 'COMPLETED') {
+        $transient = palette_transient((int)$r['status']);
         error_log("palette: capture of $orderId not completed (HTTP " . (int)$r['status'] . ', ' . ($j['details'][0]['issue'] ?? $j['status'] ?? '?') . ')');
-        return ['ok' => false, 'error' => 'err_paypal'];
+        return ['ok' => false, 'error' => 'err_paypal'] + ($transient ? ['retry' => true] : []);
     }
     return palette_fulfil($c, $o, $cap, (string)($j['payer']['email_address'] ?? ''));
 }
@@ -183,8 +221,8 @@ function palette_fulfil(mysqli $c, array $order, array $capture, string $payerEm
         $c->commit();
     } catch (Throwable $e) {
         $c->rollback();
-        error_log("palette: fulfil of order {$order['order_id']} failed: " . $e->getMessage());
-        return ['ok' => false, 'error' => 'err_paypal'];
+        error_log("palette: fulfil of order {$order['order_id']} failed (will retry): " . $e->getMessage());
+        return ['ok' => false, 'error' => 'err_paypal', 'retry' => true];
     }
     $m = palette_license_email($lic['key'], (string)$order['lang']);
     if (!palette_mail((string)$order['email'], $m['subject'], $m['html'])) {
@@ -207,12 +245,17 @@ function palette_webhook(mysqli $c, array $headersLower, string $body): string
     $pp = pp_settings($c);
     if (!is_string($s['webhook_id']) || $s['webhook_id'] === '' || $pp['client_id'] === '') return 'not configured';
     $event = json_decode($body, true);
-    if (!is_array($event)) return 'bad body';
-    $v = pp_api($pp, 'POST', '/v1/notifications/verify-webhook-signature', [
+    if (!is_array($event) || array_is_list($event)) return 'bad body';
+    if ($s['webhook_mode'] !== '' && $s['webhook_mode'] !== $pp['mode']) {
+        error_log("palette: webhook registered in {$s['webhook_mode']} mode but PayPal is now in {$pp['mode']} mode; re-run palette/setup.php");
+    }
+    // The event is spliced in as PayPal sent it: decoding and re-encoding could change bytes the signature covers.
+    $head = json_encode([
         'auth_algo' => (string)($headersLower['paypal-auth-algo'] ?? ''), 'cert_url' => (string)($headersLower['paypal-cert-url'] ?? ''),
         'transmission_id' => (string)($headersLower['paypal-transmission-id'] ?? ''), 'transmission_sig' => (string)($headersLower['paypal-transmission-sig'] ?? ''),
-        'transmission_time' => (string)($headersLower['paypal-transmission-time'] ?? ''), 'webhook_id' => $s['webhook_id'], 'webhook_event' => $event,
-    ]);
+        'transmission_time' => (string)($headersLower['paypal-transmission-time'] ?? ''), 'webhook_id' => $s['webhook_id'],
+    ], JSON_UNESCAPED_SLASHES);
+    $v = palette_pp($pp, 'POST', '/v1/notifications/verify-webhook-signature', substr($head, 0, -1) . ',"webhook_event":' . $body . '}');
     if (($v['status'] ?? 0) !== 200 || ($v['json']['verification_status'] ?? '') !== 'SUCCESS') return 'unverified';
 
     $type = (string)($event['event_type'] ?? '');
@@ -226,15 +269,13 @@ function palette_webhook(mysqli $c, array $headersLower, string $body): string
         $o = palette_webhook_order($c, ['order_id' => $res['id'] ?? null], $rowId);
         if (!$o) return 'unknown order';
         if ($o['status'] === 'captured') return 'already';
-        $r = palette_capture($c, (string)$o['order_id']);
-        return $r['ok'] ? (!empty($r['already']) ? 'already' : 'captured') : 'capture failed';
+        return palette_outcome(palette_capture($c, (string)$o['order_id']), 'captured', 'capture failed');
     }
     if ($type === 'PAYMENT.CAPTURE.COMPLETED') {
         $o = palette_webhook_order($c, ['order_id' => $related['order_id'] ?? null], $rowId);
         if (!$o) return 'unknown order';
         if ($o['status'] === 'captured') return 'already';
-        $r = palette_fulfil($c, $o, $res, '');
-        return $r['ok'] ? (!empty($r['already']) ? 'already' : 'fulfilled') : 'fulfil failed';
+        return palette_outcome(palette_fulfil($c, $o, $res, ''), 'fulfilled', 'fulfil failed');
     }
     // REFUNDED (resource = refund, "up" link -> capture) or REVERSED (resource = the capture).
     $capId = $related['capture_id'] ?? null;

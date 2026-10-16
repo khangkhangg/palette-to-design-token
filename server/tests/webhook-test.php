@@ -50,8 +50,38 @@ ok('verify HTTP error -> unverified', palette_webhook($conn, HDRS, ev('PAYMENT.C
 verified(true);
 ok('bad body', palette_webhook($conn, HDRS, 'not json') === 'bad body');
 palette_settings_put($conn, ['webhook_id' => '']);
-ok('no webhook_id -> not configured, no verify call', palette_webhook($conn, HDRS, ev('X', [])) === 'not configured');
-palette_settings_put($conn, ['webhook_id' => 'WH-PALETTE']);
+$GLOBALS['pp_calls'] = [];
+ok('no webhook_id -> not configured, no verify call', palette_webhook($conn, HDRS, ev('X', [])) === 'not configured' && $GLOBALS['pp_calls'] === []);
+palette_settings_put($conn, ['webhook_id' => 'WH-PALETTE', 'webhook_mode' => 'sandbox']);
+
+// the event goes to verify byte for byte (no decode/re-encode: {} would become [], 1.10 -> 1.1, / -> \/)
+$raw = '{"id":"WH-RAW","event_type":"BILLING.X","resource":{"meta":{},"href":"https://x.test/a/b","n":1.10}}';
+$GLOBALS['pp_calls'] = [];
+palette_webhook($conn, HDRS, $raw);
+$vr = (string)(calls_to('POST', '/v1/notifications/verify-webhook-signature')[0]['raw'] ?? '');
+ok('verify body embeds the raw event bytes', str_ends_with($vr, ',"webhook_event":' . $raw . '}') && is_array(json_decode($vr, true))
+    && (json_decode($vr, true)['webhook_id'] ?? '') === 'WH-PALETTE');
+
+// webhook_mode differing from the current PayPal mode is logged
+$log = sys_get_temp_dir() . '/palette-webhook-mode-test.log';
+@unlink($log);
+ini_set('error_log', $log);
+palette_settings_put($conn, ['webhook_id' => 'WH-PALETTE', 'webhook_mode' => 'live']);
+palette_webhook($conn, HDRS, ev('BILLING.X', []));
+ok('mode mismatch logged', str_contains((string)@file_get_contents($log), 'registered in live mode but PayPal is now in sandbox mode'));
+@unlink($log);
+palette_settings_put($conn, ['webhook_id' => 'WH-PALETTE', 'webhook_mode' => 'sandbox']);
+palette_webhook($conn, HDRS, ev('BILLING.X', []));
+ok('matching mode not logged', !file_exists($log) || !str_contains((string)file_get_contents($log), 'mode but PayPal'));
+ini_set('error_log', sys_get_temp_dir() . '/palette-test.log');
+
+// HTTP mapping for webhook.php
+$GLOBALS['pp_calls'] = [];
+ok('body over 64 KB -> 413, no PayPal call', palette_webhook_response($conn, HDRS, str_repeat(' ', 65537)) === [413, 'too large'] && $GLOBALS['pp_calls'] === []);
+verified(false);
+ok('unverified -> 400', palette_webhook_response($conn, HDRS, ev('BILLING.X', [])) === [400, 'unverified']);
+verified(true);
+ok('ignored -> 200', palette_webhook_response($conn, HDRS, ev('BILLING.X', [])) === [200, 'ignored']);
 
 // ---- PAYMENT.CAPTURE.COMPLETED
 $r = palette_webhook($conn, HDRS, ev('PAYMENT.CAPTURE.COMPLETED', capture_resource('ORD-1', cid($conn, 'ORD-1'))));
@@ -125,6 +155,34 @@ ok('refund via related order id -> revoked', palette_webhook($conn, HDRS, ev('PA
     && palette_verify($conn, $keyWp, '10.9.0.1')['revoked'] === true);
 ok('refund for unknown palette capture', palette_webhook($conn, HDRS, ev('PAYMENT.CAPTURE.REFUNDED', ['id' => 'RF-3', 'custom_id' => 'palette:999999',
     'links' => [['rel' => 'up', 'href' => 'https://api-m.paypal.com/v2/payments/captures/NOPE']]])) === 'unknown order');
+
+ok('companies refund without custom_id -> unknown order, 200', palette_webhook_response($conn, HDRS, ev('PAYMENT.CAPTURE.REFUNDED', ['id' => 'RF-C',
+    'links' => [['rel' => 'up', 'href' => 'https://api-m.paypal.com/v2/payments/captures/COMPANIES-CAP']]])) === [200, 'unknown order']);
+
+// ---- transient failures -> 'retry' (503) so PayPal redelivers; validation failures stay 200
+hook_reset($conn);
+make_order($conn, 'ORD-DB');
+$evDb = ev('PAYMENT.CAPTURE.COMPLETED', capture_resource('ORD-DB', cid($conn, 'ORD-DB'), 'CAPDB'));
+$conn->query('RENAME TABLE palette_licenses TO palette_licenses_hidden');
+try {
+    $resp = palette_webhook_response($conn, HDRS, $evDb);
+} finally {
+    $conn->query('RENAME TABLE palette_licenses_hidden TO palette_licenses');
+}
+ok('DB exception during fulfil -> retry, 503', $resp === [503, 'retry']);
+ok('DB exception rolled back the claim', order_row($conn, 'ORD-DB')['status'] === 'created' && order_row($conn, 'ORD-DB')['capture_id'] === null && $GLOBALS['mails'] === []);
+ok('redelivery after recovery -> fulfilled', palette_webhook($conn, HDRS, $evDb) === 'fulfilled' && license_count($conn) === 1 && count($GLOBALS['mails']) === 1);
+
+make_order($conn, 'ORD-5X');
+$GLOBALS['pp_routes']['POST /v2/checkout/orders/ORD-5X/capture'] = ['status' => 503, 'json' => ['message' => 'unavailable']];
+$apprX = ev('CHECKOUT.ORDER.APPROVED', ['id' => 'ORD-5X', 'purchase_units' => [['custom_id' => cid($conn, 'ORD-5X')]]]);
+ok('PayPal 503 on capture via APPROVED -> retry, 503', palette_webhook_response($conn, HDRS, $apprX) === [503, 'retry'] && order_row($conn, 'ORD-5X')['status'] === 'created');
+$GLOBALS['pp_routes']['POST /v2/checkout/orders/ORD-5X/capture'] = ['status' => 422, 'json' => ['details' => [['issue' => 'ORDER_NOT_APPROVED']]]];
+ok('PayPal 422 on capture via APPROVED -> capture failed, 200', palette_webhook_response($conn, HDRS, $apprX) === [200, 'capture failed']);
+
+make_order($conn, 'ORD-UP');
+ok('underpaid via webhook stays 200', palette_webhook_response($conn, HDRS, ev('PAYMENT.CAPTURE.COMPLETED',
+    capture_resource('ORD-UP', cid($conn, 'ORD-UP'), 'CAPUP', '1.00'))) === [200, 'fulfil failed'] && order_row($conn, 'ORD-UP')['status'] === 'failed');
 
 // ---- palette_setup_webhook
 hook_reset($conn);
