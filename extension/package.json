@@ -8,7 +8,11 @@
     "build:dev": "vite build --mode development && vite build -c vite.extract.config.ts --mode development",
     "test": "vitest run",
     "e2e": "node scripts/e2e.mjs",
-    "e2e:checkout": "playwright test -c playwright.checkout.config.ts"
+    "e2e:checkout": "playwright test -c playwright.checkout.config.ts",
+    "icons": "node scripts/icons.mjs",
+    "screenshots": "node scripts/screenshots.mjs",
+    "package": "node scripts/package.mjs",
+    "package:check": "node --test scripts/package.check.mjs"
   },
   "dependencies": {
     "fflate": "^0.8.3",

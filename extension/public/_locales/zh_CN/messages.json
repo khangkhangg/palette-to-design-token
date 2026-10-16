@@ -1,0 +1,8 @@
+{
+  "appName": {
+    "message": "Site to Design Token"
+  },
+  "appDesc": {
+    "message": "将任何网站转换为设计令牌：颜色、字体、间距、圆角、阴影和对比度。可导出 CSS、Tailwind、Figma 和 JSON。"
+  }
+}

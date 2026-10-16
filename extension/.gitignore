@@ -3,3 +3,4 @@ dist
 test-results
 dist-e2e
 playwright-report
+site-to-design-token-*.zip

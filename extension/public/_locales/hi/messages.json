@@ -1,0 +1,8 @@
+{
+  "appName": {
+    "message": "Site to Design Token"
+  },
+  "appDesc": {
+    "message": "किसी भी वेबसाइट को डिज़ाइन टोकन में बदलें: रंग, टाइप, स्पेसिंग, रेडियस, शैडो, कंट्रास्ट। CSS, Tailwind, Figma, JSON एक्सपोर्ट करें।"
+  }
+}

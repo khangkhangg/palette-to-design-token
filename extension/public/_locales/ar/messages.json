@@ -1,0 +1,8 @@
+{
+  "appName": {
+    "message": "Site to Design Token"
+  },
+  "appDesc": {
+    "message": "حوّل أي موقع إلى رموز تصميم: الألوان والخطوط والمسافات والزوايا والظلال والتباين. صدّر CSS وTailwind وFigma وJSON."
+  }
+}

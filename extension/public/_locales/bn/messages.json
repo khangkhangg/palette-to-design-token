@@ -1,0 +1,8 @@
+{
+  "appName": {
+    "message": "Site to Design Token"
+  },
+  "appDesc": {
+    "message": "যেকোনো ওয়েবসাইটকে ডিজাইন টোকেনে বদলান: রং, টাইপ, স্পেসিং, রেডিয়াস, শ্যাডো ও কনট্রাস্ট। CSS, Tailwind, Figma ও JSON এক্সপোর্ট করুন।"
+  }
+}
