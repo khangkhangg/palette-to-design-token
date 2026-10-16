@@ -10,7 +10,7 @@ Facts (sources: `C:\Projects\CLAUDE.md`, `courses/docs/INFRASTRUCTURE.md`, `serv
 - The add-on changes no companies file. Do not edit anything under `/var/www/duykhang/companies` except the new `palette/` directory.
 - Mail goes only through Resend. Never PHP `mail()` (the spo2x IP is blacklisted).
 
-Shell variables used below (Git Bash on Windows, repo root `C:\Projects\Palette Extension`):
+Commands are written for Git Bash on this PC (repo root `C:\Projects\Palette Extension`) driving the server through `$SSH "..."`. If you run them on spo2x directly, remove the `$SSH "..."` wrapper (and the backslashes before `$` inside it). Shell variables:
 
 ```bash
 SSH="ssh -i ~/.ssh/spo2x_admin root@100.71.6.80"
@@ -51,7 +51,7 @@ $SSH "cd $DOCROOT && php -r 'require \"config.php\"; require \"includes/function
 
 - `includes/paypal.php` exists; all six `pp_*` functions, the three functions.php functions and `checkRateLimit` are found; the EMAIL_FROM count is 2 or more.
 - `fastcgi_pass` appears in the vietnamcos.com vhost and a `php8.4-fpm` unit (or the matching FPM unit) is `active`. If PHP runs another way, `resend` stays synchronous and leaks address existence by timing (see Known limitations). Decide before going live.
-- 1c prints `mode` (sandbox or live), `has_client_id:true`, `has_secret:true`, `resend_key_set=yes`. If PayPal is not configured, fix it in `/companies/admin/settings` first.
+- 1c prints `mode` (sandbox or live), `"enabled":true`, `has_client_id:true`, `has_secret:true`, `resend_key_set=yes`. If PayPal is not configured, fix it in `/companies/admin/settings` first.
 - Resend: the sender `palette@vietnamcos.com` must be on the verified `vietnamcos.com` domain (directory@ already sends from it). Check Resend dashboard > Domains.
 
 ## 2. Upload (exclude tests and dev files)
@@ -80,7 +80,7 @@ tar -C server --exclude=tests --exclude=README.md --exclude=DEPLOY.md -cf - . | 
 
 ```bash
 $SSH "ls -la $DOCROOT/palette"     # api.php account.php assets bootstrap.php checkout.php lib migrate.php privacy.php setup.php webhook.php; NO tests, README.md, DEPLOY.md
-$SSH "find $DOCROOT/palette ( -name 'dev-router.php' -o -name '*-test.php' ) | wc -l"     # 0
+$SSH "find $DOCROOT/palette \( -name 'dev-router.php' -o -name '*-test.php' \) | wc -l"     # 0
 $SSH "stat -c '%U:%G' $DOCROOT/palette $DOCROOT/palette/api.php"                          # www-data:www-data
 $SSH "grep -rn PALETTE_NO_MAIL $DOCROOT/palette | grep -v lib/mail.php"                   # prints nothing
 curl -s -o /dev/null -w '%{http_code}\n' https://vietnamcos.com/palette/tests/            # 404
@@ -111,7 +111,7 @@ $SSH "nginx -t && systemctl reload nginx"
 **Verify:**
 
 ```bash
-$SSH "nginx -T 2>/dev/null | grep -n palette"     # the rewrite line, inside the vietnamcos.com server block
+$SSH "nginx -T 2>/dev/null | grep -nE 'rewrite .*/palette/'"     # the rewrite line, inside the vietnamcos.com server block
 curl -s -o /dev/null -w 'checkout %{http_code}\n' https://vietnamcos.com/palette/checkout     # 200
 curl -s -o /dev/null -w 'account  %{http_code}\n' https://vietnamcos.com/palette/account      # 200
 curl -s -o /dev/null -w 'privacy  %{http_code}\n' https://vietnamcos.com/palette/privacy      # 200
@@ -120,6 +120,12 @@ curl -s -o /dev/null -w 'webhook GET %{http_code}\n' https://vietnamcos.com/pale
 ```
 
 If a check fails, restore the backup (see Rollback) before debugging. Causes are in `/var/log/nginx/error.log` and the PHP-FPM log.
+
+Check the `www.` host too: PayPal does not follow redirects and the webhook is registered on `www`.
+
+```bash
+curl -s -o /dev/null -w 'www webhook %{http_code}\n' https://www.vietnamcos.com/palette/webhook.php   # must NOT be 301, 302 or 404
+```
 
 ## 4. Database
 
@@ -143,7 +149,7 @@ All three print `ok`. If `api_rate_limits` is MISSING, companies migration `013-
 Merge into the existing value so a stored `webhook_id` / `webhook_mode` is not wiped (`palette_settings_put` writes only known keys and fills the rest with defaults). `extension_ids` stays empty until step 7. Nothing secret is printed.
 
 ```bash
-$SSH "cd $DOCROOT/palette && sudo -u www-data php -r 'require \"bootstrap.php\"; palette_settings_put(\$conn, [\"price_usd\"=>\"1.49\",\"tax_mode\"=>\"none\",\"extension_ids\"=>[]] + palette_settings(\$conn)); echo json_encode(palette_settings(\$conn)), PHP_EOL;'"
+$SSH "cd $DOCROOT/palette && sudo -u www-data php -r 'require \"bootstrap.php\"; \$s=palette_settings(\$conn); \$s[\"price_usd\"]=\"1.49\"; \$s[\"tax_mode\"]=\"none\"; palette_settings_put(\$conn, \$s); echo json_encode(palette_settings(\$conn)), PHP_EOL;'"
 ```
 
 **Verify:** the printed JSON is `{"price_usd":"1.49","tax_mode":"none","tax_rate":"0.0725","extension_ids":[],"webhook_id":"","webhook_mode":""}` (webhook fields get filled in step 6). `curl -s 'https://vietnamcos.com/palette/api.php?action=config'` shows price 1.49 and no tax.
@@ -187,7 +193,7 @@ curl -si -X OPTIONS -H "Origin: chrome-extension://$EXT_ID" -H 'Access-Control-R
 curl -si -X OPTIONS -H "Origin: chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" -H 'Access-Control-Request-Method: POST' 'https://vietnamcos.com/palette/api.php?action=verify' | grep -ci access-control-allow-origin   # 0
 ```
 
-5. Verify activation from the extension against production: enter a key from step 6 in the popup and confirm Pro turns on; open `https://vietnamcos.com/palette/checkout?ext=$EXT_ID`, buy, and confirm the page hands the key to the extension (`chrome.runtime.sendMessage`, which needs the manifest's `externally_connectable` to match `https://vietnamcos.com/*`). A CORS or externally_connectable error in the extension service-worker console means the id was not added or the match is wrong.
+5. Verify activation from the extension against production: enter a key from step 6 in the popup and confirm Pro turns on; open `https://vietnamcos.com/palette/checkout?ext=$EXT_ID`, buy, and confirm the page hands the key to the extension (`chrome.runtime.sendMessage`, which needs the manifest's `externally_connectable` to match `https://vietnamcos.com/palette/*` and `https://www.vietnamcos.com/palette/*`). A CORS or externally_connectable error in the extension service-worker console means the id was not added or the match is wrong.
 6. Owner manual checks (cannot be automated):
    - [ ] `activeTab` real-site flow: click the icon on a live page, colours and fonts extract; install shows no "all sites" permission prompt.
    - [ ] Side panel opens from the popup button and shows the same data.
@@ -204,7 +210,7 @@ curl -si -X OPTIONS -H "Origin: chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaa
    - Verify: PayPal developer dashboard > Live app > Webhooks lists the URL with the four events.
 3. The owner makes one real $1.49 purchase (consent ticked, `tax_mode` none so the total is $1.49). Check: key shown, email from palette@, webhook delivery 2xx and `fulfilled` in the log, extension unlocks Pro.
 4. Refund that payment from PayPal (Activity > the payment > Issue refund). Confirm REFUNDED delivered 2xx, `verify` returns revoked, the extension drops Pro at its next re-check.
-5. Optional: for California tax, set `tax_mode` to `ca` with the step 5 command (US + CA buyers then pay $1.60). Default stays `none`.
+5. Optional: for California tax, set `tax_mode` to `ca` in the same read-modify-write form as step 5 (US + CA buyers then pay $1.60). Default stays `none`.
 
 ## 9. Store submission checklist
 
@@ -215,7 +221,7 @@ curl -si -X OPTIONS -H "Origin: chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 - [ ] Icon: the 128px icon has no transparent padding (Chrome guidance is about 96px artwork); fix if the reviewer flags it.
 - [ ] Privacy policy URL: `https://vietnamcos.com/palette/privacy`.
 - [ ] Single purpose: extract a page's colours and fonts and export them as design tokens.
-- [ ] Permission justifications: `activeTab` (read only the page the user clicked the icon on), `scripting` (run the extractor in that tab), `storage` (settings and Pro licence state), `sidePanel` (show results in the side panel); `externally_connectable` for `https://vietnamcos.com/*` (receive the licence key from the checkout page). No host permissions, no remote code.
+- [ ] Permission justifications: `activeTab` (read only the page the user clicked the icon on), `scripting` (run the extractor in that tab), `storage` (settings and Pro licence state), `sidePanel` (show results in the side panel); `externally_connectable` for `https://vietnamcos.com/palette/*` and `https://www.vietnamcos.com/palette/*` (receive the licence key from the checkout page). No host permissions, no remote code.
 - [ ] Data disclosure: the extension sends only the licence key to `vietnamcos.com/palette` for verification; no page content leaves the browser.
 - [ ] Pricing note in the description: free to use, with an optional one-time Pro upgrade ($1.49) bought on an external website (in-app purchase via external site, disclosed).
 - [ ] After approval, confirm the published id equals the one in `extension_ids`.
@@ -226,7 +232,7 @@ curl -si -X OPTIONS -H "Origin: chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 # 1. restore nginx from the step 3 backup (or just delete the one rewrite line)
 $SSH "ls -t /root/vietnamcos.com.bak-* | head -1"
 $SSH "cp -a \$(ls -t /root/vietnamcos.com.bak-* | head -1) /etc/nginx/sites-enabled/vietnamcos.com && nginx -t && systemctl reload nginx"
-$SSH "nginx -T 2>/dev/null | grep -c palette"       # 0
+$SSH "nginx -T 2>/dev/null | grep -cE 'rewrite .*/palette/'"       # 0
 
 # 2. remove the add-on
 $SSH "rm -rf /var/www/duykhang/companies/palette"
