@@ -10,15 +10,19 @@ directory of this folder.
 - `config.php`: `$conn` (mysqli)
 - `includes/functions.php`: `generateCSRFToken`, `verifyCSRFToken`, `getAdminSetting`
 - `getAdminSetting('resend_api_key')`: Resend API key; mail is sent only via Resend (`POST https://api.resend.com/emails`) using `pp_http`, never PHP `mail()`
-- `includes/ip_rate_limit.php`: `checkRateLimit` (table `api_rate_limits`, migration `013-api-rate-limits.sql`)
 - `includes/paypal.php`: `pp_settings`, `pp_ready`, `pp_api`, `pp_token`, `pp_base`, `pp_http` (test hook `$GLOBALS['pp_http']`; `pp_token` + `pp_base` are used for the two calls that need a raw body or extra headers: capture with `PayPal-Request-Id`, and verify-webhook-signature with the event spliced in byte for byte)
-- Tables owned by companies: `admin_settings` (settings key `palette`, JSON), `api_rate_limits`
+- Table owned by companies: `admin_settings` (settings key `palette`, JSON). Rate limits do not use companies' `checkRateLimit` (its purge is not scoped per endpoint, ruling S8): see `palette_rate` below.
 
 If any of these change in companies, this add-on must be updated.
 
 ## Schema
 
-`php migrate.php` creates `palette_orders` and `palette_licenses` (idempotent).
+`php migrate.php` creates `palette_orders`, `palette_licenses` and `palette_rate` (idempotent).
+
+`palette_rate(bucket, window_start, count)` backs `palette_rate_hit($bucket, $max, $windowSec, ?$now)` in `lib/rate.php`:
+fixed windows, an atomic `INSERT ... ON DUPLICATE KEY UPDATE count = count + 1`, and a purge of its own rows older than a
+day on about 1 in 50 calls. Buckets: `verify:ip:` 30/60 s, `resend:ip:` 10/h, `resend:email:<sha1>` 3/h, `create:ip:` 20/h,
+`claim:user:` 30/h.
 
 ## PayPal
 
@@ -56,13 +60,15 @@ companies repo (`PALETTE_COMPANIES_DIR`, default `C:\Projects\companies`).
 ## Known limitations
 
 - `palette_resend` must run after the HTTP response is flushed (it does DB and Resend work only for existing addresses, which would otherwise leak address existence through response timing).
+- A licence email that fails after a capture logs `PALETTE_MAIL_FAILED order=<id>` (alert on it; see DEPLOY.md Known limitations).
 
 ## JSON API (`api.php?action=...`)
 
 `api.php` is a thin adapter over `palette_api_handle()` in `lib/api.php` (tested by `tests/api-test.php`).
 Actions: `config` (GET), `create`, `capture`, `resend`, `claim` (POST, CSRF form `palette_checkout`, token in `csrf`), `verify` (POST, no CSRF, 30/min/IP).
-Errors are `{ok:false, error:<i18n key>, message:<localised>}`; 419 bad CSRF, 429 rate limited, 503 `err_retry` when a paid order's key is not ready yet.
-`verify` sends CORS headers only for `chrome-extension://<id>` origins whose id is in the `extension_ids` setting; the client IP is `REMOTE_ADDR` only.
+Errors are `{ok:false, error:<i18n key>, message:<localised>}`; 419 bad CSRF, 429 rate limited, 503 `err_retry` when a paid order's key is not ready yet, 202 `co_err_confirm` when PayPal holds the capture as PENDING (the key is issued by the PAYMENT.CAPTURE.COMPLETED webhook).
+`create` stores the PayPal order id in `$_SESSION['palette_orders']`; `capture` returns the key only for those ids, otherwise `{ok:true, key:null, email_masked, message}` (the key was emailed).
+`verify` sends CORS headers only for `chrome-extension://<id>` origins whose id is in the `extension_ids` setting; the client IP is `palette_client_ip($_SERVER)`: `CF-Connecting-IP` only when `REMOTE_ADDR` is inside Cloudflare's published ranges (`PALETTE_CLOUDFLARE_CIDRS`, refresh yearly), else `REMOTE_ADDR`; never `X-Forwarded-For`.
 `resend` answers first and runs `palette_resend` after `fastcgi_finish_request()` (ruling S4); on servers without it (CLI, `php -S`) the work stays synchronous.
 
 ## Pages (`checkout.php`, `account.php`, `privacy.php`)
@@ -83,8 +89,9 @@ properties for Arabic), Geist self-hosted under `assets/fonts/` (OFL). No extern
   createOrder -> `create`, onApprove -> `capture` -> key, Copy, "Link to account" (`/palette/account?key=...`), and,
   when opened with `?ext=<extension id>`, `chrome.runtime.sendMessage(ext, {type:'license', key})`.
   With `tax_mode = ca` it shows a country (US / other) and US state select and the CA total.
-- Account: signed out -> link to `/companies/?auth=login&redirect=/palette/account` (keeps `?key`); signed in
-  (`$_SESSION['user_id']`) -> the user's keys in full with copy buttons, and a claim form prefilled from `?key`.
+- Account: signed out -> link to `/companies/?auth=login&redirect=/palette/account` (a `?key` waits in
+  `$_SESSION['palette_pending_key']`, never in the login URL); signed in (`$_SESSION['user_id']`) -> the user's keys in
+  full with copy buttons, and a claim form prefilled from `?key` or, once, from the pending session key.
 
 ### Checkout e2e
 

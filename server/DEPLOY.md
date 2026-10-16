@@ -32,16 +32,17 @@ git status --short                # clean tree on the release commit
 
 ```bash
 # 1a. companies has the PayPal helper and the symbols the coupling contract needs
-$SSH "cd $DOCROOT && ls -l includes/paypal.php includes/functions.php includes/ip_rate_limit.php config.php"
+$SSH "cd $DOCROOT && ls -l includes/paypal.php includes/functions.php config.php"
 $SSH "cd $DOCROOT && grep -nE 'function (pp_settings|pp_ready|pp_api|pp_token|pp_base|pp_http)\b' includes/paypal.php"
 $SSH "cd $DOCROOT && grep -nE 'function (generateCSRFToken|verifyCSRFToken|getAdminSetting)\b' includes/functions.php"
-$SSH "cd $DOCROOT && grep -nE 'function checkRateLimit\b' includes/ip_rate_limit.php"
 $SSH "cd $DOCROOT && grep -cE 'EMAIL_FROM_ADDRESS|EMAIL_FROM_NAME' config.php"
 
 # 1b. PHP 8.4 and PHP-FPM serve vietnamcos.com (needed for the resend timing protection, ruling S4)
 $SSH "php -v | head -1"
 $SSH "grep -nE 'fastcgi_pass|server_name|root ' /etc/nginx/sites-enabled/vietnamcos.com"
 $SSH "ls /run/php/; systemctl list-units 'php*fpm*' --no-legend"
+# Cloudflare: which client IP the rate limits key on (ruling S9)
+$SSH "nginx -T 2>/dev/null | grep -n real_ip"
 
 # 1c. PayPal settings exist: prints mode and booleans only, never secrets
 $SSH "cd $DOCROOT && php -r 'require \"config.php\"; require \"includes/functions.php\"; require \"includes/paypal.php\"; \$s=pp_settings(\$conn); echo json_encode([\"mode\"=>\$s[\"mode\"],\"enabled\"=>\$s[\"enabled\"],\"has_client_id\"=>\$s[\"client_id\"]!==\"\",\"has_secret\"=>\$s[\"secret\"]!==\"\",\"error\"=>\$s[\"error\"]]),PHP_EOL; echo \"resend_key_set=\", getAdminSetting(\"resend_api_key\",\"\")!==\"\" ? \"yes\":\"no\", PHP_EOL;'"
@@ -49,8 +50,9 @@ $SSH "cd $DOCROOT && php -r 'require \"config.php\"; require \"includes/function
 
 **Verify:**
 
-- `includes/paypal.php` exists; all six `pp_*` functions, the three functions.php functions and `checkRateLimit` are found; the EMAIL_FROM count is 2 or more.
+- `includes/paypal.php` exists; all six `pp_*` functions and the three functions.php functions are found; the EMAIL_FROM count is 2 or more. (Rate limits use the add-on's own table `palette_rate`; companies' `checkRateLimit` is not used.)
 - `fastcgi_pass` appears in the vietnamcos.com vhost and a `php8.4-fpm` unit (or the matching FPM unit) is `active`. If PHP runs another way, `resend` stays synchronous and leaks address existence by timing (see Known limitations). Decide before going live.
+- `real_ip`: either result is fine. **No output**: `REMOTE_ADDR` is a Cloudflare edge, and `palette_client_ip()` uses `CF-Connecting-IP` because the peer is inside Cloudflare's published ranges. **`real_ip_header CF-Connecting-IP` plus `set_real_ip_from` lines for Cloudflare's ranges**: nginx already put the visitor in `REMOTE_ADDR`, which is not a Cloudflare address, so the add-on uses it as is. Stop only if `set_real_ip_from` trusts everyone (`0.0.0.0/0` or `::/0`) or the header is `X-Forwarded-For` from untrusted peers: visitors could then pick their own IP and dodge the limits.
 - 1c prints `mode` (sandbox or live), `"enabled":true`, `has_client_id:true`, `has_secret:true`, `resend_key_set=yes`. If PayPal is not configured, fix it in `/companies/admin/settings` first.
 - Resend: the sender `palette@vietnamcos.com` must be on the verified `vietnamcos.com` domain (directory@ already sends from it). Check Resend dashboard > Domains.
 
@@ -139,10 +141,10 @@ Idempotent, safe to repeat. `migrate.php` is CLI-only and answers 404 over HTTP.
 
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' https://vietnamcos.com/palette/migrate.php     # 404
-$SSH "cd $DOCROOT && php -r 'require \"config.php\"; foreach ([\"palette_orders\",\"palette_licenses\",\"api_rate_limits\"] as \$t) { \$r=\$conn->query(\"SHOW TABLES LIKE \\\"\$t\\\"\"); echo \$t, \": \", (\$r && \$r->num_rows) ? \"ok\" : \"MISSING\", PHP_EOL; }'"
+$SSH "cd $DOCROOT && php -r 'require \"config.php\"; foreach ([\"palette_orders\",\"palette_licenses\",\"palette_rate\"] as \$t) { \$r=\$conn->query(\"SHOW TABLES LIKE \\\"\$t\\\"\"); echo \$t, \": \", (\$r && \$r->num_rows) ? \"ok\" : \"MISSING\", PHP_EOL; }'"
 ```
 
-All three print `ok`. If `api_rate_limits` is MISSING, companies migration `013-api-rate-limits.sql` was never applied: apply it through the normal companies process, not from this add-on.
+All three print `ok` (`migrate.php` creates all three).
 
 ## 5. Settings (`admin_settings` key `palette`)
 
@@ -156,7 +158,30 @@ $SSH "cd $DOCROOT/palette && sudo -u www-data php -r 'require \"bootstrap.php\";
 
 ## 6. Sandbox end to end
 
-1. Make sure companies PayPal is in **sandbox** mode with sandbox client id and secret: `/companies/admin/settings` (admin login). Step 1c should print `"mode":"sandbox"`.
+**Production's PayPal settings are shared with companies** (one `mode`, one `enabled` flag, one client id). Switching production to sandbox puts companies' own paid checkout (premium, ads, launch plans) on sandbox money too. So:
+
+**6a. Preferred: the spo2x test environment** (`/srv/ctest`, nginx on `127.0.0.1:8088`, its own PHP pool and `*_test` databases; it serves courses today, see `courses/docs/test-environment.md`). Deploy companies plus this add-on there against a test database whose companies PayPal settings are sandbox, open it through `ssh -L 8088:127.0.0.1:8088 -i ~/.ssh/spo2x_admin root@100.71.6.80`, and run items 3 to 5 below. The site is bound to 127.0.0.1, so PayPal cannot reach its webhook: skip the webhook items (setup, delivery 2xx, refund revokes) there. They are covered on production by step 8's real purchase and refund. Optionally, after the live switch, send a test event from PayPal developer dashboard > Webhooks simulator to the live webhook: simulator events carry no real signature, so `400 unverified` is the expected answer and only proves the URL reaches the add-on.
+
+**6b. Fallback: on production, in a guarded window.** Use only if 6a is not possible.
+
+```bash
+# before: record the mode (step 1c, no secrets) and the window start in DATABASE time
+$SSH "cd $DOCROOT && php -r 'require \"config.php\"; echo \$conn->query(\"SELECT NOW()\")->fetch_row()[0], PHP_EOL;'"
+WINDOW_START="<the printed time>"
+```
+
+- Pausing companies' checkout with `enabled=false` would also pause this add-on (both read `pp_ready`), so it cannot be used here: pick a quiet hour and keep the window short instead.
+- Switch to sandbox in `/companies/admin/settings`, run items 1 to 5 below, then **restore** the recorded mode with the live client id and secret, set `enabled` back on, and re-run `setup.php` (it must report `(live)`). Step 1c must print the recorded mode and `"enabled":true`.
+- Audit everything created in the window. Companies orders listed here were paid with sandbox money: tell the owner, who reverses their fulfilment by hand. Palette keys from the window still pass `verify` in production: revoke them.
+
+```bash
+$SSH "cd $DOCROOT/palette && sudo -u www-data php -r 'require \"bootstrap.php\"; foreach ([\"paypal_orders\",\"palette_orders\"] as \$tb) { \$st=\$conn->prepare(\"SELECT order_id, status, created_at FROM \$tb WHERE created_at >= ? ORDER BY id\"); \$f=\"$WINDOW_START\"; \$st->bind_param(\"s\", \$f); \$st->execute(); foreach (\$st->get_result() as \$r) echo \$tb, \" \", implode(\" \", \$r), PHP_EOL; }'"
+$SSH "cd $DOCROOT/palette && sudo -u www-data php -r 'require \"bootstrap.php\"; \$st=\$conn->prepare(\"SELECT order_id FROM palette_orders WHERE created_at >= ?\"); \$f=\"$WINDOW_START\"; \$st->bind_param(\"s\", \$f); \$st->execute(); foreach (\$st->get_result() as \$r) { palette_revoke_by_order(\$conn, \$r[\"order_id\"]); echo \"revoked \", \$r[\"order_id\"], PHP_EOL; }'"
+```
+
+Steps of the sandbox pass:
+
+1. Companies PayPal is in **sandbox** mode with sandbox client id and secret (`/companies/admin/settings`, admin login). Step 1c prints `"mode":"sandbox"`.
 2. Open `https://vietnamcos.com/palette/setup.php` signed in as an admin (non-admins get 403) and press the button. Expect "Registered a new webhook" (or "Reused the existing webhook") with the webhook id and `(sandbox)`.
    - Verify: PayPal developer dashboard > Sandbox app > Webhooks lists `https://www.vietnamcos.com/palette/webhook.php` with CHECKOUT.ORDER.APPROVED, PAYMENT.CAPTURE.COMPLETED, PAYMENT.CAPTURE.REFUNDED, PAYMENT.CAPTURE.REVERSED. Re-run the step 5 print: `webhook_id` set, `webhook_mode` = `sandbox`.
 3. Open `https://vietnamcos.com/palette/checkout?lang=en` in Chrome with DevTools Console open (Preserve log on). Tick the consent box (the PayPal button stays disabled until then) and buy with a **sandbox buyer** (developer dashboard > Sandbox accounts > personal).
@@ -171,7 +196,7 @@ $SSH "cd $DOCROOT/palette && sudo -u www-data php -r 'require \"bootstrap.php\";
    - [ ] `/palette/account?key=...` while signed in to companies lists the key and claim works.
 5. Repeat one purchase with `?lang=ar` and check the page lays out right to left.
 
-Sandbox data costs nothing; fix and repeat as needed.
+Sandbox payments cost nothing; on 6a fix and repeat as needed, on 6b close the window (restore + audit) before fixing.
 
 ## 7. Extension
 
@@ -205,7 +230,7 @@ curl -si -X OPTIONS -H "Origin: chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 ## 8. Go live
 
-1. `/companies/admin/settings`: switch PayPal to **live** with live client id and secret. Step 1c prints `"mode":"live"`.
+1. PayPal must be **live** (companies already sells on it; it changes only if step 6b ran, which restores it). Do not switch modes here: step 1c must print `"mode":"live"` and `"enabled":true`. If it does not, stop and ask the owner: companies' checkout depends on the same settings.
 2. Re-run `https://vietnamcos.com/palette/setup.php` as admin: it must register a **live** webhook (`webhook_mode` = `live`). A mode mismatch is logged on every webhook call until you do.
    - Verify: PayPal developer dashboard > Live app > Webhooks lists the URL with the four events.
 3. The owner makes one real $1.49 purchase (consent ticked, `tax_mode` none so the total is $1.49). Check: key shown, email from palette@, webhook delivery 2xx and `fulfilled` in the log, extension unlocks Pro.
@@ -247,15 +272,16 @@ curl -s -o /dev/null -w '%{http_code}\n' https://vietnamcos.com/palette/checkout
 Accepted in review; none block launch.
 
 - **Timing protection needs PHP-FPM.** `resend` answers first and does its work after `fastcgi_finish_request()` (ruling S4). Without it (CLI, `php -S`, mod_php) the work stays synchronous and response time can reveal whether an address bought. Confirm in step 1b.
-- **CSRF token per session.** `api.php?action=config` issues the checkout CSRF token and rotates it on every GET, so two checkout tabs in one session invalidate each other (the older tab gets 419 and must reload).
+- **CSRF token per session.** `api.php?action=config` creates the checkout CSRF token once per session and returns the same token afterwards (no rotation), so several checkout or account tabs share it. A new session (cookie expired) needs a page reload (419 otherwise).
 - **Any refund revokes.** A refund or reversal, including a partial refund, revokes the licence. The order row keeps status `captured`.
-- **Resend cap can be abused.** The per-email limit (3/hour) is global, so a stranger can use up a victim's resends for an hour (accepted trade-off). `resend` is also 10/hour/IP; `verify` is 30/min/IP.
-- **No rate limit on `claim` and `capture`.**
-- **Mail is Resend only.** Missing `resend_api_key` or a non-2xx answer means no email (logged); the buyer still has the on-page key and the account page. `PALETTE_NO_MAIL` must never be defined in production.
-- **Webhook edge cases.** A PayPal 5xx on signature verification answers 400, not 503; transient fulfil/capture failures answer 503 so PayPal redelivers; validation failures (underpaid, wrong currency, unknown order) answer 200. Verify a real sandbox event's signature before going live (step 6). If the stored webhook mode differs from companies' PayPal mode, every call logs it: re-run `setup.php`.
-- **Shared PayPal app.** Both webhooks receive each other's events; non-`palette:` custom_ids are ignored here.
-- **Fixed price text.** The refund line hard-codes $1.49; if `price_usd` changes, update the text and translations. Keys appear in URLs (`account?key=`), mitigated by `Referrer-Policy: strict-origin-when-cross-origin`.
+- **Rate limits** live in the add-on's own table `palette_rate` (fixed windows; rows older than a day are purged on about 1 in 50 calls): `verify` 30/min per IP, `resend` 10/hour per IP and 3/hour per email, `create` 20/hour per IP, `claim` 30/hour per signed-in user. The per-email resend cap is global, so a stranger can use up a victim's resends for an hour (accepted trade-off). `capture` has no limit (it needs an approved PayPal order id).
+- **Client IP behind Cloudflare.** `CF-Connecting-IP` is trusted only when the peer is in Cloudflare's published ranges, a list hard-coded in `server/lib/rate.php` (`PALETTE_CLOUDFLARE_CIDRS`, from https://www.cloudflare.com/ips-v4 and ips-v6, 2026-10-17). Refresh it yearly; if Cloudflare adds a range first, visitors arriving through it share their edge IP's limits until then.
+- **Key shown only to the buying session.** `capture` returns the key only to the session that created the order; any other caller gets `key: null` and the page says the key was emailed.
+- **Mail is Resend only.** Missing `resend_api_key` or a non-2xx answer means no email; the buyer still has the on-page key and the account page. A licence email that fails after a capture logs `PALETTE_MAIL_FAILED order=<PayPal order id>`: alert on that prefix in the PHP-FPM error log and resend by hand (the lost-key form works once mail is fixed). `PALETTE_NO_MAIL` must never be defined in production.
+- **Webhook edge cases.** A PayPal 5xx on signature verification answers 400, not 503; PayPal retries any non-2xx, so the event is redelivered either way. Transient fulfil/capture failures answer 503; validation failures (underpaid, wrong currency, unknown order) answer 200; an approval whose capture PayPal holds as PENDING answers 200 `pending` and the later PAYMENT.CAPTURE.COMPLETED issues the key. A real event's signature is first verified in step 6b, or with 6a in step 8's live purchase. If the stored webhook mode differs from companies' PayPal mode, every call logs it: re-run `setup.php`.
+- **Shared PayPal app.** Both webhooks receive each other's events; non-`palette:` custom_ids are ignored here. The PayPal mode and `enabled` flag are shared too (step 6).
+- **Fixed price text.** The refund line hard-codes $1.49 (French: 1,49 $ US); if `price_usd` changes, update the text and translations. The checkout success page links to `account?key=...`, mitigated by `Referrer-Policy: strict-origin-when-cross-origin`; the companies sign-in redirect never carries the key (it waits in the session).
 - **`setup.php` sends no frame-ancestors / X-Frame-Options** (admin-only page).
-- **Extension re-verify quirks (open final-wave item).** A 200 verify response lacking `ok:true`/valid fields (for example a proxy oddity) is treated as invalid and removes Pro at the next re-check instead of counting as a network failure; a missing verified time (NaN) re-checks on every open; the key input loses focus while busy; the client rejects keys without dashes.
+- **Extension.** The key input loses focus while an activation is in flight.
 - **Key goes to any extension id in `?ext=`.** It is only format-checked; the key is the buyer's own. CORS on `verify` is granted only to ids listed in `extension_ids`, so a new Store id must be added before activation works.
 - **Cosmetic.** es/fr store descriptions omit Figma; the fr refund line has a straight apostrophe (matches the server dictionary); the 6 translations still need native-speaker review (step 7).
