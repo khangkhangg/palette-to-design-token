@@ -13,18 +13,18 @@
   /* Typography */
   --font-body: "DM Sans", sans-serif;
   --font-heading: Fraunces, serif;
-  --text-display-size: 48px;
-  --text-display-line-height: 56px;
-  --text-display-weight: 600;
-  --text-h1-size: 24px;
-  --text-h1-line-height: 32px;
-  --text-h1-weight: 600;
-  --text-body-size: 16px;
-  --text-body-line-height: 26px;
-  --text-body-weight: 400;
-  --text-small-size: 13px;
-  --text-small-line-height: 18px;
-  --text-small-weight: 500;
+  --text-display: 48px;
+  --text-display--line-height: 56px;
+  --text-display--font-weight: 600;
+  --text-h1: 24px;
+  --text-h1--line-height: 32px;
+  --text-h1--font-weight: 600;
+  --text-body: 16px;
+  --text-body--line-height: 26px;
+  --text-body--font-weight: 400;
+  --text-small: 13px;
+  --text-small--line-height: 18px;
+  --text-small--font-weight: 500;
 
   /* Spacing */
   --space-1: 4px;
