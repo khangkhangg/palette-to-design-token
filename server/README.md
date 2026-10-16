@@ -7,8 +7,9 @@ directory of this folder.
 
 ## Coupling contract (companies symbols used)
 
-- `config.php`: `$conn` (mysqli), `EMAIL_FROM_ADDRESS`, `EMAIL_FROM_NAME`
+- `config.php`: `$conn` (mysqli)
 - `includes/functions.php`: `generateCSRFToken`, `verifyCSRFToken`, `getAdminSetting`
+- `getAdminSetting('resend_api_key')`: Resend API key; mail is sent only via Resend (`POST https://api.resend.com/emails`) using `pp_http`, never PHP `mail()`
 - `includes/ip_rate_limit.php`: `checkRateLimit` (table `api_rate_limits`, migration `013-api-rate-limits.sql`)
 - `includes/paypal.php`: `pp_settings`, `pp_ready`, `pp_api`, `pp_http` (test hook `$GLOBALS['pp_http']`)
 - Tables owned by companies: `admin_settings` (settings key `palette`, JSON), `api_rate_limits`

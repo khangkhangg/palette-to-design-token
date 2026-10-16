@@ -123,3 +123,30 @@ foreach ($langs as $l) {
 ok('all 7 languages have identical keys and no emoji', $allKeys);
 ok('resend email escapes', !str_contains(palette_resend_email(['<script>'], 'en')['html'], '<script>'));
 reset_state($conn);
+
+// Resend transport (stubbed pp_http; stub presence disables the PALETTE_NO_MAIL capture)
+ini_set('error_log', sys_get_temp_dir() . '/palette-test.log');
+$calls = [];
+$GLOBALS['pp_http'] = function ($method, $url, $headers, $body) use (&$calls) {
+    $calls[] = compact('method', 'url', 'headers', 'body');
+    return ['status' => 200, 'json' => ['id' => 'abc']];
+};
+$conn->query("DELETE FROM admin_settings WHERE setting_key='resend_api_key'");
+ok('no api key -> false', palette_mail('a@b.com', 'S', '<p>x</p>') === false);
+ok('no api key -> no HTTP call', $calls === []);
+$conn->query("INSERT INTO admin_settings (setting_key, setting_value) VALUES ('resend_api_key', 're_testkey')");
+ok('resend ok -> true', palette_mail(' A@B.com ', 'Subj é', '<p>x</p>') === true);
+$cl = $calls[0] ?? ['method' => '', 'url' => '', 'headers' => [], 'body' => ''];
+$bd = json_decode($cl['body'], true) ?: [];
+ok('resend request shape', $cl['method'] === 'POST' && $cl['url'] === 'https://api.resend.com/emails'
+    && in_array('Authorization: Bearer re_testkey', $cl['headers'], true) && in_array('Content-Type: application/json', $cl['headers'], true));
+ok('resend body', $bd === ['from' => 'Site to Design Token <palette@vietnamcos.com>', 'to' => ['a@b.com'], 'subject' => 'Subj é',
+    'html' => '<p>x</p>', 'reply_to' => 'support@vietnamcos.com']);
+$GLOBALS['pp_http'] = fn() => ['status' => 500, 'json' => ['message' => 'boom']];
+ok('resend 500 -> false', palette_mail('a@b.com', 'S', 'h') === false);
+$GLOBALS['pp_http'] = fn() => ['status' => 200, 'json' => []];
+ok('2xx without id -> false', palette_mail('a@b.com', 'S', 'h') === false);
+$calls = [];
+ok('bad address -> false, no call', palette_mail('nope', 'S', 'h') === false && $calls === []);
+unset($GLOBALS['pp_http']);
+$conn->query("DELETE FROM admin_settings WHERE setting_key='resend_api_key'");

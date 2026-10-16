@@ -1,20 +1,29 @@
 <?php
-// Returns false for invalid addresses (including header-injection attempts).
+// Sends only through Resend (never PHP mail()). False for invalid addresses, a missing key or a non-2xx reply.
 // With PALETTE_NO_MAIL defined (tests) the message is recorded in $GLOBALS['palette_sent'] instead of sent.
 function palette_mail(string $to, string $subject, string $html): bool
 {
-    if (preg_match('/[\r\n]/', $to) || !filter_var($to, FILTER_VALIDATE_EMAIL)) return false;
-    if (defined('PALETTE_NO_MAIL')) {
+    $to = strtolower(trim($to));
+    if (preg_match('/[
+]/', $to) || !filter_var($to, FILTER_VALIDATE_EMAIL)) return false;
+    // Test capture; a test that stubs $GLOBALS['pp_http'] exercises the real Resend path instead.
+    if (defined('PALETTE_NO_MAIL') && !isset($GLOBALS['pp_http'])) {
         $GLOBALS['palette_sent'][] = ['to' => $to, 'subject' => $subject, 'html' => $html];
         return true;
     }
-    $name = defined('EMAIL_FROM_NAME') ? EMAIL_FROM_NAME : 'Site to Design Token';
-    $addr = defined('EMAIL_FROM_ADDRESS') ? EMAIL_FROM_ADDRESS : 'noreply@vietnamcos.com';
-    $name = str_replace(["\r", "\n"], '', (string)$name);
-    $addr = str_replace(["\r", "\n"], '', (string)$addr);
-    $headers = "MIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\nFrom: $name <$addr>";
-    $subject = str_replace(["\r", "\n"], ' ', $subject);
-    return (bool)mail($to, '=?UTF-8?B?' . base64_encode($subject) . '?=', $html, $headers);
+    $key = trim((string)getAdminSetting('resend_api_key', ''));
+    if ($key === '') {
+        error_log('palette_mail: resend_api_key is not set');
+        return false;
+    }
+    $body = json_encode(['from' => 'Site to Design Token <palette@vietnamcos.com>', 'to' => [$to],
+                         'subject' => str_replace(["\r", "\n"], ' ', $subject), 'html' => $html,
+                         'reply_to' => 'support@vietnamcos.com'], JSON_UNESCAPED_UNICODE);
+    $r = pp_http('POST', 'https://api.resend.com/emails',
+                 ['Content-Type: application/json', 'Authorization: Bearer ' . $key], $body);
+    if ($r['status'] >= 200 && $r['status'] < 300 && !empty($r['json']['id'])) return true;
+    error_log('palette_mail: Resend returned HTTP ' . (int)$r['status']);
+    return false;
 }
 
 function palette_h(string $s): string
