@@ -89,7 +89,17 @@
     });
   }
   markScrollRegions();
+  // Widths change after layout settles (webfonts, images) and with the viewport: re-check on each.
   window.addEventListener('resize', markScrollRegions);
+  window.addEventListener('load', markScrollRegions);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(markScrollRegions);
+  if (window.ResizeObserver) {
+    var ro = new ResizeObserver(markScrollRegions);
+    document.querySelectorAll('[data-scroll-label]').forEach(function (el) {
+      ro.observe(el);
+      if (el.firstElementChild) ro.observe(el.firstElementChild);
+    });
+  }
 
   // ---- copy buttons: [data-copy="text"] or [data-copy-from="element id"]
   function selectText(el) {

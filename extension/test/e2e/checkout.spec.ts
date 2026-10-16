@@ -428,3 +428,16 @@ test('plans table: the wrapper becomes a focusable labelled region only when it 
   await expect(wrap).toHaveAttribute('role', 'region');
   await expect(wrap).toHaveAttribute('aria-label', 'Free vs Pro');
 });
+
+test('landing at 360px: the DESIGN.md sample scrolls and is a keyboard-reachable labelled region', async ({ page }) => {
+  await seed(page);
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto('/palette/?lang=en');
+  const pre = page.locator('#ai pre.md-sample');
+  expect(await pre.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+  await expect(pre).toHaveAttribute('tabindex', '0');
+  await expect(pre).toHaveAttribute('role', 'region');
+  await expect(pre).toHaveAttribute('aria-label', 'Made for AI coding');
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(pre).not.toHaveAttribute('tabindex', /.*/);
+});

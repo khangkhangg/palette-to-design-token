@@ -356,3 +356,14 @@ ok('terms.php renders', str_contains($out, 'dir="rtl"') && str_contains($out, h(
 
 // ---- plans table scroll region (made focusable by checkout.js only when it overflows)
 ok('plans wrapper carries its scroll label', str_contains($lp, 'class="plans-wrap" data-scroll-label="' . h(palette_t('en', 'pp_plans_h')) . '"'));
+
+// ---- review: honest data answer, keyboard-reachable code sample, export is Pro in the lead
+$missing = [];
+foreach (LANGS as $l) {
+    $a = palette_t($l, 'lp_faq_data_a');
+    if (!str_contains($a, 'vietnamcos.com') || preg_match('/^(None|无|कोई नहीं|Ninguno|لا شيء|Aucune|কোনোটিই না)/u', $a)) $missing[] = $l;
+    if (!str_contains(palette_t($l, 'lp_lead'), 'Pro')) $missing[] = "$l:lead";
+}
+ok('data FAQ names vietnamcos.com and does not claim "none"; lead says export is Pro: ' . implode(', ', $missing), $missing === []);
+ok('en data FAQ mentions email and order', str_contains(palette_t('en', 'lp_faq_data_a'), 'we keep your email and order'));
+ok('DESIGN.md sample is a labelled scroll region candidate', str_contains($lp, '<pre class="md-sample" dir="ltr" lang="en" data-scroll-label="' . h(palette_t('en', 'lp_ai_h')) . '">'));

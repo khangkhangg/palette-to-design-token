@@ -146,7 +146,7 @@ return [
     'page_terms' => 'Terms',
     'lp_title' => 'Site to Design Token: any website\'s design system, ready for your code',
     'lp_h1' => 'Turn any website into a design system.',
-    'lp_lead' => 'Click the icon on any site to get its colours, type, spacing and contrast, then copy them or export tokens for your code.',
+    'lp_lead' => 'Click the icon on any site to get its colours, type, spacing and contrast. Copy any value free, export tokens with Pro.',
     'lp_shots_h' => 'See it in action',
     'lp_shot_1' => 'The popup listing a website\'s colours by role, primary, accent, surface and text, with their hex values.',
     'lp_shot_2' => 'The contrast tab showing which text and background pairs pass or fail WCAG AA.',
@@ -167,7 +167,7 @@ return [
     'lp_faq_pro_a' => 'A one-time {price} unlock: every export (CSS variables, Tailwind, Figma, JSON and DESIGN.md), contrast fixes and unlimited saved sites.',
     'lp_faq_key_q' => 'How do I enter my key?',
     'lp_faq_data_q' => 'What data does it collect?',
-    'lp_faq_data_a' => 'None. Scans and settings stay in your browser. The only thing it sends is your license key, to check it.',
+    'lp_faq_data_a' => 'The extension collects nothing about the pages you scan: scans stay in your browser. The extension only sends your license key to vietnamcos.com, to check it. If you buy Pro, we keep your email and order to deliver your key.',
     'lp_faq_data_link' => 'Read the privacy policy',
     'lp_faq_refund_q' => 'Can I get a refund?',
     // terms_*: drafted without a legal entity, address or governing law. The owner must review them before launch (DEPLOY.md).

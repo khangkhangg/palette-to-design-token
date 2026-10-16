@@ -312,7 +312,7 @@ function palette_render_landing(array $ctx): string
     $ai = '<section class="pp-section lp-ai" id="ai" aria-labelledby="ai-h"><div class="lp-ai-text">'
         . '<h2 id="ai-h">' . palette_icon('code', 18) . $t('lp_ai_h') . '</h2><p>' . $t('lp_ai_text') . '</p>'
         . '<p class="pp-aside">' . $t('lp_ai_where') . '</p></div>'
-        . '<pre class="md-sample" dir="ltr" lang="en"><code>' . palette_h(PALETTE_DESIGN_MD_SAMPLE) . '</code></pre></section>';
+        . '<pre class="md-sample" dir="ltr" lang="en" data-scroll-label="' . $t('lp_ai_h') . '"><code>' . palette_h(PALETTE_DESIGN_MD_SAMPLE) . '</code></pre></section>';
 
     $privacy = '<a href="' . palette_h(palette_page_url('privacy', $lang)) . '">' . $t('lp_faq_data_link') . '</a>';
     $faqs = [
