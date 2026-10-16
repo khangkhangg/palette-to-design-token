@@ -232,7 +232,7 @@ ok('download link: latest zip with download attribute',
     preg_match('#<a[^>]*href="/palette/download/site-to-design-token-latest\.zip"[^>]*\bdownload\b[^>]*>.*?Download the extension \(free\)#s', $en) === 1
     || preg_match('#<a[^>]*\bdownload\b[^>]*href="/palette/download/site-to-design-token-latest\.zip"[^>]*>.*?Download the extension \(free\)#s', $en) === 1);
 ok('Get Pro anchors to the buy card', preg_match('#<a[^>]*href="\#buy"[^>]*>.*?Get Pro — \$1\.49#s', $en) === 1 && str_contains($en, 'id="buy"'));
-ok('works-in line with version', str_contains($en, 'Works in Chrome, Edge, Brave and Opera. Version <bdi dir="ltr">' . PALETTE_EXT_VERSION . '</bdi>.'));
+ok('works-in line with version', str_contains($en, 'Works in Chrome, Edge and Brave. Version <bdi dir="ltr">' . PALETTE_EXT_VERSION . '</bdi>.'));
 ok('sections in order: hero, what, plans, install, key, then the buy card',
     $pos('id="hero-actions"') !== false && $pos('id="what"') > $pos('id="hero-actions"') && $pos('id="plans"') > $pos('id="what"')
     && $pos('id="install"') > $pos('id="plans"') && $pos('id="have-key"') > $pos('id="install"') && $pos('id="buy"') > $pos('id="have-key"'));
@@ -255,3 +255,7 @@ foreach (LANGS as $l) {
     foreach (['pp_download', 'pp_what_h', 'pp_plans_h', 'pp_install_h', 'pp_key_h', 'pp_install_note'] as $k) if (!str_contains($html, h(palette_t($l, $k)))) $all = false;
     ok("product page $l: every section rendered", $all && str_contains($html, '/palette/download/site-to-design-token-latest.zip'));
 }
+// Opera has no chrome.sidePanel: no page or string may claim it.
+$opera = [];
+foreach (LANGS as $l) foreach (palette_strings($l) as $k => $v) if (stripos($v, 'opera') !== false) $opera[] = "$l:$k";
+ok('no string claims Opera support: ' . implode(', ', $opera), $opera === []);

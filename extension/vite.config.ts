@@ -34,7 +34,9 @@ function e2eHostPermission(): Plugin {
     closeBundle() {
       const file = resolve(import.meta.dirname, OUT_DIR, 'manifest.json');
       const manifest = JSON.parse(readFileSync(file, 'utf8'));
-      manifest.host_permissions = ['http://127.0.0.1/*'];
+      // SDT_E2E_HOSTS (comma-separated) adds hosts, e.g. the friendly hostname npm run screenshots maps to 127.0.0.1.
+      const extra = (process.env.SDT_E2E_HOSTS ?? '').split(',').filter((h) => /^[a-z0-9.-]+$/.test(h));
+      manifest.host_permissions = ['http://127.0.0.1/*', ...extra.map((h) => `http://${h}/*`)];
       writeFileSync(file, JSON.stringify(manifest, null, 2) + '\n');
     },
   };

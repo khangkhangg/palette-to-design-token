@@ -42,3 +42,9 @@ Pro, একবারের $1.49 আনলক
 ফেরত
 
 সব বিক্রয় চূড়ান্ত। যেহেতু Pro সঙ্গে সঙ্গে আনলক হয় এবং এর দাম মাত্র $1.49, তাই কেনার পর আমরা টাকা ফেরত দিই না।
+
+## Links
+
+- Homepage URL: https://vietnamcos.com/palette/
+- Privacy policy URL: https://vietnamcos.com/palette/privacy
+- Terms of service URL: https://vietnamcos.com/palette/terms

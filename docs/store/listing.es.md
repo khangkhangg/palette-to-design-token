@@ -42,3 +42,9 @@ El análisis se hace en tu dispositivo. La extensión lee los colores y estilos 
 Reembolsos
 
 Todas las ventas son definitivas. Como Pro se desbloquea al instante y cuesta 1,49 USD, no ofrecemos reembolsos después de la compra.
+
+## Links
+
+- Homepage URL: https://vietnamcos.com/palette/
+- Privacy policy URL: https://vietnamcos.com/palette/privacy
+- Terms of service URL: https://vietnamcos.com/palette/terms

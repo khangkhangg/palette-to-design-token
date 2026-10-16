@@ -10,15 +10,18 @@ const root = resolve(import.meta.dirname, '..');
 const DIST = resolve(root, 'dist-e2e');
 const OUT = resolve(root, '../docs/store/screenshots');
 const PORT = 4518;
+/** A friendly host for the scanned page: Chromium resolves it to the local fixture server (--host-resolver-rules). */
+const HOST = 'fernleaf.example';
 const BASE = `http://127.0.0.1:${PORT}`;
+const SITE = `http://${HOST}:${PORT}`;
 
 function run(cmd, args, env = {}) {
   const r = spawnSync(cmd, args, { cwd: root, stdio: 'inherit', shell: true, env: { ...process.env, ...env } });
   if (r.status !== 0) process.exit(r.status ?? 1);
 }
 
-run('npx', ['vite', 'build'], { SDT_E2E: '1' });
-run('npx', ['vite', 'build', '-c', 'vite.extract.config.ts'], { SDT_E2E: '1' });
+run('npx', ['vite', 'build'], { SDT_E2E: '1', SDT_E2E_HOSTS: HOST });
+run('npx', ['vite', 'build', '-c', 'vite.extract.config.ts'], { SDT_E2E: '1', SDT_E2E_HOSTS: HOST });
 
 const server = spawn(process.execPath, ['test/e2e/serve.mjs'], { cwd: root, env: { ...process.env, PORT: String(PORT) }, stdio: 'ignore' });
 for (let i = 0; ; i++) {
@@ -32,7 +35,7 @@ const SHOTS = [
   { file: '2-contrast.png', caption: 'Contrast pass and fail, checked against WCAG AA', path: 'popup.html', size: [400, 600], theme: 'light', tab: '#tab-contrast' },
   { file: '3-side-panel-light.png', caption: 'The whole design system in the side panel', path: 'sidepanel.html', size: [440, 680], theme: 'light' },
   { file: '4-side-panel-dark.png', caption: 'Light and dark themes', path: 'sidepanel.html', size: [440, 680], theme: 'dark' },
-  { file: '5-export.png', caption: 'Export CSS, Tailwind, Figma, JSON and DESIGN.md', path: 'sidepanel.html?view=export', size: [440, 680], theme: 'light', pro: true },
+  { file: '5-export.png', caption: 'Pro: export CSS, Tailwind, Figma, JSON and DESIGN.md', path: 'sidepanel.html?view=export', size: [440, 680], theme: 'light', pro: true },
 ];
 
 const frame = (img, caption) => `<!doctype html><style>${geistCss()}
@@ -45,7 +48,7 @@ p{margin:0;font-size:28px;font-weight:600;letter-spacing:-.015em;color:#1B1E24}
 mkdirSync(OUT, { recursive: true });
 const context = await chromium.launchPersistentContext('', {
   channel: 'chromium',
-  args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`],
+  args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`, `--host-resolver-rules=MAP ${HOST} 127.0.0.1`],
 });
 try {
   const sw = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
@@ -58,9 +61,9 @@ try {
       { theme: s.theme, lang: 'en', pro: !!s.pro });
     // The fixture must be the active tab: the extension pages scan the active tab of the window.
     const fixture = await context.newPage();
-    await fixture.goto(`${BASE}/light-marketing.html`);
+    await fixture.goto(`${SITE}/light-marketing.html`);
     await fixture.bringToFront();
-    const url = `${BASE}/light-marketing.html`;
+    const url = `${SITE}/light-marketing.html`;
     await sw.evaluate(async (u) => {
       const tab = (await chrome.tabs.query({})).find((t) => t.url === u);
       await chrome.tabs.update(tab.id, { active: true });

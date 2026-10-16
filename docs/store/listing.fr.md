@@ -42,3 +42,9 @@ L’analyse se fait sur votre appareil. L’extension lit les couleurs et les st
 Remboursements
 
 Toutes les ventes sont définitives. Comme Pro se débloque instantanément et coûte 1,49 $ US, nous ne proposons pas de remboursement après l’achat.
+
+## Links
+
+- Homepage URL: https://vietnamcos.com/palette/
+- Privacy policy URL: https://vietnamcos.com/palette/privacy
+- Terms of service URL: https://vietnamcos.com/palette/terms

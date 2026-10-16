@@ -42,3 +42,9 @@ Pro, एक बार का $1.49 अनलॉक
 रिफ़ंड
 
 सभी बिक्री अंतिम है। क्योंकि Pro तुरंत अनलॉक हो जाता है और इसकी कीमत केवल $1.49 है, इसलिए हम खरीद के बाद रिफ़ंड नहीं देते।
+
+## Links
+
+- Homepage URL: https://vietnamcos.com/palette/
+- Privacy policy URL: https://vietnamcos.com/palette/privacy
+- Terms of service URL: https://vietnamcos.com/palette/terms
