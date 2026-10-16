@@ -6,60 +6,44 @@
 @font-face { font-family: 'Geist Mono'; src: url('/fonts/GeistMono-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
 @font-face { font-family: 'Geist Mono'; src: url('/fonts/GeistMono-Medium.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
 
+/*
+ * One token list for both themes: light-dark(light, dark) resolves against color-scheme.
+ * No data-theme yet (first paint) -> follows the OS, so there is no light flash in dark mode;
+ * applyTheme then pins data-theme to light or dark.
+ */
 :root {
   --font-ui: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
-  --bg: #FBFBFA;
-  --ink: #16181D;
-  --muted: #5D6270;
-  --line: #E3E4E8;
-  --accent: #3B4BD8;
+  --bg: light-dark(#FBFBFA, #111318);
+  --ink: light-dark(#16181D, #ECEDF1);
+  --muted: light-dark(#5D6270, #9DA2B0);
+  --line: light-dark(#E3E4E8, #22252D);
+  --accent: light-dark(#3B4BD8, #7C8BFF);
 
-  --surface: #FFFFFF;
-  --ink-2: #4A4F5C;
-  --muted-2: #6B7080;
-  --line-soft: #ECEDF0;
-  --seg-bg: #EFEFF1;
-  --seg-on: #FFFFFF;
-  --seg-shadow: 0 1px 2px rgba(16, 24, 40, .08);
-  --menu-shadow: 0 8px 24px rgba(16, 24, 40, .12), 0 1px 2px rgba(16, 24, 40, .06);
-  --chip-edge: rgba(0, 0, 0, .06);
-  --accent-hover: #2A37A8;
-  --on-accent: #FFFFFF;
-  --badge-bg: rgba(255, 255, 255, .2);
-  --note-bg: #F1F2FB;
-  --note-ink: #2E3A9E;
-  --mark-tail: #3B4BD8;
+  --surface: light-dark(#FFFFFF, #171A20);
+  --ink-2: light-dark(#4A4F5C, #B4B8C4);
+  --muted-2: light-dark(#6B7080, #8F94A3);
+  --line-soft: light-dark(#ECEDF0, #1D2027);
+  --seg-bg: light-dark(#EFEFF1, #1A1D24);
+  --seg-on: light-dark(#FFFFFF, #2A2E38);
+  --seg-shadow: 0 1px 2px light-dark(rgba(16, 24, 40, .08), rgba(0, 0, 0, .4));
+  --menu-shadow:
+    0 8px 24px light-dark(rgba(16, 24, 40, .12), rgba(0, 0, 0, .5)),
+    0 1px 2px light-dark(rgba(16, 24, 40, .06), transparent),
+    0 0 0 1px light-dark(transparent, #22252D);
+  --chip-edge: light-dark(rgba(0, 0, 0, .06), rgba(255, 255, 255, .08));
+  --accent-hover: light-dark(#2A37A8, #9AA5FF);
+  --on-accent: light-dark(#FFFFFF, #0E1020);
+  --badge-bg: light-dark(rgba(255, 255, 255, .2), rgba(14, 16, 32, .16));
+  --note-bg: light-dark(#F1F2FB, #1E2230);
+  --note-ink: light-dark(#2E3A9E, #B5BDFF);
+  --mark-tail: light-dark(#3B4BD8, #7C8BFF);
 
-  color-scheme: light;
+  color-scheme: light dark;
 }
-
-:root[data-theme='dark'] {
-  --bg: #111318;
-  --ink: #ECEDF1;
-  --muted: #9DA2B0;
-  --line: #22252D;
-  --accent: #7C8BFF;
-
-  --surface: #171A20;
-  --ink-2: #B4B8C4;
-  --muted-2: #8F94A3;
-  --line-soft: #1D2027;
-  --seg-bg: #1A1D24;
-  --seg-on: #2A2E38;
-  --seg-shadow: 0 1px 2px rgba(0, 0, 0, .4);
-  --menu-shadow: 0 10px 28px rgba(0, 0, 0, .5), 0 0 0 1px #22252D;
-  --chip-edge: rgba(255, 255, 255, .08);
-  --accent-hover: #9AA5FF;
-  --on-accent: #0E1020;
-  --badge-bg: rgba(14, 16, 32, .16);
-  --note-bg: #1E2230;
-  --note-ink: #B5BDFF;
-  --mark-tail: #7C8BFF;
-
-  color-scheme: dark;
-}
+:root[data-theme='light'] { color-scheme: light; }
+:root[data-theme='dark'] { color-scheme: dark; }
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -225,6 +209,7 @@ button:focus-visible, .tab:focus-visible, .panel:focus-visible, .seg-opt:has(inp
   display: flex; align-items: center; justify-content: center;
   border-radius: 12px; background: var(--seg-bg); color: var(--ink-2);
 }
+.empty-text { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .empty-title { margin: 0; font-size: 15px; font-weight: 600; }
 .empty-body { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); max-inline-size: 280px; }
 .empty .btn { flex: 0 0 auto; margin-block-start: 12px; block-size: 36px; }

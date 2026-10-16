@@ -6,7 +6,7 @@ import { EmptyState } from '../components/EmptyState';
 import { Header } from '../components/Header';
 import { Icon } from '../components/Icon';
 import { Tabs } from '../components/Tabs';
-import { resolveLang, setLang, t } from '../i18n';
+import { plural, renderedLang, resolveLang, setLang, t } from '../i18n';
 import { applyTheme } from '../theme';
 import { ColoursTab, orderedColours, useCopy } from './ColoursTab';
 
@@ -48,7 +48,7 @@ export function App({ onExport = () => {} }: AppProps) {
       applyTheme(s.theme);
       const l = resolveLang(s.lang, navigator.language);
       setLang(l);
-      setLangState(l);
+      setLangState(renderedLang());
       setLocal(s);
       await scan();
     })();
@@ -68,7 +68,7 @@ export function App({ onExport = () => {} }: AppProps) {
   };
   const changeLang = (l: string) => {
     setLang(l);
-    setLangState(l);
+    setLangState(renderedLang());
     setLocal({ ...settings, lang: l });
     void setSettings({ lang: l });
   };
@@ -77,7 +77,10 @@ export function App({ onExport = () => {} }: AppProps) {
   const subtitle = tokens
     ? t('header.subtitle', {
       site: tokens.site,
-      counts: t('header.counts', { colours: tokens.colours.length, fonts: tokens.fonts.length }),
+      counts: t('header.counts', {
+        colours: plural('header.colours', tokens.colours.length),
+        fonts: plural('header.fonts', tokens.fonts.length),
+      }),
     })
     : undefined;
 
@@ -99,10 +102,10 @@ export function App({ onExport = () => {} }: AppProps) {
         </div>
       )}
       {state.kind === 'error' && state.reason === 'restricted' && (
-        <EmptyState icon="lock" title={t('popup.restrictedTitle')} body={t('popup.restrictedBody')} />
+        <EmptyState alert icon="lock" title={t('popup.restrictedTitle')} body={t('popup.restrictedBody')} />
       )}
       {state.kind === 'error' && state.reason === 'failed' && (
-        <EmptyState icon="alert" title={t('popup.failedTitle')} body={t('popup.failedBody')}>
+        <EmptyState alert icon="alert" title={t('popup.failedTitle')} body={t('popup.failedBody')}>
           <button type="button" class="btn" onClick={scan}>
             <Icon name="rescan" size={14} />
             {t('popup.retry')}

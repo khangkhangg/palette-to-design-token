@@ -74,6 +74,7 @@ describe('popup App', () => {
     const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
     expect(headings).toEqual(['Primary', 'Accent', 'Surface', 'Text']);
     expect(screen.getByText('brewline.co · 7 colours · 2 fonts')).toBeTruthy();
+    expect(document.documentElement.lang).toBe('en');
     const sw = screen.getByRole('button', { name: /#1F5E4B/ });
     expect(within(sw).getByText('20%')).toBeTruthy();
   });
@@ -112,13 +113,25 @@ describe('popup App', () => {
     render(<App />);
     expect(await screen.findByText("This page can't be scanned")).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+    expect(screen.getByRole('alert').textContent).toContain("This page can't be scanned");
+  });
+
+  it('renders English with an English lang attribute for an unshipped browser language', async () => {
+    mocks.settings = { ...mocks.settings, lang: 'es' };
+    mocks.scanActiveTab.mockResolvedValue({ ...brewline(), colours: [c('primary', 'primary', '#1F5E4B', 1)], fonts: [{ name: 'body', family: 'Inter' }] });
+    render(<App />);
+    expect(await screen.findByText('brewline.co · 1 colour · 1 font')).toBeTruthy();
+    expect(document.documentElement.lang).toBe('en');
+    expect(document.documentElement.dir).toBe('ltr');
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    expect((screen.getByRole('radio', { name: 'English' }) as HTMLInputElement).checked).toBe(true);
   });
 
   it('offers Retry when the scan fails', async () => {
     mocks.scanActiveTab.mockRejectedValueOnce(new ScanError('failed')).mockResolvedValueOnce(brewline());
     render(<App />);
     const retry = await screen.findByRole('button', { name: 'Retry' });
-    expect(screen.getByText("Couldn't scan this page")).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain("Couldn't scan this page");
     fireEvent.click(retry);
     expect(await screen.findByText('#1F5E4B')).toBeTruthy();
   });

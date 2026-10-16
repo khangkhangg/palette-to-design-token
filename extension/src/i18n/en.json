@@ -4,7 +4,11 @@
   },
   "header": {
     "subtitle": "{site} · {counts}",
-    "counts": "{colours} colours · {fonts} fonts",
+    "counts": "{colours} · {fonts}",
+    "colours_one": "{n} colour",
+    "colours_other": "{n} colours",
+    "fonts_one": "{n} font",
+    "fonts_other": "{n} fonts",
     "rescan": "Re-scan page",
     "settings": "Settings"
   },

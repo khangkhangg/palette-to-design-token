@@ -5,15 +5,19 @@ export interface EmptyStateProps {
   icon: IconName;
   title: string;
   body?: string;
+  /** Announce title and body to assistive tech (for errors). */
+  alert?: boolean;
   children?: ComponentChildren;
 }
 
-export function EmptyState({ icon, title, body, children }: EmptyStateProps) {
+export function EmptyState({ icon, title, body, alert, children }: EmptyStateProps) {
   return (
     <div class="empty">
       <span class="empty-icon"><Icon name={icon} size={20} /></span>
-      <p class="empty-title">{title}</p>
-      {body && <p class="empty-body">{body}</p>}
+      <div class="empty-text" role={alert ? 'alert' : undefined}>
+        <p class="empty-title">{title}</p>
+        {body && <p class="empty-body">{body}</p>}
+      </div>
       {children}
     </div>
   );
