@@ -114,6 +114,10 @@ export function App({ onExport }: AppProps) {
         onLang={changeLang}
         onRescan={scan}
         onOpenFull={() => openPanel('system')}
+        onTogglePro={() => {
+          setLocal({ ...settings, pro: !settings.pro });
+          void setSettings({ pro: !settings.pro });
+        }}
       />
       {panelError && <p class="note" role="status"><Icon name="alert" size={14} /><span>{t('popup.openFailed')}</span></p>}
       {state.kind === 'scanning' && (
@@ -144,7 +148,7 @@ export function App({ onExport }: AppProps) {
             {tab === 'colours' && <ColoursTab colours={tokens.colours} />}
             {tab === 'type' && <TypeTab fonts={tokens.fonts} type={tokens.type} />}
             {tab === 'spacing' && <SpacingTab spacing={tokens.spacing} radius={tokens.radius} shadows={tokens.shadows} />}
-            {tab === 'contrast' && <ContrastTab contrast={tokens.contrast} pro={settings.pro} />}
+            {tab === 'contrast' && <ContrastTab contrast={tokens.contrast} pro={settings.pro} onUnlock={() => openPanel('unlock')} />}
           </Tabs>
           <footer class="footer">
             <button

@@ -7,6 +7,8 @@ import { Icon } from '../components/Icon';
 import { renderedLang, resolveLang, setLang, t } from '../i18n';
 import { applyTheme } from '../theme';
 import { viewFromSearch, type PanelView } from './open';
+import { UnlockSheet } from '../components/UnlockSheet';
+import { ExportScreen } from './ExportScreen';
 import { SystemView } from './SystemView';
 
 type State =
@@ -79,9 +81,13 @@ export function App({ initialView = viewFromSearch(location.search) }: AppProps)
   }, []);
 
   if (!settings) return <div class="sp" />;
+  if (view === 'unlock') return <UnlockSheet variant="page" onClose={() => setView('system')} />;
 
   const tokens = state.kind === 'ready' ? state.tokens : null;
   const busy = state.kind === 'scanning';
+  if (view === 'export' && tokens) {
+    return <ExportScreen tokens={tokens} pro={settings.pro} onBack={() => setView('system')} />;
+  }
 
   return (
     <div class="sp">
@@ -100,36 +106,24 @@ export function App({ initialView = viewFromSearch(location.search) }: AppProps)
           <span class={busy ? 'spin' : undefined}><Icon name="rescan" /></span>
         </button>
       </header>
-      {view === 'export' ? (
-        <div class="sp-body sp-placeholder">
-          <p class="sp-soon">{t('export.comingSoon')}</p>
-          <button type="button" class="btn btn-small" onClick={() => setView('system')}>
-            <Icon name="back" size={14} />
-            {t('panel.back')}
-          </button>
+      {busy && (
+        <div class="status" role="status">
+          <span class="spinner" aria-hidden="true" />
+          <span>{t('popup.scanning')}</span>
         </div>
-      ) : (
-        <>
-          {busy && (
-            <div class="status" role="status">
-              <span class="spinner" aria-hidden="true" />
-              <span>{t('popup.scanning')}</span>
-            </div>
-          )}
-          {state.kind === 'error' && state.reason === 'restricted' && (
-            <EmptyState alert icon="lock" title={t('popup.restrictedTitle')} body={t('popup.restrictedBody')} />
-          )}
-          {state.kind === 'error' && state.reason === 'failed' && (
-            <EmptyState alert icon="alert" title={t('popup.failedTitle')} body={t('popup.failedBody')}>
-              <button type="button" class="btn" onClick={scan}>
-                <Icon name="rescan" size={14} />
-                {t('popup.retry')}
-              </button>
-            </EmptyState>
-          )}
-          {tokens && <SystemView tokens={tokens} onExport={() => setView('export')} />}
-        </>
       )}
+      {state.kind === 'error' && state.reason === 'restricted' && (
+        <EmptyState alert icon="lock" title={t('popup.restrictedTitle')} body={t('popup.restrictedBody')} />
+      )}
+      {state.kind === 'error' && state.reason === 'failed' && (
+        <EmptyState alert icon="alert" title={t('popup.failedTitle')} body={t('popup.failedBody')}>
+          <button type="button" class="btn" onClick={scan}>
+            <Icon name="rescan" size={14} />
+            {t('popup.retry')}
+          </button>
+        </EmptyState>
+      )}
+      {tokens && <SystemView tokens={tokens} onExport={() => setView('export')} />}
     </div>
   );
 }

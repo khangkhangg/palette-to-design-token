@@ -1,4 +1,4 @@
-export type PanelView = 'system' | 'export';
+export type PanelView = 'system' | 'export' | 'unlock';
 
 export async function activeTabId(): Promise<number | null> {
   try {
@@ -21,5 +21,6 @@ export async function openSidePanel(tabId: number, view: PanelView): Promise<voi
 }
 
 export function viewFromSearch(search: string): PanelView {
-  return new URLSearchParams(search).get('view') === 'export' ? 'export' : 'system';
+  const view = new URLSearchParams(search).get('view');
+  return view === 'export' || view === 'unlock' ? view : 'system';
 }

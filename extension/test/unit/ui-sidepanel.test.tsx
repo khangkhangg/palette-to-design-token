@@ -8,6 +8,7 @@ import type { Settings } from '../../src/store';
 import { App as PopupApp } from '../../src/ui/popup/App';
 import { addDictionary } from '../../src/ui/i18n';
 import { App } from '../../src/ui/sidepanel/App';
+import { viewFromSearch } from '../../src/ui/sidepanel/open';
 
 const mocks = vi.hoisted(() => ({
   scanActiveTab: vi.fn(),
@@ -143,13 +144,29 @@ describe('side panel App', () => {
     mocks.listScans.mockResolvedValue([brewline()]);
     const { unmount } = render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: /Export design system/ }));
-    expect(await screen.findByText('Export is coming in the next update.')).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Export tokens' })).toBeTruthy();
     expect(screen.queryByText('#1F5E4B')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Back to design system' }));
     expect((await screen.findAllByText('#1F5E4B')).length).toBeGreaterThan(0);
     unmount();
     render(<App initialView="export" />);
-    expect(await screen.findByText('Export is coming in the next update.')).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Export tokens' })).toBeTruthy();
+  });
+
+  it('renders the unlock sheet full-panel for view=unlock, and Back returns to the system view', async () => {
+    mocks.listScans.mockResolvedValue([brewline()]);
+    render(<App initialView="unlock" />);
+    expect(await screen.findByText('Take the design system with you')).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to design system' }));
+    expect((await screen.findAllByText('#1F5E4B')).length).toBeGreaterThan(0);
+  });
+
+  it('parses ?view= for export and unlock', () => {
+    expect(viewFromSearch('?view=export')).toBe('export');
+    expect(viewFromSearch('?view=unlock')).toBe('unlock');
+    expect(viewFromSearch('?view=nope')).toBe('system');
+    expect(viewFromSearch('')).toBe('system');
   });
 
   it('shows the format caption under the export button', async () => {
@@ -218,6 +235,20 @@ describe('popup opens the side panel', () => {
     await clickWhenReady(/Export tokens/);
     expect(sidePanel.open).toHaveBeenCalledWith({ tabId: 7 });
     expect(sidePanel.setOptions).toHaveBeenCalledWith({ tabId: 7, path: 'sidepanel.html?view=export', enabled: true });
+  });
+
+  it('Contrast Unlock opens the unlock view', async () => {
+    mocks.scanActiveTab.mockResolvedValue(brewline({
+      contrast: [{ fg: '#FFFFFF', bg: '#E0763A', ratio: 2.9, grade: 'fail', where: 'buttons', uses: 3, large: false }],
+    }));
+    render(<PopupApp />);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Contrast' }));
+    const unlock = await screen.findByRole('button', { name: 'Unlock' });
+    await waitFor(() => expect(tabsQuery).toHaveBeenCalled());
+    await act(async () => { await Promise.resolve(); });
+    fireEvent.click(unlock);
+    expect(sidePanel.open).toHaveBeenCalledWith({ tabId: 7 });
+    expect(sidePanel.setOptions).toHaveBeenCalledWith({ tabId: 7, path: 'sidepanel.html?view=unlock', enabled: true });
   });
 
   it('tells the user when the panel fails to open', async () => {

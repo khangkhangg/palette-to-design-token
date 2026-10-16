@@ -19,9 +19,11 @@ export interface HeaderProps {
   onLang(lang: string): void;
   onRescan(): void;
   onOpenFull?(): void;
+  /** Development builds only: flips Pro for testing the gate. */
+  onTogglePro?(): void;
 }
 
-export function Header({ subtitle, theme, lang, busy, onTheme, onLang, onRescan, onOpenFull }: HeaderProps) {
+export function Header({ subtitle, theme, lang, busy, onTheme, onLang, onRescan, onOpenFull, onTogglePro }: HeaderProps) {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -99,6 +101,9 @@ export function Header({ subtitle, theme, lang, busy, onTheme, onLang, onRescan,
                 ))}
               </div>
             </fieldset>
+            {(import.meta.env.DEV || import.meta.env.MODE === 'development') && onTogglePro && (
+              <button type="button" class="menu-dev" onClick={onTogglePro}>{t('settings.devPro')}</button>
+            )}
           </div>
         )}
       </div>

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build && vite build -c vite.extract.config.ts",
+    "build:dev": "vite build --mode development && vite build -c vite.extract.config.ts --mode development",
     "test": "vitest run",
     "e2e": "playwright test"
   },

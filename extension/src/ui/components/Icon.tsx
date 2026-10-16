@@ -53,6 +53,7 @@ const PATHS = {
     </>
   ),
   back: <path d="M19 12H5M11 6l-6 6 6 6" />,
+  close: <path d="M18 6 6 18M6 6l12 12" />,
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
 } satisfies Record<string, JSX.Element>;
 

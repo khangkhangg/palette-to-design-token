@@ -18,7 +18,8 @@
     "themeDark": "Dark",
     "themeSystem": "System",
     "language": "Language",
-    "langEn": "English"
+    "langEn": "English",
+    "devPro": "Dev: toggle Pro"
   },
   "tabs": {
     "label": "Sections",
@@ -145,6 +146,88 @@
     "loading": "Reading this page…"
   },
   "export": {
-    "comingSoon": "Export is coming in the next update."
+    "title": "Export tokens",
+    "proUnlocked": "Pro unlocked",
+    "format": "Format",
+    "formatLabel": "Export format",
+    "include": "Include",
+    "preview": "Preview",
+    "previewLabel": "Preview of {file}",
+    "copy": "Copy",
+    "copied": "Copied",
+    "download": "Download {file}",
+    "tailwindVersion": "Tailwind version",
+    "v4": "v4",
+    "v3": "v3",
+    "formats": {
+      "md": {
+        "label": "DESIGN.md",
+        "sub": "for AI coding"
+      },
+      "css": {
+        "label": "CSS",
+        "sub": "variables"
+      },
+      "tailwind": {
+        "label": "Tailwind",
+        "sub": "theme config"
+      },
+      "figma": {
+        "label": "Figma",
+        "sub": "variables"
+      },
+      "json": {
+        "label": "JSON",
+        "sub": "W3C tokens"
+      },
+      "all": {
+        "label": "All",
+        "sub": ".zip bundle"
+      }
+    },
+    "parts": {
+      "colours": "Colours",
+      "typography": "Typography",
+      "spacing": "Spacing",
+      "radius": "Radius",
+      "shadows": "Shadows"
+    },
+    "zipSummary": "{count} files · {size} KB",
+    "zipBuilding": "Building the bundle…"
+  },
+  "unlock": {
+    "title": "Take the design system with you",
+    "price": "$1.49",
+    "priceNote": "once · yours forever",
+    "perks": {
+      "export": {
+        "title": "Export tokens",
+        "text": "as CSS, Tailwind, Figma or JSON"
+      },
+      "designMd": {
+        "title": "DESIGN.md",
+        "text": "so Claude, Cursor or Copilot builds on-brand"
+      },
+      "system": {
+        "title": "Full design system",
+        "text": "type, spacing, radius, shadows"
+      },
+      "contrast": {
+        "title": "Contrast fixes",
+        "text": "not just pass or fail"
+      },
+      "scans": {
+        "title": "Unlimited saved sites",
+        "text": "instead of the last 3"
+      }
+    },
+    "paypal": "Pay with PayPal",
+    "comingSoon": "Coming soon",
+    "alreadyPaid": "already paid?",
+    "keyLabel": "License key",
+    "keyPlaceholder": "SDT-XXXX-XXXX-XXXX",
+    "activate": "Activate",
+    "close": "Close",
+    "refund": "All sales are final. Because Pro unlocks instantly and costs $1.49, we do not offer refunds after purchase."
   }
 }
