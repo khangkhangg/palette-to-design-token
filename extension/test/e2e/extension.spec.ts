@@ -168,6 +168,112 @@ test.describe('popup', () => {
   });
 });
 
+/** Elements inside the popup's rows whose content is wider than their box (deliberate ellipsis excepted). */
+async function overflowing(popup: Page): Promise<string[]> {
+  return popup.evaluate(() => {
+    const out: string[] = [];
+    const body = document.body;
+    if (body.scrollWidth > body.clientWidth + 1) out.push(`body ${body.scrollWidth}>${body.clientWidth}`);
+    const roots = document.querySelectorAll<HTMLElement>('.header, .tabs, .role-head, .swatches, .summary, .footer');
+    for (const root of roots) {
+      for (const el of [root, ...root.querySelectorAll('*')]) {
+        if (!(el instanceof HTMLElement)) continue;
+        if (getComputedStyle(el).textOverflow === 'ellipsis') continue;
+        if (el.scrollWidth > el.clientWidth + 1) {
+          out.push(`${el.tagName.toLowerCase()}.${el.className} "${el.textContent?.trim().slice(0, 40)}" ${el.scrollWidth}>${el.clientWidth}`);
+        }
+      }
+    }
+    return out;
+  });
+}
+
+/**
+ * True when the first occurrence of `lead` in the element's text is drawn to the left of the character after it:
+ * a value such as "#F4F1EA" or "--color-primary" kept left-to-right inside right-to-left text.
+ */
+async function readsLeftToRight(popup: Page, selector: string, lead: string): Promise<boolean> {
+  return popup.locator(selector).first().evaluate((el, lead) => {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const i = node.textContent!.indexOf(lead);
+      if (i < 0) continue;
+      const box = (at: number) => {
+        const range = document.createRange();
+        range.setStart(node!, at);
+        range.setEnd(node!, at + 1);
+        return range.getBoundingClientRect();
+      };
+      return box(i).left < box(i + lead.length).left;
+    }
+    throw new Error(`${lead} not in ${el.textContent}`);
+  }, lead);
+}
+
+test.describe('languages', () => {
+  test('Arabic popup is right-to-left and mirrors only directional icons', async () => {
+    await setStorage({ settings: { theme: 'light', lang: 'ar', pro: true } });
+    await openTab(`${BASE}/light-marketing.html`);
+    const popup = await openExtensionPage('popup.html');
+    await popup.setViewportSize({ width: 400, height: 600 });
+
+    await expect(popup.locator('html')).toHaveAttribute('dir', 'rtl');
+    await expect(popup.locator('html')).toHaveAttribute('lang', 'ar');
+    await expect(popup.locator('#tab-colours')).toHaveAttribute('aria-selected', 'true');
+    // Header icons (settings, full view, re-scan) are not directional: they stay unmirrored.
+    const headerTransforms = await popup.locator('.header svg.icon').evaluateAll((els) => els.map((e) => getComputedStyle(e).transform));
+    expect(headerTransforms.length).toBeGreaterThan(0);
+    expect(headerTransforms.every((tf) => tf === 'none'), JSON.stringify(headerTransforms)).toBe(true);
+    expect(await overflowing(popup)).toEqual([]);
+    // Hex values, CSS variable names and shares stay left-to-right inside the Arabic layout.
+    expect(await readsLeftToRight(popup, '.swatch-hex:text-is("#E0763A")', '#'), 'swatch hex').toBe(true);
+    expect(await readsLeftToRight(popup, '.role-var', '--'), 'css variable').toBe(true);
+    // The subtitle reads site, then counts, from the right: the site's first digit is right of the first Arabic letter.
+    expect(await popup.locator('.header-sub').evaluate((el) => {
+      const text = el.firstChild!;
+      const left = (at: number) => {
+        const range = document.createRange();
+        range.setStart(text, at);
+        range.setEnd(text, at + 1);
+        return range.getBoundingClientRect().left;
+      };
+      return left(text.textContent!.indexOf('127')) > left(text.textContent!.search(/[؀-ۿ]/));
+    }), 'subtitle order').toBe(true);
+    expect(await readsLeftToRight(popup, '.swatch-share:text("<1%")', '<'), 'share').toBe(true);
+    await popup.screenshot({ path: test.info().outputPath('ar-colours.png') });
+
+    // The before -> after arrow in a contrast fix points along the reading direction.
+    await popup.locator('#tab-contrast').click();
+    const arrow = popup.locator('.fix-body svg.icon-dir').first();
+    await expect(arrow).toBeVisible();
+    expect(await arrow.evaluate((e) => getComputedStyle(e).transform)).toBe('matrix(-1, 0, 0, 1, 0, 0)');
+    expect(await readsLeftToRight(popup, '.pair-colours', '#'), 'contrast pair').toBe(true);
+    await popup.screenshot({ path: test.info().outputPath('ar-contrast.png') });
+  });
+
+  for (const lang of ['fr', 'hi', 'ar']) {
+    test(`${lang} popup fits 400 px: header, tabs, swatch rows and footer do not overflow`, async () => {
+      await setStorage({ settings: { theme: 'light', lang, pro: false } });
+      await openTab(`${BASE}/light-marketing.html`);
+      const popup = await openExtensionPage('popup.html');
+      await popup.setViewportSize({ width: 400, height: 600 });
+
+      await expect(popup.locator('html')).toHaveAttribute('lang', lang);
+      await expect(popup.locator('.swatch').first()).toBeVisible();
+      await expect(popup.locator('.footer .badge')).toBeVisible();
+      // The footer is pinned inside the 600 px popup; the tab panel scrolls instead.
+      const footer = await popup.locator('.footer').boundingBox();
+      expect(footer!.y + footer!.height, 'footer bottom').toBeLessThanOrEqual(600);
+      expect(await overflowing(popup)).toEqual([]);
+      await popup.screenshot({ path: test.info().outputPath(`${lang}-colours.png`) });
+      await popup.locator('#tab-contrast').click();
+      await expect(popup.locator('#tab-contrast')).toHaveAttribute('aria-selected', 'true');
+      expect(await overflowing(popup), 'contrast tab').toEqual([]);
+      await popup.screenshot({ path: test.info().outputPath(`${lang}-contrast.png`) });
+    });
+  }
+});
+
 test.describe('export with Pro', () => {
   const FORMATS: { value: string; file: RegExp }[] = [
     { value: 'md', file: /^DESIGN\.md$/ },

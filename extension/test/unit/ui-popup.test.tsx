@@ -144,8 +144,8 @@ describe('popup App', () => {
     expect(screen.queryByText("This page can't be scanned")).toBeNull();
   });
 
-  it('renders English with an English lang attribute for an unshipped browser language', async () => {
-    mocks.settings = { ...mocks.settings, lang: 'es' };
+  it('renders English with an English lang attribute for an unsupported language', async () => {
+    mocks.settings = { ...mocks.settings, lang: 'de' };
     mocks.scanActiveTab.mockResolvedValue({ ...brewline(), colours: [c('primary', 'primary', '#1F5E4B', 1)], fonts: [{ name: 'body', family: 'Inter' }] });
     render(<App />);
     expect(await screen.findByText('brewline.co · 1 colour · 1 font')).toBeTruthy();
@@ -153,6 +153,28 @@ describe('popup App', () => {
     expect(document.documentElement.dir).toBe('ltr');
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     expect((screen.getByRole('radio', { name: 'English' }) as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('lists the seven languages by native name and switches live', async () => {
+    mocks.settings = { ...mocks.settings, lang: 'es' };
+    mocks.scanActiveTab.mockResolvedValue({ ...brewline(), colours: [c('primary', 'primary', '#1F5E4B', 1)], fonts: [{ name: 'body', family: 'Inter' }] });
+    render(<App />);
+    expect(await screen.findByText('brewline.co · 1 color · 1 fuente')).toBeTruthy();
+    expect(document.documentElement.lang).toBe('es');
+    fireEvent.click(screen.getByRole('button', { name: 'Ajustes' }));
+    const radios = screen.getAllByRole('radio').filter((r) => (r as HTMLInputElement).name === 'sdt-lang');
+    expect(radios.map((r) => r.closest('label')!.textContent)).toEqual(
+      ['English', '中文', 'हिन्दी', 'Español', 'العربية', 'Français', 'বাংলা'],
+    );
+    expect(radios.map((r) => r.closest('label')!.querySelector('[lang]')?.getAttribute('lang'))).toEqual(
+      ['en', 'zh-CN', 'hi', 'es', 'ar', 'fr', 'bn'],
+    );
+    expect((screen.getByRole('radio', { name: 'Español' }) as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole('radio', { name: 'العربية' }));
+    expect(document.documentElement.dir).toBe('rtl');
+    expect(document.documentElement.lang).toBe('ar');
+    expect(mocks.setSettings).toHaveBeenCalledWith({ lang: 'ar' });
+    expect(screen.getByRole('button', { name: 'الإعدادات' })).toBeTruthy();
   });
 
   it('offers Retry when the scan fails', async () => {
