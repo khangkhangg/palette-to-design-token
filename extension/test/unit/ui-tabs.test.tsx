@@ -4,7 +4,11 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/pre
 import type { ContrastPair, Tokens } from '../../src/model/tokens';
 import { EMPTY_TOKENS } from '../../src/model/tokens';
 import type { Settings } from '../../src/store';
-import { ContrastTab, formatRatio } from '../../src/ui/popup/ContrastTab';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { Icon } from '../../src/ui/components/Icon';
+import { addDictionary, setLang } from '../../src/ui/i18n';
+import { ContrastTab, formatRatio, pairKey } from '../../src/ui/popup/ContrastTab';
 import { SpacingTab } from '../../src/ui/popup/SpacingTab';
 import { TypeTab } from '../../src/ui/popup/TypeTab';
 import { App } from '../../src/ui/popup/App';
@@ -113,6 +117,21 @@ describe('ContrastTab', () => {
     expect(screen.getByText('Headings · 1 use')).toBeTruthy();
     expect(screen.getByText('#333333 on image or gradient')).toBeTruthy();
   });
+  it('translates the "fg on bg" text', () => {
+    addDictionary('es', { contrast: { pairColours: '{fg} sobre {bg}' } });
+    setLang('es');
+    try {
+      render(<ContrastTab contrast={PAIRS.slice(0, 1)} pro={false} />);
+      expect(screen.getByText('#1B1A17 sobre #FFFDF8')).toBeTruthy();
+    } finally {
+      setLang('en');
+    }
+  });
+  it('keys rows by large too, so normal and large text pairs never collide', () => {
+    const a = pair({ large: false });
+    const b = pair({ large: true, grade: 'AAA' });
+    expect(pairKey(a)).not.toBe(pairKey(b));
+  });
   it('floors ratios instead of rounding up', () => {
     expect(formatRatio(4.499)).toBe('4.49');
     expect(formatRatio(4.5)).toBe('4.5');
@@ -158,5 +177,15 @@ describe('popup App tabs', () => {
     const panel = screen.getByRole('tabpanel');
     expect(within(panel).getByText('pass WCAG AA')).toBeTruthy();
     expect(within(panel).getByText('#FFFFFF on #E0763A')).toBeTruthy();
+  });
+});
+
+describe('RTL', () => {
+  it('marks directional icons so they mirror under dir=rtl', () => {
+    const { container } = render(<><Icon name="back" /><Icon name="arrow" /><Icon name="copy" /></>);
+    const svgs = [...container.querySelectorAll('svg')];
+    expect(svgs.map((s) => s.classList.contains('icon-dir'))).toEqual([true, true, false]);
+    const css = readFileSync(resolve(import.meta.dirname, '../../src/ui/theme.css'), 'utf8');
+    expect(css).toMatch(/\[dir=['"]?rtl['"]?\] \.icon-dir \{[^}]*transform: scaleX\(-1\)/);
   });
 });

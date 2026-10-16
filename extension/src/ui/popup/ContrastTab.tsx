@@ -58,6 +58,9 @@ function FixCard({ pair, pro, onUnlock }: { pair: ContrastPair; pro: boolean; on
   );
 }
 
+/** Unique per analyser group: the analyser groups by fg, bg and large. */
+export const pairKey = (p: ContrastPair): string => `${p.fg}|${p.bg}|${p.large ? 'large' : 'normal'}|${p.where}`;
+
 export interface ContrastTabProps {
   contrast: Tokens['contrast'];
   pro: boolean;
@@ -82,12 +85,12 @@ export function ContrastTab({ contrast, pro, onUnlock = () => {} }: ContrastTabP
       </div>
       <ul class="pairs">
         {contrast.map((p) => (
-          <li class="pair-item" key={`${p.fg}-${p.bg}-${p.where}`}>
+          <li class="pair-item" key={pairKey(p)}>
             <div class="pair">
               <Chip fg={p.fg} bg={p.bg} />
               <div class="pair-text">
                 <span class="pair-colours">
-                  {p.fg} on {p.bg === 'none' ? t('contrast.imageOrGradient') : p.bg}
+                  {t('contrast.pairColours', { fg: p.fg, bg: p.bg === 'none' ? t('contrast.imageOrGradient') : p.bg })}
                 </span>
                 <span class="pair-where">{t(`contrast.where.${p.where}`)} · {plural('contrast.uses', p.uses)}</span>
               </div>

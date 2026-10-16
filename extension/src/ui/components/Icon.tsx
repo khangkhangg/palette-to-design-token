@@ -57,12 +57,15 @@ const PATHS = {
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
 } satisfies Record<string, JSX.Element>;
 
+/** Icons that point along the reading direction: mirrored under [dir=rtl]. */
+const DIRECTIONAL = new Set<string>(['back', 'arrow']);
+
 export type IconName = keyof typeof PATHS;
 
 export function Icon({ name, size = 15 }: { name: IconName; size?: number }) {
   return (
     <svg
-      class="icon"
+      class={DIRECTIONAL.has(name) ? 'icon icon-dir' : 'icon'}
       width={size}
       height={size}
       viewBox="0 0 24 24"

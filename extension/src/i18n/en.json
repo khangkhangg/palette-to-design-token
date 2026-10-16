@@ -99,6 +99,7 @@
     "empty": "No colour pairs found",
     "emptyBody": "No text and background pairs could be read on this page.",
     "imageOrGradient": "image or gradient",
+    "pairColours": "{fg} on {bg}",
     "where": {
       "body text": "Body text",
       "headings": "Headings",

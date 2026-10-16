@@ -521,3 +521,6 @@ body.sidepanel, body.sidepanel #app { block-size: 100vh; }
 }
 .note-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .swatch-hex.is-failed { font-family: var(--font-ui); font-weight: 600; color: var(--fail-ink); }
+
+/* RTL: icons that point along the reading direction (back, arrow) are mirrored */
+[dir='rtl'] .icon-dir { transform: scaleX(-1); }
