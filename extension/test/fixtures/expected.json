@@ -43,6 +43,10 @@
     "radius": [6, 8, 9999],
     "minShadows": 1
   },
+  "slate": {
+    "colours": { "primary": "#2563EB", "surface": "#0F172A", "surface-2": "#1E293B", "text": "#CBD5E1", "text-2": "#64748B", "border": "#334155" },
+    "absentRoles": ["accent", "other"]
+  },
   "arabic-rtl": {
     "colours": { "primary": "#0F766E", "accent": "#B45309", "surface": "#FFFFFF", "surface-2": "#F5F5F4", "text": "#57534E", "text-2": "#1F2937", "border": "#E7E5E4" },
     "contrast": [

@@ -66,10 +66,10 @@ describe('analyseColours', () => {
   });
 
   it('has no primary or accent when no chromatic colour is interactive or in nav', () => {
-    const t = analyseColours([s('#FFFFFF', 'bg', 500_000), s('#A9CDF2', 'bg', 500_000), s('#1B1A17', 'text', 3000)]);
+    const t = analyseColours([s('#FFFFFF', 'bg', 500_000), s('#3B82F6', 'bg', 500_000), s('#1B1A17', 'text', 3000)]);
     expect(t.map((x) => x.role)).not.toContain('primary');
     expect(t.map((x) => x.role)).not.toContain('accent');
-    expect(t.find((x) => x.hex === '#A9CDF2')?.role).toBe('other');
+    expect(t.find((x) => x.hex === '#3B82F6')?.role).toBe('other');
   });
 
   it('orders surfaces from the dominant background: dark to light on a dark page', () => {
@@ -126,6 +126,28 @@ describe('analyseColours', () => {
       s('#FFFFFF', 'text', 12, true),
     ]);
     expect(byName(t, 'primary')?.hex).toBe('#E0763A');
+  });
+
+  it('routes low-chroma colours with no action use by kind, like neutrals (Tailwind slate)', () => {
+    const t = analyseColours([
+      s('#0F172A', 'bg', 900_000), // slate-900, C ~0.042
+      s('#F8FAFC', 'text', 6000), // slate-50
+      s('#64748B', 'text', 2500), // slate-500 muted text, C ~0.041
+      s('#334155', 'border', 3000), // slate-700
+      s('#2563EB', 'bg', 15_000, true), // blue-600 CTA
+      s('#FFFFFF', 'text', 300, true),
+    ]);
+    expect(byName(t, 'primary')?.hex).toBe('#2563EB');
+    expect(byName(t, 'surface')?.hex).toBe('#0F172A');
+    expect(t.find((x) => x.hex === '#64748B')).toMatchObject({ role: 'text', name: expect.stringMatching(/^text-\d$/) });
+    expect(t.find((x) => x.hex === '#334155')?.role).toBe('border');
+    expect(t.filter((x) => x.role === 'primary' || x.role === 'accent' || x.role === 'other').map((x) => x.hex))
+      .toEqual(['#2563EB']);
+  });
+
+  it('keeps a strongly chromatic colour with no action use as other, not text', () => {
+    const t = analyseColours([s('#FFFFFF', 'bg', 900_000), s('#111111', 'text', 5000), s('#C026D3', 'text', 3000)]);
+    expect(t.find((x) => x.hex === '#C026D3')?.role).toBe('other');
   });
 
   it('weights sum to at most 1 and names are unique', () => {

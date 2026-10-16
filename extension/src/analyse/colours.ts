@@ -15,6 +15,8 @@ export interface ColourSample {
 const MERGE_DELTA_E = 2.5;
 const MIN_WEIGHT = 0.005;
 const CHROMATIC = 0.04;
+/** Below this chroma a colour with no link/button/nav use is a tinted neutral (Tailwind slate), not a brand colour. */
+const MUTED = 0.08;
 const ACCENT_HUE_GAP = 30;
 const WHITE: RGBA = { r: 255, g: 255, b: 255, a: 1 };
 
@@ -108,7 +110,8 @@ export function analyseColours(samples: ColourSample[]): ColourToken[] {
     order.push(c);
   };
 
-  const chromatic = clusters.filter((c) => c.C > CHROMATIC);
+  const isBrand = (c: Cluster) => c.C > CHROMATIC && (c.actionWeight > 0 || c.C >= MUTED);
+  const chromatic = clusters.filter(isBrand);
   const primary = [...chromatic].sort((a, b) => b.actionWeight - a.actionWeight || byWeight(a, b))[0];
   if (primary && primary.actionWeight > 0) {
     assign(primary, 'primary');
@@ -123,7 +126,7 @@ export function analyseColours(samples: ColourSample[]): ColourToken[] {
     for (const c of [...chromatic].sort(byWeight)) assign(c, 'other');
   }
 
-  const neutral = clusters.filter((c) => c.C <= CHROMATIC);
+  const neutral = clusters.filter((c) => !isBrand(c));
   const kindRole: Record<ColourKind, Role> = { bg: 'surface', text: 'text', border: 'border', fill: 'other' };
   for (const k of ['bg', 'text', 'border', 'fill'] as ColourKind[]) {
     const group = neutral.filter((c) => dominantKind(c) === k);
