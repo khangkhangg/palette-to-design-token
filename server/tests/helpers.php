@@ -20,8 +20,6 @@ if (!str_ends_with((string)$__db, '_test')) {
 }
 
 $conn->query("CREATE TABLE IF NOT EXISTS admin_settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)");
-$conn->multi_query((string)file_get_contents(PALETTE_COMPANIES_DIR . '/migrations/013-api-rate-limits.sql'));
-do { if ($r = $conn->store_result()) $r->free(); } while ($conn->more_results() && $conn->next_result());
 palette_migrate($conn);
 
 $GLOBALS['__ok'] = 0;

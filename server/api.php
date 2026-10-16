@@ -11,7 +11,7 @@ $res = palette_api_handle([
     'action' => is_string($_GET['action'] ?? null) ? $_GET['action'] : '',
     'post' => $post,
     'origin' => (string)($_SERVER['HTTP_ORIGIN'] ?? ''),
-    'ip' => (string)($_SERVER['REMOTE_ADDR'] ?? ''),   // never X-Forwarded-For: it is client-controlled
+    'ip' => palette_client_ip($_SERVER),   // CF-Connecting-IP only from Cloudflare's edge; never X-Forwarded-For (lib/rate.php)
     'session' => $_SESSION ?? [],
 ]);
 http_response_code($res['status']);

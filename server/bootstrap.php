@@ -9,7 +9,6 @@ if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) session_start()
 
 require_once PALETTE_COMPANIES_DIR . '/config.php';
 require_once PALETTE_COMPANIES_DIR . '/includes/functions.php';
-require_once PALETTE_COMPANIES_DIR . '/includes/ip_rate_limit.php';
 require_once PALETTE_COMPANIES_DIR . '/includes/paypal.php';
 
 foreach (glob(PALETTE_DIR . '/lib/*.php') ?: [] as $f) require_once $f;

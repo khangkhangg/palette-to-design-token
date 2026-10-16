@@ -3,7 +3,7 @@ require __DIR__ . '/helpers.php';
 
 function reset_state(mysqli $c): void
 {
-    $c->query('TRUNCATE api_rate_limits');
+    $c->query('DELETE FROM palette_rate');
     $c->query('DELETE FROM palette_licenses');
     $GLOBALS['palette_sent'] = [];
 }
@@ -51,6 +51,11 @@ $last = null;
 for ($i = 1; $i <= 31; $i++) $last = palette_verify($conn, $b['key'], '10.0.0.2');
 ok('31st verify rate limited', $last === ['error' => 'rate_limited']);
 ok('other IP unaffected', palette_verify($conn, $b['key'], '10.0.0.3')['valid'] === true);
+ok('verify counts in palette_rate (verify:ip:<ip>)',
+    (int)$conn->query("SELECT SUM(count) FROM palette_rate WHERE bucket = 'verify:ip:10.0.0.2'")->fetch_row()[0] === 31);
+$src = (string)file_get_contents(PALETTE_DIR . '/bootstrap.php');
+foreach (glob(PALETTE_DIR . '/lib/*.php') as $f) $src .= (string)file_get_contents($f);
+ok('companies checkRateLimit / ip_rate_limit.php no longer used', !str_contains($src, 'checkRateLimit(') && !str_contains($src, 'ip_rate_limit.php'));
 
 // resend
 reset_state($conn);
@@ -86,6 +91,15 @@ reset_state($conn);
 palette_issue_license($conn, 'bomb@studio.vn', 'ORDB', 'en');
 foreach (['10.1.0.1', '10.1.0.2', '10.1.0.3', '10.1.0.4'] as $ip) palette_resend($conn, 'bomb@studio.vn', $ip);
 ok('4 resends for one email from 4 IPs -> 3 emails', count($GLOBALS['palette_sent']) === 3);
+
+// the companies limiter bug: verify traffic (and its purge) must not reset resend's hourly counters
+reset_state($conn);
+palette_issue_license($conn, 'keep@studio.vn', 'ORDK', 'en');
+for ($i = 0; $i < 3; $i++) palette_resend($conn, 'keep@studio.vn', '10.2.0.1');
+for ($i = 0; $i < 5; $i++) palette_verify($conn, 'SDT-0000-0000-0000', '10.2.0.1');
+palette_rate_purge(time() + 61);
+palette_resend($conn, 'keep@studio.vn', '10.2.0.2');
+ok('per-email resend cap still holds after verify calls and a purge', count($GLOBALS['palette_sent']) === 3);
 
 // claim
 reset_state($conn);

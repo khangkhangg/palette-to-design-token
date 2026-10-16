@@ -40,6 +40,13 @@ function palette_migrate(mysqli $conn): void
         KEY email (email),
         KEY user_id (user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    // Palette's own rate limiter (lib/rate.php, ruling S8): fixed windows, one row per bucket and window.
+    $conn->query("CREATE TABLE IF NOT EXISTS palette_rate (
+        bucket       VARCHAR(120) NOT NULL,
+        window_start INT NOT NULL,
+        count        INT NOT NULL,
+        PRIMARY KEY (bucket, window_start)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
 
 function palette_settings(mysqli $conn): array

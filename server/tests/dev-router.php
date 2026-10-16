@@ -56,12 +56,10 @@ if ($stub) {
 
 if ($stub && $path === '/__dev/seed') {
     $conn->query("CREATE TABLE IF NOT EXISTS admin_settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)");
-    $conn->multi_query((string)file_get_contents(PALETTE_COMPANIES_DIR . '/migrations/013-api-rate-limits.sql'));
-    do { if ($r = $conn->store_result()) $r->free(); } while ($conn->more_results() && $conn->next_result());
     palette_migrate($conn);
     $conn->query('DELETE FROM palette_orders');
     $conn->query('DELETE FROM palette_licenses');
-    $conn->query('TRUNCATE api_rate_limits');
+    $conn->query('DELETE FROM palette_rate');
     $conn->query("DELETE FROM admin_settings WHERE setting_key IN ('palette', 'paypal', 'resend_api_key')");
     $conn->query("INSERT INTO admin_settings (setting_key, setting_value) VALUES ('resend_api_key', 're_dev')");
     pp_settings_put($conn, ['enabled' => ($_GET['paypal'] ?? 'ready') === 'ready', 'mode' => 'sandbox', 'client_id' => 'dev-client', 'secret' => 'dev-secret', 'error' => '']);

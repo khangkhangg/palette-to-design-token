@@ -53,7 +53,7 @@ function palette_issue_license(mysqli $c, string $email, string $orderId, string
 
 function palette_verify(mysqli $c, string $rawKey, string $ip): array
 {
-    if (!checkRateLimit($ip, 'palette:verify', 30, 60)) return ['error' => 'rate_limited'];
+    if (!palette_rate_hit('verify:ip:' . $ip, 30, 60)) return ['error' => 'rate_limited'];
     $none = ['valid' => false, 'revoked' => false, 'email_masked' => null];
     $key = palette_normalise_key($rawKey);
     if ($key === null) return $none;
@@ -75,8 +75,8 @@ function palette_resend(mysqli $c, string $email, string $ip): void
 {
     $email = strtolower(trim($email));
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return;
-    if (!checkRateLimit($ip, 'palette:resend', 10, 3600)) return;
-    if (!checkRateLimit('palette:resend-email', 'palette:resend:' . sha1($email), 3, 3600)) return;
+    if (!palette_rate_hit('resend:ip:' . $ip, 10, 3600)) return;
+    if (!palette_rate_hit('resend:email:' . sha1($email), 3, 3600)) return;
     $st = $c->prepare('SELECT license_key, lang FROM palette_licenses WHERE email = ? AND revoked_at IS NULL ORDER BY id');
     $st->bind_param('s', $email);
     $st->execute();
