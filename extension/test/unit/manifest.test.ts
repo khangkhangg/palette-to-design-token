@@ -18,6 +18,9 @@ describe('manifest', () => {
     expect([...manifest.permissions].sort()).toEqual(['activeTab', 'scripting', 'sidePanel', 'storage']);
     expect(manifest.host_permissions).toBeUndefined();
   });
+  it('has no "key" in the source manifest (the build adds it; the store zip strips it)', () => {
+    expect(manifest.key).toBeUndefined();
+  });
   it('requires Chrome 123+ (light-dark() in the theme)', () => {
     expect(manifest.minimum_chrome_version).toBe('123');
   });

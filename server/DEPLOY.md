@@ -202,8 +202,8 @@ Sandbox payments cost nothing; on 6a fix and repeat as needed, on 6b close the w
 
 1. Build: `cd extension && npm run build` (output `extension/dist`; production manifest has no `host_permissions`).
 2. Get an extension id, either way:
-   - **Unpacked**: `chrome://extensions` > Developer mode > Load unpacked > `extension/dist`. The id is on the card; it changes if the folder path changes.
-   - **Web Store, unlisted** (recommended, stable id): `npm run package`, upload `extension/site-to-design-token-0.1.0.zip` in the Developer Dashboard with Visibility = Unlisted, save, and copy the item id (that is the extension id).
+   - **Unpacked / direct download**: the production build injects `"key"` from `extension/extension-public-key.txt`, so `extension/dist` and the direct zip always load as **`ldaogkdkcojplcghhpbhdbkdpdmgdcin`**, whatever the folder. Build the download with `npm run package:direct` (`extension/site-to-design-token-<version>-direct.zip`) and upload it to `$DOCROOT/palette/download/` as both `site-to-design-token-<version>.zip` and `site-to-design-token-latest.zip` (the checkout page links the latest name).
+   - **Web Store, unlisted** (store id differs from the direct id; add both): `npm run package` (strips `"key"`, which the Store rejects), upload `extension/site-to-design-token-0.1.0.zip` in the Developer Dashboard with Visibility = Unlisted, save, and copy the item id (that is the extension id).
 3. Add the id to settings (merge, do not overwrite):
 
 ```bash

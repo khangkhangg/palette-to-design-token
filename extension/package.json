@@ -12,6 +12,7 @@
     "icons": "node scripts/icons.mjs",
     "screenshots": "node scripts/screenshots.mjs",
     "package": "node scripts/package.mjs",
+    "package:direct": "node scripts/package.mjs --direct",
     "package:check": "node --test scripts/package.check.mjs"
   },
   "dependencies": {
