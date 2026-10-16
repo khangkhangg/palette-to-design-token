@@ -38,6 +38,7 @@
   "colours": {
     "copy": "Copy {hex}, {share} of colour use",
     "copied": "Copied",
+    "copyFailed": "Couldn't copy",
     "lessThanOne": "<1%",
     "foundLittle": "This site uses few brand colours, so there is no clear primary or accent. Here is everything we found.",
     "none": "No colours found on this page."
@@ -156,6 +157,7 @@
     "previewLabel": "Preview of {file}",
     "copy": "Copy",
     "copied": "Copied",
+    "copyFailed": "Couldn't copy",
     "download": "Download {file}",
     "tailwindVersion": "Tailwind version",
     "v4": "v4",

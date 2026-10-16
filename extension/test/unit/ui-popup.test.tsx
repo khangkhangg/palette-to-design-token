@@ -87,6 +87,17 @@ describe('popup App', () => {
     expect(await screen.findByText('Copied')).toBeTruthy();
   });
 
+  it('says Couldn\'t copy when the clipboard write fails (swatch and hex list)', async () => {
+    writeText.mockRejectedValueOnce(new Error('denied')).mockRejectedValueOnce(new Error('denied'));
+    mocks.scanActiveTab.mockResolvedValue(brewline());
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: /#1F5E4B/ }));
+    expect(await screen.findByText("Couldn't copy")).toBeTruthy();
+    expect(screen.queryByText('Copied')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Copy hex list' }));
+    await waitFor(() => expect(screen.getAllByText("Couldn't copy").length).toBe(2));
+  });
+
   it('copies the full hex list', async () => {
     mocks.scanActiveTab.mockResolvedValue(brewline());
     render(<App />);

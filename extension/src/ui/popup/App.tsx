@@ -33,7 +33,7 @@ export function App({ onExport }: AppProps) {
   const [tab, setTab] = useState<string>('colours');
   const [tabId, setTabId] = useState<number | null>(null);
   const [panelError, setPanelError] = useState(false);
-  const { copied, copy } = useCopy();
+  const { copied, failed, copy } = useCopy();
 
   const scan = async () => {
     setState({ kind: 'scanning' });
@@ -160,8 +160,10 @@ export function App({ onExport }: AppProps) {
               disabled={tokens.colours.length === 0}
               onClick={() => copy('list', orderedColours(tokens.colours).map((c) => c.hex).join('\n'))}
             >
-              <Icon name={copied === 'list' ? 'check' : 'copy'} />
-              {copied === 'list' ? t('colours.copied') : t('popup.copyHexList')}
+              <Icon name={copied === 'list' ? 'check' : failed === 'list' ? 'alert' : 'copy'} />
+              <span aria-live="polite">
+                {copied === 'list' ? t('colours.copied') : failed === 'list' ? t('colours.copyFailed') : t('popup.copyHexList')}
+              </span>
             </button>
             <button type="button" class="btn btn-primary" onClick={() => (onExport ?? (() => openPanel('export')))(tokens, settings)}>
               {t('popup.exportTokens')}

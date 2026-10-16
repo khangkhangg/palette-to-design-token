@@ -4,10 +4,12 @@ export interface SwatchProps {
   hex: string;
   share: string;
   copied: boolean;
+  /** The last copy was refused by the clipboard. */
+  failed?: boolean;
   onCopy(hex: string): void;
 }
 
-export function Swatch({ hex, share, copied, onCopy }: SwatchProps) {
+export function Swatch({ hex, share, copied, failed = false, onCopy }: SwatchProps) {
   return (
     <button
       type="button"
@@ -17,8 +19,8 @@ export function Swatch({ hex, share, copied, onCopy }: SwatchProps) {
     >
       <span class="swatch-chip" style={{ background: hex }} />
       <span class="swatch-meta">
-        <span class={copied ? 'swatch-hex is-copied' : 'swatch-hex'} aria-live="polite">
-          {copied ? t('colours.copied') : hex}
+        <span class={copied ? 'swatch-hex is-copied' : failed ? 'swatch-hex is-failed' : 'swatch-hex'} aria-live="polite">
+          {copied ? t('colours.copied') : failed ? t('colours.copyFailed') : hex}
         </span>
         <span class="swatch-share">{share}</span>
       </span>

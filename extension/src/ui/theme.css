@@ -520,3 +520,4 @@ body.sidepanel, body.sidepanel #app { block-size: 100vh; }
   background: transparent; color: inherit; cursor: pointer;
 }
 .note-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.swatch-hex.is-failed { font-family: var(--font-ui); font-weight: 600; color: var(--fail-ink); }

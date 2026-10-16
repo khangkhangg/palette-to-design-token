@@ -92,6 +92,14 @@ describe('ExportScreen', () => {
     expect(await screen.findByText('Copied')).toBeTruthy();
   });
 
+  it('says Couldn\'t copy when the clipboard write fails', async () => {
+    writeText.mockRejectedValueOnce(new Error('denied'));
+    render(<ExportScreen tokens={brewline} pro onBack={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+    expect(await screen.findByText("Couldn't copy")).toBeTruthy();
+    expect(screen.queryByText('Copied')).toBeNull();
+  });
+
   it('Download passes filename, text and mime', () => {
     render(<ExportScreen tokens={brewline} pro onBack={() => {}} />);
     pick('Figma');

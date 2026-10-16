@@ -7,22 +7,25 @@ import { t } from '../i18n';
 export const ROLE_ORDER: Role[] = ['primary', 'accent', 'surface', 'text', 'border', 'other'];
 const COPIED_MS = 1200;
 
-/** Copies text; `copied` holds the last copied id for 1.2 s. */
+/** Copies text; `copied` (or `failed`, when the clipboard refused) holds the last id for 1.2 s. */
 export function useCopy() {
-  const [copied, setCopied] = useState<string | null>(null);
+  const [last, setLast] = useState<{ id: string; ok: boolean } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
   const copy = async (id: string, text: string) => {
+    let ok = true;
     try {
       await navigator.clipboard.writeText(text);
     } catch {
-      return;
+      ok = false;
     }
     clearTimeout(timer.current);
-    setCopied(id);
-    timer.current = setTimeout(() => setCopied(null), COPIED_MS);
+    setLast({ id, ok });
+    timer.current = setTimeout(() => setLast(null), COPIED_MS);
   };
-  return { copied, copy };
+  const copied = last?.ok ? last.id : null;
+  const failed = last && !last.ok ? last.id : null;
+  return { copied, failed, copy };
 }
 
 export function orderedColours(colours: ColourToken[]): ColourToken[] {
@@ -35,7 +38,7 @@ function shareOf(weight: number, total: number): string {
 }
 
 export function ColoursTab({ colours }: { colours: ColourToken[] }) {
-  const { copied, copy } = useCopy();
+  const { copied, failed, copy } = useCopy();
   const total = colours.reduce((sum, c) => sum + c.weight, 0);
   const groups = ROLE_ORDER
     .map((role) => ({ role, items: colours.filter((c) => c.role === role) }))
@@ -63,6 +66,7 @@ export function ColoursTab({ colours }: { colours: ColourToken[] }) {
                 hex={c.hex}
                 share={shareOf(c.weight, total)}
                 copied={copied === c.name}
+                failed={failed === c.name}
                 onCopy={(hex) => copy(c.name, hex)}
               />
             ))}

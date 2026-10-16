@@ -33,7 +33,7 @@ export function ExportScreen({ tokens, pro, onBack }: ExportScreenProps) {
   const [on, setOn] = useState<Part[]>(PARTS);
   const [sheet, setSheet] = useState(false);
   const [zip, setZip] = useState<ZipPreview | null>(null);
-  const { copied, copy } = useCopy();
+  const { copied, failed, copy } = useCopy();
 
   const parts = useMemo(() => PARTS.filter((p) => on.includes(p)), [on]);
   const file = useMemo(
@@ -137,8 +137,10 @@ export function ExportScreen({ tokens, pro, onBack }: ExportScreenProps) {
 
       <footer class="export-footer">
         <button type="button" class="ex-btn" disabled={format === 'all'} onClick={onCopy}>
-          <Icon name={copied === 'export' ? 'check' : 'copy'} />
-          {copied === 'export' ? t('export.copied') : t('export.copy')}
+          <Icon name={copied === 'export' ? 'check' : failed === 'export' ? 'alert' : 'copy'} />
+          <span aria-live="polite">
+            {copied === 'export' ? t('export.copied') : failed === 'export' ? t('export.copyFailed') : t('export.copy')}
+          </span>
         </button>
         <button type="button" class="ex-btn ex-btn-primary" onClick={() => void onDownload()}>
           <Icon name="download" />
