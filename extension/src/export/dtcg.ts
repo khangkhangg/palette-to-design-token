@@ -1,5 +1,7 @@
 import type { Tokens } from '../model/tokens';
-import { colourEntries, fontEntries, radiusEntries, shadowEntries, spaceEntries, splitFamily, wants } from './model';
+import {
+  cleanFamily, colourEntries, fontEntries, radiusEntries, shadowEntries, spaceEntries, splitFamily, wants,
+} from './model';
 import { parseShadow, type ShadowLayer } from './shadow';
 import type { ExportOptions } from './types';
 
@@ -30,7 +32,7 @@ export function toDtcg(t: Tokens, o: ExportOptions): string {
     put('text', Object.fromEntries(t.type.map((x) => [x.name, {
       $type: 'typography',
       $value: {
-        fontFamily: splitFamily(x.family),
+        fontFamily: splitFamily(cleanFamily(x.family)),
         fontSize: dim(x.sizePx),
         fontWeight: x.weight,
         ...(x.lineHeightPx !== null ? { lineHeight: dim(x.lineHeightPx) } : {}),

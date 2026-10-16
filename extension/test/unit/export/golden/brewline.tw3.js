@@ -11,6 +11,7 @@ export default {
         text: "#1B1A17",
         "text-2": "#5C574E",
         border: "#E4DDD0",
+        "accent-aa": "#B4501A",
       },
       fontFamily: {
         body: ["DM Sans", "sans-serif"],

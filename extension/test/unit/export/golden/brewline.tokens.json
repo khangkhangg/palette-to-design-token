@@ -31,6 +31,10 @@
     "border": {
       "$type": "color",
       "$value": "#E4DDD0"
+    },
+    "accent-aa": {
+      "$type": "color",
+      "$value": "#B4501A"
     }
   },
   "font": {
