@@ -116,6 +116,13 @@ describe('popup App', () => {
     expect(screen.getByRole('alert').textContent).toContain("This page can't be scanned");
   });
 
+  it('shows the no-access state instead of restricted', async () => {
+    mocks.scanActiveTab.mockRejectedValue(new ScanError('no-access'));
+    render(<App />);
+    expect(await screen.findByText('Click the Site to Design Token icon on this page to scan it.')).toBeTruthy();
+    expect(screen.queryByText("This page can't be scanned")).toBeNull();
+  });
+
   it('renders English with an English lang attribute for an unshipped browser language', async () => {
     mocks.settings = { ...mocks.settings, lang: 'es' };
     mocks.scanActiveTab.mockResolvedValue({ ...brewline(), colours: [c('primary', 'primary', '#1F5E4B', 1)], fonts: [{ name: 'body', family: 'Inter' }] });

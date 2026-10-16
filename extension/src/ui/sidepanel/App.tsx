@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { Tokens } from '../../model/tokens';
-import { ScanError, scanActiveTab } from '../../scan';
+import { scanActiveTab, shownReason, type ShownScanError } from '../../scan';
 import { getSettings, listScans, onSettingsChange, saveScan, type Settings } from '../../store';
 import { EmptyState } from '../components/EmptyState';
 import { Icon } from '../components/Icon';
@@ -10,11 +10,6 @@ import { viewFromSearch, type PanelView } from './open';
 import { UnlockSheet } from '../components/UnlockSheet';
 import { ExportScreen } from './ExportScreen';
 import { SystemView } from './SystemView';
-
-type State =
-  | { kind: 'scanning' }
-  | { kind: 'ready'; tokens: Tokens }
-  | { kind: 'error'; reason: 'restricted' | 'failed' };
 
 async function activeHost(): Promise<string | null> {
   try {
@@ -33,6 +28,12 @@ async function newestScanFor(host: string | null): Promise<Tokens | null> {
     .reduce<Tokens | null>((best, s) => (!best || s.scannedAt > best.scannedAt ? s : best), null);
 }
 
+const NOTE_KEY: Record<ShownScanError, string> = {
+  restricted: 'popup.restrictedTitle',
+  'no-access': 'popup.noAccess',
+  failed: 'popup.failedTitle',
+};
+
 function scannedWhen(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
@@ -45,17 +46,23 @@ export interface AppProps {
 
 export function App({ initialView = viewFromSearch(location.search) }: AppProps) {
   const [settings, setLocal] = useState<Settings | null>(null);
-  const [state, setState] = useState<State>({ kind: 'scanning' });
+  const [tokens, setTokens] = useState<Tokens | null>(null);
+  const [busy, setBusy] = useState(true);
+  const [error, setError] = useState<ShownScanError | null>(null);
   const [view, setView] = useState<PanelView>(initialView);
 
   const scan = async () => {
-    setState({ kind: 'scanning' });
+    setBusy(true);
+    setError(null);
     try {
-      const tokens = await scanActiveTab();
-      await saveScan(tokens).catch(() => {});
-      setState({ kind: 'ready', tokens });
+      const next = await scanActiveTab();
+      await saveScan(next).catch(() => {});
+      setTokens(next);
     } catch (e) {
-      setState({ kind: 'error', reason: e instanceof ScanError && e.reason === 'restricted' ? 'restricted' : 'failed' });
+      // A failed re-scan keeps whatever is already shown; the error becomes a dismissible note.
+      setError(shownReason(e));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -69,8 +76,10 @@ export function App({ initialView = viewFromSearch(location.search) }: AppProps)
       setLocal(s);
       const saved = await newestScanFor(await activeHost());
       if (!live) return;
-      if (saved) setState({ kind: 'ready', tokens: saved });
-      else await scan();
+      if (saved) {
+        setTokens(saved);
+        setBusy(false);
+      } else await scan();
     })();
     const stop = onSettingsChange((s) => {
       applyTheme(s.theme);
@@ -83,8 +92,6 @@ export function App({ initialView = viewFromSearch(location.search) }: AppProps)
   if (!settings) return <div class="sp" />;
   if (view === 'unlock') return <UnlockSheet variant="page" onClose={() => setView('system')} />;
 
-  const tokens = state.kind === 'ready' ? state.tokens : null;
-  const busy = state.kind === 'scanning';
   if (view === 'export' && tokens) {
     return <ExportScreen tokens={tokens} pro={settings.pro} onBack={() => setView('system')} />;
   }
@@ -112,10 +119,22 @@ export function App({ initialView = viewFromSearch(location.search) }: AppProps)
           <span>{t('popup.scanning')}</span>
         </div>
       )}
-      {state.kind === 'error' && state.reason === 'restricted' && (
+      {error && tokens && (
+        <p class="note sp-note" role="status">
+          <Icon name="alert" size={14} />
+          <span>{t(NOTE_KEY[error])}</span>
+          <button type="button" class="note-close" aria-label={t('panel.dismiss')} onClick={() => setError(null)}>
+            <Icon name="close" size={14} />
+          </button>
+        </p>
+      )}
+      {error === 'restricted' && !tokens && (
         <EmptyState alert icon="lock" title={t('popup.restrictedTitle')} body={t('popup.restrictedBody')} />
       )}
-      {state.kind === 'error' && state.reason === 'failed' && (
+      {error === 'no-access' && !tokens && (
+        <EmptyState alert icon="info" title={t('popup.noAccess')} />
+      )}
+      {error === 'failed' && !tokens && (
         <EmptyState alert icon="alert" title={t('popup.failedTitle')} body={t('popup.failedBody')}>
           <button type="button" class="btn" onClick={scan}>
             <Icon name="rescan" size={14} />

@@ -510,3 +510,13 @@ body.sidepanel, body.sidepanel #app { block-size: 100vh; }
 }
 @keyframes sdt-sheet { from { transform: translateY(24px); opacity: 0; } }
 @keyframes sdt-fade { from { opacity: 0; } }
+
+/* Side panel: a failed re-scan keeps the tokens and shows this dismissible note */
+.sp-note { margin: 10px 16px 0; flex-shrink: 0; }
+.sp-note > span { flex: 1; }
+.note-close {
+  display: inline-grid; place-items: center; flex-shrink: 0; inline-size: 20px; block-size: 20px;
+  margin-inline-start: auto; padding: 0; border: 0; border-radius: 6px;
+  background: transparent; color: inherit; cursor: pointer;
+}
+.note-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

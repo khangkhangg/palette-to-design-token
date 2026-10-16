@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { Tokens } from '../../model/tokens';
-import { ScanError, scanActiveTab } from '../../scan';
+import { scanActiveTab, shownReason, type ShownScanError } from '../../scan';
 import { getSettings, onSettingsChange, saveScan, setSettings, type Settings } from '../../store';
 import { EmptyState } from '../components/EmptyState';
 import { Header } from '../components/Header';
@@ -17,7 +17,7 @@ import { TypeTab } from './TypeTab';
 type State =
   | { kind: 'scanning' }
   | { kind: 'ready'; tokens: Tokens }
-  | { kind: 'error'; reason: 'restricted' | 'failed' };
+  | { kind: 'error'; reason: ShownScanError };
 
 const TAB_IDS = ['colours', 'type', 'spacing', 'contrast'] as const;
 
@@ -42,7 +42,7 @@ export function App({ onExport }: AppProps) {
       await saveScan(tokens).catch(() => {});
       setState({ kind: 'ready', tokens });
     } catch (e) {
-      setState({ kind: 'error', reason: e instanceof ScanError && e.reason === 'restricted' ? 'restricted' : 'failed' });
+      setState({ kind: 'error', reason: shownReason(e) });
     }
   };
 
@@ -128,6 +128,9 @@ export function App({ onExport }: AppProps) {
       )}
       {state.kind === 'error' && state.reason === 'restricted' && (
         <EmptyState alert icon="lock" title={t('popup.restrictedTitle')} body={t('popup.restrictedBody')} />
+      )}
+      {state.kind === 'error' && state.reason === 'no-access' && (
+        <EmptyState alert icon="info" title={t('popup.noAccess')} />
       )}
       {state.kind === 'error' && state.reason === 'failed' && (
         <EmptyState alert icon="alert" title={t('popup.failedTitle')} body={t('popup.failedBody')}>

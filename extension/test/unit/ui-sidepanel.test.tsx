@@ -186,6 +186,37 @@ describe('side panel App', () => {
     expect((await screen.findAllByText('#1F5E4B')).length).toBeGreaterThan(0);
   });
 
+  it('asks for a click on the toolbar icon when the tab has no activeTab grant', async () => {
+    mocks.scanActiveTab.mockRejectedValueOnce(new ScanError('no-access'));
+    render(<App />);
+    expect(await screen.findByText('Click the Site to Design Token icon on this page to scan it.')).toBeTruthy();
+    expect(screen.queryByText("This page can't be scanned")).toBeNull();
+  });
+
+  it('keeps the shown tokens when a re-scan fails and shows a dismissible note', async () => {
+    mocks.listScans.mockResolvedValue([brewline()]);
+    mocks.scanActiveTab.mockRejectedValueOnce(new ScanError('no-access'));
+    render(<App />);
+    await screen.findAllByText('#1F5E4B');
+    fireEvent.click(screen.getByRole('button', { name: 'Re-scan page' }));
+    expect(await screen.findByText('Click the Site to Design Token icon on this page to scan it.')).toBeTruthy();
+    expect(screen.getAllByText('#1F5E4B').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /Export design system/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByText('Click the Site to Design Token icon on this page to scan it.')).toBeNull();
+    expect(screen.getAllByText('#1F5E4B').length).toBeGreaterThan(0);
+  });
+
+  it('keeps the shown tokens when a re-scan fails for another reason', async () => {
+    mocks.listScans.mockResolvedValue([brewline()]);
+    mocks.scanActiveTab.mockRejectedValueOnce(new ScanError('failed'));
+    render(<App />);
+    await screen.findAllByText('#1F5E4B');
+    fireEvent.click(screen.getByRole('button', { name: 'Re-scan page' }));
+    expect(await screen.findByText("Couldn't scan this page")).toBeTruthy();
+    expect(screen.getAllByText('#1F5E4B').length).toBeGreaterThan(0);
+  });
+
   it('follows language changes made elsewhere', async () => {
     mocks.listScans.mockResolvedValue([brewline()]);
     render(<App />);

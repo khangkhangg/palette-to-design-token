@@ -25,11 +25,26 @@ describe('scanTab', () => {
 
   it.each([
     'Cannot access a chrome:// URL',
-    'The extensions gallery cannot be scripted.',
+    'Cannot access contents of url "edge://settings"',
     'Cannot access contents of url "about:blank"',
+    'Cannot access contents of url "chrome-extension://abc/popup.html"',
+    'The extensions gallery cannot be scripted.',
+    'Cannot access contents of url "https://chromewebstore.google.com/detail/x"',
+    'Cannot access contents of url "https://chrome.google.com/webstore/detail/x"',
+    'This page cannot be scripted due to an ExtensionsSettings policy.',
   ])('maps "%s" to restricted', async (msg) => {
     installFakeChrome({ executeScript: async () => { throw new Error(msg); } });
     expect(await reasonOf(scanTab(1))).toBe('restricted');
+  });
+
+  it.each([
+    'Cannot access contents of url "https://example.com/about"',
+    'Cannot access contents of url "http://localhost:5173/"',
+    'Cannot access contents of url "https://example.com/?next=about:blank"',
+    'Cannot access contents of the page. Extension manifest must request permission to access the respective host.',
+  ])('maps "%s" (no activeTab grant) to no-access', async (msg) => {
+    installFakeChrome({ executeScript: async () => { throw new Error(msg); } });
+    expect(await reasonOf(scanTab(1))).toBe('no-access');
   });
 
   it('maps other errors to failed and keeps the cause', async () => {

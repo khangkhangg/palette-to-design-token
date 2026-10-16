@@ -49,6 +49,7 @@
     "pro": "PRO",
     "restrictedTitle": "This page can't be scanned",
     "restrictedBody": "Browser pages and the Chrome Web Store block extensions. Open a regular website and try again.",
+    "noAccess": "Click the Site to Design Token icon on this page to scan it.",
     "failedTitle": "Couldn't scan this page",
     "failedBody": "Something went wrong while reading the page. Reload it, then retry.",
     "retry": "Retry",
@@ -142,6 +143,7 @@
     "exportDesignSystem": "Export design system",
     "exportFormats": "CSS · Tailwind · Figma · JSON · DESIGN.md for AI",
     "back": "Back to design system",
+    "dismiss": "Dismiss",
     "loading": "Reading this page…"
   },
   "export": {
