@@ -12,7 +12,7 @@ const OTHER_EXT = 'ponmlkjihgfedcbaponmlkjihgfedcba';
 function api_reset(mysqli $c): void
 {
     stub_reset($c);
-    $c->query('TRUNCATE api_rate_limits');
+    $c->query('DELETE FROM palette_rate');
     palette_settings_put($c, ['extension_ids' => [EXT]]);
     $_SESSION = [];
 }
@@ -103,15 +103,57 @@ unset($GLOBALS['pp_routes']['POST /v2/checkout/orders']);
 $r = call('POST', 'create', $good + ['csrf' => $t]);
 ok('create paypal failure -> 502', $r['status'] === 502 && $r['body']['error'] === 'err_paypal');
 
+// create limit: 20/hour per IP
+api_reset($conn);
+$t = csrf();
+$GLOBALS['pp_routes']['POST /v2/checkout/orders'] = fn() => ['status' => 201, 'json' => ['id' => 'PPLIM' . (++$GLOBALS['lim']), 'status' => 'CREATED']];
+$GLOBALS['lim'] = 0;
+for ($i = 0; $i < 20; $i++) call('POST', 'create', ['email' => "l$i@studio.vn", 'consent' => '1', 'csrf' => $t]);
+$r = call('POST', 'create', ['email' => 'l21@studio.vn', 'consent' => '1', 'csrf' => $t]);
+ok('21st create in an hour -> 429 api_rate_limited', $r['status'] === 429 && $r['body']['error'] === 'api_rate_limited');
+ok('create limit is per IP', call('POST', 'create', ['email' => 'l22@studio.vn', 'consent' => '1', 'csrf' => $t], ['ip' => '198.51.100.2'])['status'] === 200);
+
+// Creates an order through the API, so this session owns it.
+function api_order(string $csrf, string $paypalId): void
+{
+    $GLOBALS['pp_routes']['POST /v2/checkout/orders'] = ['status' => 201, 'json' => ['id' => $paypalId, 'status' => 'CREATED']];
+    call('POST', 'create', ['email' => 'buyer@studio.vn', 'consent' => '1', 'csrf' => $csrf]);
+}
+
 // ---- capture
 api_reset($conn);
 $t = csrf();
-make_order($conn, 'PPORD2');
+api_order($t, 'PPORD2');
+ok('create remembers the order in the session', in_array('PPORD2', $_SESSION['palette_orders'] ?? [], true));
 $GLOBALS['pp_routes']['POST /v2/checkout/orders/PPORD2/capture'] = ['status' => 201, 'json' => pp_completed('PPORD2')];
 $r = call('POST', 'capture', ['order_id' => 'PPORD2', 'csrf' => $t]);
 ok('capture ok', $r['status'] === 200 && $r['body']['ok'] === true && preg_match(PALETTE_KEY_RE, $r['body']['key']) === 1
     && $r['body']['email_masked'] === 'b***@studio.vn');
 ok('capture body has only ok/key/email_masked', array_keys($r['body']) === ['ok', 'key', 'email_masked']);
+$key2 = $r['body']['key'];
+// another session (its own CSRF token) asking for the same captured order gets no key
+$own = $_SESSION;
+$_SESSION = [];
+$t2 = csrf();
+$r = call('POST', 'capture', ['order_id' => 'PPORD2', 'csrf' => $t2, 'lang' => 'fr']);
+ok('capture of an order this session did not create: no key, emailed message', $r['status'] === 200 && $r['body']['ok'] === true
+    && $r['body']['key'] === null && $r['body']['email_masked'] === 'b***@studio.vn'
+    && $r['body']['message'] === strtr(palette_t('fr', 'co_key_emailed'), ['{email}' => 'b***@studio.vn'])
+    && !str_contains(json_encode($r), $key2));
+make_order($conn, 'PPORD4');
+$GLOBALS['pp_routes']['POST /v2/checkout/orders/PPORD4/capture'] = ['status' => 201, 'json' => pp_completed('PPORD4', '1.49', 'USD', 'CAP4')];
+$r = call('POST', 'capture', ['order_id' => 'PPORD4', 'csrf' => $t2]);
+ok('a foreign order is still captured (key emailed) but not disclosed', $r['body']['ok'] === true && $r['body']['key'] === null
+    && order_row($conn, 'PPORD4')['status'] === 'captured');
+$_SESSION = $own;
+// paid order whose capture is still PENDING: the confirm path, not a live-button error
+api_order($t, 'PPORD5');
+$pend = pp_completed('PPORD5');
+$pend['purchase_units'][0]['payments']['captures'][0]['status'] = 'PENDING';
+$GLOBALS['pp_routes']['POST /v2/checkout/orders/PPORD5/capture'] = ['status' => 201, 'json' => $pend];
+$r = call('POST', 'capture', ['order_id' => 'PPORD5', 'csrf' => $t, 'lang' => 'es']);
+ok('pending capture -> 202 co_err_confirm', $r['status'] === 202 && $r['body']['ok'] === false && $r['body']['error'] === 'co_err_confirm'
+    && $r['body']['message'] === palette_t('es', 'co_err_confirm'));
 ok('capture missing order_id -> 400', call('POST', 'capture', ['csrf' => $t])['status'] === 400);
 $r = call('POST', 'capture', ['order_id' => 'NOT-AN-ORDER!', 'csrf' => $t]);
 ok('capture bad order id -> 502 err_paypal', $r['status'] === 502 && $r['body']['error'] === 'err_paypal');
@@ -162,6 +204,13 @@ $r = call('POST', 'claim', ['key' => $k, 'csrf' => $t], ['session' => ['user_id'
 ok('claim owned by other user -> 400', $r['status'] === 400);
 $r = call('POST', 'claim', ['key' => $k, 'csrf' => $t], ['session' => ['user_id' => 'abc'] + $_SESSION]);
 ok('claim non-numeric user -> 403', $r['status'] === 403);
+// claim limit: 30/hour per user
+api_reset($conn);
+$t = csrf();
+for ($i = 0; $i < 30; $i++) call('POST', 'claim', ['key' => 'SDT-0000-0000-0000', 'csrf' => $t], ['session' => ['user_id' => 90] + $_SESSION]);
+$r = call('POST', 'claim', ['key' => 'SDT-0000-0000-0000', 'csrf' => $t], ['session' => ['user_id' => 90] + $_SESSION]);
+ok('31st claim in an hour -> 429', $r['status'] === 429 && $r['body']['error'] === 'api_rate_limited');
+ok('claim limit is per user, not per IP', call('POST', 'claim', ['key' => 'SDT-0000-0000-0000', 'csrf' => $t], ['session' => ['user_id' => 91] + $_SESSION])['status'] === 400);
 
 // ---- verify + CORS
 api_reset($conn);
@@ -210,3 +259,10 @@ ok('other IP unaffected', call('POST', 'verify', ['key' => 'SDT-0000-0000-0000']
 api_reset($conn);
 $enc = json_encode([call('GET', 'config'), call('POST', 'verify', ['key' => 'x']), call('GET', 'nope')]);
 ok('all bodies json-serialisable, no secret/resend key', $enc !== false && !str_contains($enc, '"sec"') && !str_contains($enc, 're_test'));
+
+// ---- the adapter keys limits on the visitor's IP (Cloudflare-aware), never REMOTE_ADDR directly
+$adapter = (string)file_get_contents(PALETTE_DIR . '/api.php');
+ok('api.php takes the IP from palette_client_ip($_SERVER)', str_contains($adapter, "palette_client_ip(\$_SERVER)") && !str_contains($adapter, 'REMOTE_ADDR'));
+$all = '';
+foreach (array_merge(glob(PALETTE_DIR . '/*.php'), glob(PALETTE_DIR . '/lib/*.php')) as $f) if (basename($f) !== 'rate.php') $all .= file_get_contents($f);
+ok('no other file reads REMOTE_ADDR', !str_contains($all, 'REMOTE_ADDR'));

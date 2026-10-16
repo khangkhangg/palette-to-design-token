@@ -29,6 +29,7 @@ function palette_transient(int $status): bool
 function palette_outcome(array $r, string $done, string $failed): string
 {
     if ($r['ok']) return empty($r['already']) ? $done : 'already';
+    if (!empty($r['pending'])) return 'pending';   // PAYMENT.CAPTURE.COMPLETED will follow and fulfil
     return empty($r['retry']) ? $failed : 'retry';
 }
 
@@ -178,6 +179,11 @@ function palette_capture(mysqli $c, string $orderId): array
         $j = (array)($r['json'] ?? []);
     }
     $cap = $j['purchase_units'][0]['payments']['captures'][0] ?? null;
+    if (($j['status'] ?? '') === 'COMPLETED' && is_array($cap) && ($cap['status'] ?? '') === 'PENDING') {
+        // Paid, but PayPal holds the money for review: the key is issued by the PAYMENT.CAPTURE.COMPLETED webhook.
+        error_log("palette: capture of $orderId is PENDING (" . ($cap['status_details']['reason'] ?? '?') . ')');
+        return ['ok' => false, 'error' => 'err_paypal', 'pending' => true];
+    }
     if (($j['status'] ?? '') !== 'COMPLETED' || !is_array($cap) || ($cap['status'] ?? '') !== 'COMPLETED') {
         $transient = palette_transient((int)$r['status']);
         error_log("palette: capture of $orderId not completed (HTTP " . (int)$r['status'] . ', ' . ($j['details'][0]['issue'] ?? $j['status'] ?? '?') . ')');
@@ -226,7 +232,7 @@ function palette_fulfil(mysqli $c, array $order, array $capture, string $payerEm
     }
     $m = palette_license_email($lic['key'], (string)$order['lang']);
     if (!palette_mail((string)$order['email'], $m['subject'], $m['html'])) {
-        error_log("palette: license email for order {$order['order_id']} was not sent");
+        error_log("PALETTE_MAIL_FAILED order={$order['order_id']}");   // alert on this prefix; the buyer saw the key on the page
     }
     return ['ok' => true, 'key' => $lic['key'], 'email_masked' => palette_mask_email((string)$order['email'])];
 }

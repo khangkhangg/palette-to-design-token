@@ -40,6 +40,15 @@ function palette_api_csrf_token(): string
     return is_string($tok) && preg_match('/^[0-9a-f]{64}$/', $tok) ? $tok : generateCSRFToken('palette_checkout');
 }
 
+const PALETTE_API_SESSION_ORDERS = 20;
+
+// True when this session created the PayPal order (create stores ids in $_SESSION['palette_orders']).
+function palette_api_owns_order(string $orderId): bool
+{
+    $mine = $_SESSION['palette_orders'] ?? null;
+    return is_array($mine) && in_array($orderId, $mine, true);
+}
+
 function palette_api_handle(array $req): array
 {
     $conn = $GLOBALS['conn'];
@@ -75,13 +84,26 @@ function palette_api_handle(array $req): array
 
     switch ($action) {
         case 'create':
+            if (!palette_rate_hit('create:ip:' . (string)($req['ip'] ?? ''), 20, 3600)) return palette_api_error(429, 'api_rate_limited', $lang);
             $r = palette_create_order($conn, $str('email'), $lang, $str('consent') === '1', $str('country') ?: null, $str('region') ?: null);
             if (!$r['ok']) return palette_api_error(['err_paused' => 503, 'err_paypal' => 502][$r['error']] ?? 400, $r['error'], $lang);
+            // Only the session that created an order is shown its key at capture (see palette_api_owns_order).
+            $mine = is_array($_SESSION['palette_orders'] ?? null) ? $_SESSION['palette_orders'] : [];
+            $mine[] = $r['order_id'];
+            $_SESSION['palette_orders'] = array_slice($mine, -PALETTE_API_SESSION_ORDERS);   // the last 20 are plenty
             return palette_api_reply(200, ['ok' => true, 'order_id' => $r['order_id'], 'total' => $r['total']]);
         case 'capture':
             if ($str('order_id') === '') return palette_api_error(400, 'err_bad_request', $lang);
             $r = palette_capture($conn, $str('order_id'));
-            if (!$r['ok']) return !empty($r['retry']) ? palette_api_error(503, 'err_retry', $lang) : palette_api_error(502, $r['error'], $lang);
+            if (!$r['ok']) {
+                if (!empty($r['pending'])) return palette_api_error(202, 'co_err_confirm', $lang);   // paid; PayPal still settling
+                return !empty($r['retry']) ? palette_api_error(503, 'err_retry', $lang) : palette_api_error(502, $r['error'], $lang);
+            }
+            if (!palette_api_owns_order($str('order_id'))) {
+                // Not this session's order: the key went to the buyer's email, never to whoever knows the order id.
+                return palette_api_reply(200, ['ok' => true, 'key' => null, 'email_masked' => $r['email_masked'],
+                    'message' => strtr(palette_t($lang, 'co_key_emailed'), ['{email}' => $r['email_masked']])]);
+            }
             return palette_api_reply(200, ['ok' => true, 'key' => $r['key'], 'email_masked' => $r['email_masked']]);
         case 'resend':
             $email = $str('email');
@@ -91,6 +113,7 @@ function palette_api_handle(array $req): array
         default: // claim
             $uid = $req['session']['user_id'] ?? null;
             if (!(is_int($uid) || (is_string($uid) && ctype_digit($uid))) || (int)$uid < 1) return palette_api_error(403, 'err_login', $lang);
+            if (!palette_rate_hit('claim:user:' . (int)$uid, 30, 3600)) return palette_api_error(429, 'api_rate_limited', $lang);
             if (!palette_claim($conn, $str('key'), (int)$uid)) return palette_api_error(400, 'err_invalid_key', $lang);
             return palette_api_reply(200, ['ok' => true]);
     }

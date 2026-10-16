@@ -124,8 +124,17 @@ palette_revoke_by_order($conn, 'ORD-A2');
 $out = palette_render_account(['query' => ['lang' => 'en'], 'accept_language' => '', 'session' => []]);
 ok('account logged out: login link', str_contains($out, 'href="/companies/?auth=login&amp;redirect=/palette/account"'));
 ok('account logged out: no keys, no claim form', !str_contains($out, $k1) && !str_contains($out, 'id="claim"'));
+$_SESSION = [];
 $out = palette_render_account(['query' => ['lang' => 'en', 'key' => $k3], 'accept_language' => '', 'session' => []]);
-ok('account logged out: login keeps ?key', str_contains($out, 'redirect=/palette/account%3Fkey%3D' . $k3 . '"'));
+ok('account logged out with ?key: plain login redirect, key never in the URL', str_contains($out, 'href="/companies/?auth=login&amp;redirect=/palette/account"')
+    && !str_contains($out, 'redirect=/palette/account%3F') && !str_contains($out, 'auth=login&amp;redirect=/palette/account?'));
+ok('account logged out with ?key: key kept in the session', ($_SESSION['palette_pending_key'] ?? null) === $k3);
+$out = palette_render_account(['query' => ['lang' => 'en'], 'accept_language' => '', 'session' => ['user_id' => 7, 'palette_pending_key' => $k3]]);
+ok('after login: claim prefilled from the session', preg_match('/<input[^>]*name="key"[^>]*value="' . preg_quote($k3, '/') . '"/', $out) === 1);
+ok('after login: pending key cleared from the session', !array_key_exists('palette_pending_key', $_SESSION));
+$out = palette_render_account(['query' => ['lang' => 'en'], 'accept_language' => '', 'session' => ['user_id' => 7, 'palette_pending_key' => '"><b>x']]);
+ok('session pending key must be a well-formed key', !str_contains($out, '<b>x') && preg_match('/<input[^>]*name="key"[^>]*value=""/', $out) === 1);
+$_SESSION = [];
 $out = palette_render_account(['query' => ['lang' => 'en', 'key' => '"><b>x'], 'accept_language' => '', 'session' => []]);
 ok('account logged out: bad key dropped', str_contains($out, 'redirect=/palette/account"') && !str_contains($out, '<b>x'));
 
@@ -161,11 +170,14 @@ ok('privacy: only the clicked tab', str_contains($p, 'Only the tab you click it 
 ok('privacy: scans stored in your browser', str_contains($p, 'Your scans and settings are stored in your browser'));
 ok('privacy: only the license key to vietnamcos.com', str_contains($p, 'Only your license key, to vietnamcos.com, to check'));
 ok('privacy: PayPal, Resend, no tracking', str_contains($p, 'PayPal') && str_contains($p, 'Resend') && str_contains($p, h(palette_t('en', 'priv_track'))));
+ok('privacy: server keeps your IP briefly, Cloudflare, session cookie', str_contains($p, h(palette_t('en', 'priv_server')))
+    && str_contains(palette_t('en', 'priv_server'), 'IP address') && str_contains(palette_t('en', 'priv_server'), 'Cloudflare')
+    && str_contains(palette_t('en', 'priv_server'), 'session cookie'));
 ok('privacy: contact + date', str_contains($p, 'href="mailto:support@vietnamcos.com"') && str_contains($p, '2026-10-17'));
 foreach (LANGS as $l) {
     $p = palette_render_privacy(['query' => ['lang' => $l], 'accept_language' => '']);
     $all = true;
-    foreach (['priv_reads', 'priv_stores', 'priv_sends', 'priv_pay', 'priv_email', 'priv_track'] as $k) if (!str_contains($p, h(palette_t($l, $k)))) $all = false;
+    foreach (['priv_reads', 'priv_stores', 'priv_sends', 'priv_server_h', 'priv_server', 'priv_pay', 'priv_email', 'priv_track'] as $k) if (!str_contains($p, h(palette_t($l, $k)))) $all = false;
     ok("privacy $l: every section, lang/dir, no emoji", $all && str_contains($p, '<html lang="' . $l . '" dir="' . ($l === 'ar' ? 'rtl' : 'ltr') . '">')
         && preg_match(EMOJI_RE, $p) === 0 && str_contains($p, 'vietnamcos.com'));
 }
@@ -183,4 +195,12 @@ foreach (LANGS as $l) foreach (['co_h1', 'co_refund', 'co_consent', 'acct_title'
 ok('page keys in every language', $missing === []);
 ok('co_err_confirm en exact', palette_t('en', 'co_err_confirm') === "We couldn't confirm your payment. If you were charged, your key will arrive by email — or use 'Lost your key?' below.");
 ok('co_err_confirm passed to the script', str_contains($en, 'co_err_confirm'));
+$missing = [];
+foreach (LANGS as $l) {
+    $v = palette_strings($l)['co_key_emailed'] ?? '';
+    if (!str_contains($v, '{email}') || ($l !== 'en' && $v === palette_t('en', 'co_key_emailed'))) $missing[] = $l;
+}
+ok('co_key_emailed in every language with {email}', $missing === []);
+ok('co_key_emailed passed to the script', preg_match('#id="palette-data">(.*?)</script>#s', $en, $m) === 1
+    && (json_decode($m[1], true)['t']['co_key_emailed'] ?? '') === palette_t('en', 'co_key_emailed'));
 ok('co_consent en exact', palette_t('en', 'co_consent') === $consentEn && palette_t('en', 'co_refund') === $refundEn);

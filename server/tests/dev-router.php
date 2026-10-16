@@ -36,7 +36,8 @@ if (!str_ends_with($db, '_test')) {
 $stub = getenv('PALETTE_DEV_PP_STUB') === '1';
 if ($stub) {
     // PayPal REST + Resend. Orders are created for real in palette_orders; capture answers COMPLETED for the
-    // stored amount, except for buyers whose address starts with "retry@" (PayPal 503 -> the page's err_retry path).
+    // stored amount, except for buyers whose address starts with "retry@" (PayPal 503 -> the page's err_retry path)
+    // or "pending@" (order COMPLETED, capture PENDING -> the page's confirm path).
     $GLOBALS['pp_http'] = function (string $method, string $url, array $headers, ?string $body) use ($conn): array {
         if (str_ends_with($url, '/v1/oauth2/token')) return ['status' => 200, 'json' => ['access_token' => 'dev']];
         if ($url === 'https://api.resend.com/emails') return ['status' => 200, 'json' => ['id' => 'dev-mail']];
@@ -46,8 +47,9 @@ if ($stub) {
             $o = palette_order_by($conn, 'order_id', $m[1]);
             if (!$o) return ['status' => 404, 'json' => ['name' => 'RESOURCE_NOT_FOUND']];
             if (str_starts_with((string)$o['email'], 'retry@')) return ['status' => 503, 'json' => ['name' => 'SERVICE_UNAVAILABLE']];
+            $capStatus = str_starts_with((string)$o['email'], 'pending@') ? 'PENDING' : 'COMPLETED';   // PayPal holding the payment
             return ['status' => 201, 'json' => ['id' => $m[1], 'status' => 'COMPLETED', 'payer' => ['email_address' => $o['email']],
-                'purchase_units' => [['payments' => ['captures' => [['id' => 'CAP' . $o['id'], 'status' => 'COMPLETED',
+                'purchase_units' => [['payments' => ['captures' => [['id' => 'CAP' . $o['id'], 'status' => $capStatus,
                     'amount' => ['currency_code' => 'USD', 'value' => (string)$o['amount_usd']]]]]]]]];
         }
         return ['status' => 500, 'json' => ['message' => 'dev stub: unrouted ' . $method . ' ' . $p]];

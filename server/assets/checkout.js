@@ -47,7 +47,7 @@
     });
   }
 
-  // One CSRF token per page load: config rotates it, so it is fetched once and shared.
+  // config answers the session's CSRF token (created once, never rotated); fetched once per page and shared.
   var configPromise = null;
   function config() {
     if (!configPromise) {
@@ -195,6 +195,14 @@
     function success(r) {
       busy(false);
       show(form, false);
+      if (!r.key) {   // not this session's order: the key went to the buyer's email only
+        show(document.querySelector('#done .keybox'), false);
+        show(document.querySelector('#done .linkbox'), false);
+        fillWithLtr($('emailed'), T.co_key_emailed, '{email}', r.email_masked || '');
+        show($('done'), true);
+        $('done-title').focus();
+        return;
+      }
       $('key').textContent = r.key;
       $('account-link').setAttribute('href', '/palette/account?key=' + encodeURIComponent(r.key) + '&lang=' + encodeURIComponent(lang));
       fillWithLtr($('emailed'), r.email_masked ? T.co_emailed : '', '{email}', r.email_masked);
@@ -279,7 +287,8 @@
           return api('capture', { order_id: d.orderID, csrf: csrf }).then(function (r) {
             if (r.ok) { success(r); return; }
             busy(false);
-            if (r.error === 'network') lock(T.co_err_confirm);   // approved, but we never heard back
+            // approved, but we never heard back, or PayPal holds the capture as PENDING (202): the key comes by email
+            if (r.error === 'network' || r.error === 'co_err_confirm') lock(T.co_err_confirm);
             else if (r.status === 503) lock(r.message);        // err_retry: paid, key not ready yet
             else showError(r.message);
           });

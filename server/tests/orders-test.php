@@ -130,7 +130,7 @@ make_order($conn, 'ORD-P');
 $pend = pp_completed('ORD-P');
 $pend['purchase_units'][0]['payments']['captures'][0]['status'] = 'PENDING';
 $GLOBALS['pp_routes']['POST /v2/checkout/orders/ORD-P/capture'] = ['status' => 201, 'json' => $pend];
-ok('pending capture -> error', palette_capture($conn, 'ORD-P') === ['ok' => false, 'error' => 'err_paypal']);
+ok('pending capture -> pending (paid, key comes later)', palette_capture($conn, 'ORD-P') === ['ok' => false, 'error' => 'err_paypal', 'pending' => true]);
 ok('pending: order still created, no license', order_row($conn, 'ORD-P')['status'] === 'created' && license_count($conn) === 2);
 
 // underpaid -> failed
@@ -145,6 +145,23 @@ ok('underpaid order cannot be captured later', palette_capture($conn, 'ORD-U')['
 make_order($conn, 'ORD-E');
 $GLOBALS['pp_routes']['POST /v2/checkout/orders/ORD-E/capture'] = ['status' => 201, 'json' => pp_completed('ORD-E', '1.49', 'EUR')];
 ok('EUR -> error + failed', palette_capture($conn, 'ORD-E')['ok'] === false && order_row($conn, 'ORD-E')['status'] === 'failed' && license_count($conn) === 2);
+
+// licence email fails after capture: alertable log line, buyer still gets the key on the page
+$log = sys_get_temp_dir() . '/palette-mailfail-test.log';
+@unlink($log);
+ini_set('error_log', $log);
+$GLOBALS['pp_http_ok'] = $GLOBALS['pp_http'];
+$GLOBALS['pp_http'] = fn(string $m, string $u, array $h, ?string $b): array => $u === 'https://api.resend.com/emails'
+    ? ['status' => 500, 'json' => []] : ($GLOBALS['pp_http_ok'])($m, $u, $h, $b);
+make_order($conn, 'ORD-M');
+$GLOBALS['pp_routes']['POST /v2/checkout/orders/ORD-M/capture'] = ['status' => 201, 'json' => pp_completed('ORD-M', '1.49', 'USD', 'CAPM')];
+$cm = palette_capture($conn, 'ORD-M');
+$GLOBALS['pp_http'] = $GLOBALS['pp_http_ok'];
+ini_set('error_log', sys_get_temp_dir() . '/palette-test.log');
+ok('mail failure after capture logs PALETTE_MAIL_FAILED order=<id>', $cm['ok'] === true
+    && str_contains((string)@file_get_contents($log), 'PALETTE_MAIL_FAILED order=ORD-M'));
+@unlink($log);
+$conn->query("DELETE FROM palette_licenses WHERE order_id = 'ORD-M'");
 
 // overpaid is accepted
 make_order($conn, 'ORD-O');

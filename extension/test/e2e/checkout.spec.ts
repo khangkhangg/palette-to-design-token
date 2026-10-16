@@ -180,6 +180,36 @@ test('a paid order whose key is not ready shows the retry message (503)', async 
   await expect(page.locator('#buy-error')).toBeVisible();
 });
 
+test('a paid order whose capture PayPal holds as PENDING locks the form with the confirm message (202)', async ({ page }) => {
+  await seed(page);
+  await fakePayPal(page);
+  await page.goto('/palette/checkout?lang=en');
+  await fillForm(page, 'pending@studio.vn');
+  const capture = page.waitForResponse((r) => r.url().includes('action=capture'));
+  await page.getByTestId('fake-paypal').click();
+  expect((await capture).status()).toBe(202);
+  await expect(page.locator('#buy-error')).toHaveText("We couldn't confirm your payment. If you were charged, your key will arrive by email — or use 'Lost your key?' below.");
+  await expect(page.locator('#paypal')).toBeHidden();
+  await expect(page.locator('#email')).toBeDisabled();
+  await expect(page.locator('#done')).toBeHidden();
+});
+
+test('a capture answered without a key (an order this session did not create) says the key was emailed', async ({ page }) => {
+  await seed(page);
+  await fakePayPal(page);
+  await fakeExtension(page);
+  await page.route('**/palette/api.php?action=capture', (r) => r.fulfill({ status: 200, contentType: 'application/json',
+    body: JSON.stringify({ ok: true, key: null, email_masked: 'm***@studio.vn', message: 'Payment received. Your key was emailed to m***@studio.vn.' }) }));
+  await page.goto(`/palette/checkout?lang=en&ext=${EXT}`);
+  await fillForm(page, 'mai@studio.vn');
+  await page.getByTestId('fake-paypal').click();
+  await expect(page.locator('#done')).toBeVisible();
+  await expect(page.locator('#emailed')).toHaveText('Payment received. Your key was emailed to m***@studio.vn.');
+  await expect(page.locator('.keybox')).toBeHidden();
+  await expect(page.locator('#copy-key')).toBeHidden();
+  expect(await page.evaluate(() => (window as unknown as { __sent: unknown[] }).__sent)).toEqual([]);
+});
+
 test('a network failure after approval says the payment could not be confirmed', async ({ page }) => {
   await seed(page);
   await fakePayPal(page);
@@ -252,13 +282,20 @@ test('lost key: resend always answers the same confirmation', async ({ page }) =
   await expect(page.locator('#resend-status')).toHaveText('If a key exists for that address, we sent it.');
 });
 
-test('account: signed out, the sign-in link returns here with the key', async ({ page }) => {
+test('account: signed out, the key waits in the session, not in the sign-in URL', async ({ page }) => {
   await seed(page);
   const key = await (await page.request.get('/__dev/license?email=acct@studio.vn')).text();
   await page.request.get('/__dev/login?user_id=0');
   await page.goto(`/palette/account?key=${key}&lang=en`);
-  await expect(page.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', `/companies/?auth=login&redirect=/palette/account%3Fkey%3D${key}`);
+  await expect(page.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/companies/?auth=login&redirect=/palette/account');
   await expect(page.locator('#claim')).toHaveCount(0);
+  // after signing in, the plain account URL prefills the key once
+  await page.request.get('/__dev/login?user_id=7');
+  await page.goto('/palette/account');
+  await expect(page.locator('#claim-key')).toHaveValue(key);
+  await page.reload();
+  await expect(page.locator('#claim-key')).toHaveValue('');
+  await page.request.get('/__dev/login?user_id=0');
 });
 
 test('account: signed in, the key from the success page is added and listed', async ({ page }) => {

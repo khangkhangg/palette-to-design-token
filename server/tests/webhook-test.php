@@ -134,6 +134,12 @@ $appr = ['id' => 'ORD-AP', 'status' => 'APPROVED', 'purchase_units' => [['custom
 ok('approved -> captured', palette_webhook($conn, HDRS, ev('CHECKOUT.ORDER.APPROVED', $appr)) === 'captured' && order_row($conn, 'ORD-AP')['status'] === 'captured');
 ok('approved again -> already, no 2nd capture', palette_webhook($conn, HDRS, ev('CHECKOUT.ORDER.APPROVED', $appr)) === 'already'
     && count(calls_to('POST', '/v2/checkout/orders/ORD-AP/capture')) === 1);
+make_order($conn, 'ORD-APP');
+$pendAp = pp_completed('ORD-APP');
+$pendAp['purchase_units'][0]['payments']['captures'][0]['status'] = 'PENDING';
+$GLOBALS['pp_routes']['POST /v2/checkout/orders/ORD-APP/capture'] = ['status' => 201, 'json' => $pendAp];
+$r = palette_webhook_response($conn, HDRS, ev('CHECKOUT.ORDER.APPROVED', ['id' => 'ORD-APP', 'status' => 'APPROVED', 'purchase_units' => [['custom_id' => cid($conn, 'ORD-APP')]]]));
+ok('approved with a PENDING capture -> 200 pending, order still created', $r === [200, 'pending'] && order_row($conn, 'ORD-APP')['status'] === 'created');
 ok('approved unknown palette order', palette_webhook($conn, HDRS, ev('CHECKOUT.ORDER.APPROVED', ['id' => 'ORD-ZZ', 'purchase_units' => [['custom_id' => 'palette:1']]])) === 'unknown order');
 
 // ---- REFUNDED / REVERSED revoke

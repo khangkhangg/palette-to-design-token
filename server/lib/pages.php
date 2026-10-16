@@ -22,7 +22,7 @@ const PALETTE_US_STATES = [
 ];
 // Strings checkout.js needs at runtime.
 const PALETTE_SCRIPT_STRINGS = ['err_email', 'err_paused', 'err_consent', 'err_paypal', 'err_retry', 'err_csrf', 'co_err_region', 'co_err_network',
-    'co_err_confirm', 'co_load_failed', 'co_copy', 'co_copied', 'co_copy_failed', 'co_ext_ok', 'co_ext_paste', 'co_emailed', 'api_resend_ok', 'acct_added'];
+    'co_err_confirm', 'co_load_failed', 'co_copy', 'co_copied', 'co_copy_failed', 'co_ext_ok', 'co_ext_paste', 'co_emailed', 'co_key_emailed', 'api_resend_ok', 'acct_added'];
 
 // ?lang= when it is one of the 7; else the best Accept-Language match; else en.
 // The escaped string with {name} placeholders replaced by trusted HTML.
@@ -295,12 +295,14 @@ function palette_render_account(array $ctx): string
     $lang = palette_page_lang($query, (string)($ctx['accept_language'] ?? ''));
     $keep = palette_page_keep($query);
     $t = fn(string $k) => palette_h(palette_t($lang, $k));
-    $uid = palette_session_user(is_array($ctx['session'] ?? null) ? $ctx['session'] : []);
+    $session = is_array($ctx['session'] ?? null) ? $ctx['session'] : [];
+    $uid = palette_session_user($session);
 
     $head = '<div class="page-head"><h1>' . $t('acct_title') . '</h1><p class="lead">' . $t('acct_lead') . '</p></div>';
     if ($uid === 0) {
-        $target = PALETTE_BASE . '/account' . (isset($keep['key']) ? '?key=' . $keep['key'] : '');
-        $login = '/companies/?auth=login&redirect=' . str_replace('%2F', '/', rawurlencode($target));
+        // The key waits in the session, not in the login redirect URL (companies pages carry analytics).
+        if (isset($keep['key'])) $_SESSION['palette_pending_key'] = $keep['key'];
+        $login = '/companies/?auth=login&redirect=' . PALETTE_BASE . '/account';
         $body = '<section class="card signin">'
             . '<div class="signin-icon">' . palette_icon('user', 22) . '</div>'
             . '<p>' . $t('acct_signin_text') . '</p>'
@@ -317,7 +319,9 @@ function palette_render_account(array $ctx): string
                 . '<button type="button" class="btn btn-quiet btn-sm" data-copy="' . palette_h($k['key']) . '">' . palette_icon('copy', 14) . '<span>' . $t('co_copy') . '</span></button>'
                 . '</li>';
         }
-        $prefill = is_string($query['key'] ?? null) ? mb_substr(trim($query['key']), 0, 40) : '';
+        $pending = is_string($session['palette_pending_key'] ?? null) ? palette_normalise_key($session['palette_pending_key']) : null;
+        unset($_SESSION['palette_pending_key']);
+        $prefill = is_string($query['key'] ?? null) ? mb_substr(trim($query['key']), 0, 40) : ($pending ?? '');
         $body = '<section class="card">' . ($rows !== '' ? '<ul class="keys">' . $rows . '</ul><p class="copy-status" id="copy-status" role="status"></p>' : '<p class="empty">' . palette_icon('key', 18) . $t('acct_none') . '</p>') . '</section>'
             . '<form id="claim" class="card claim" novalidate>'
             . '<h2>' . $t('acct_add_title') . '</h2>'
@@ -342,7 +346,7 @@ function palette_render_privacy(array $ctx): string
     $t = fn(string $k) => palette_h(palette_t($lang, $k));
 
     $sections = '';
-    foreach (['reads' => 'eye', 'stores' => 'hdd', 'sends' => 'send', 'pay' => 'card', 'email' => 'mail', 'track' => 'shield'] as $k => $icon) {
+    foreach (['reads' => 'eye', 'stores' => 'hdd', 'sends' => 'send', 'server' => 'globe', 'pay' => 'card', 'email' => 'mail', 'track' => 'shield'] as $k => $icon) {
         $sections .= '<section class="policy-item"><span class="policy-icon">' . palette_icon($icon, 18) . '</span><div>'
             . '<h2>' . $t('priv_' . $k . '_h') . '</h2><p>' . $t('priv_' . $k) . '</p></div></section>';
     }
