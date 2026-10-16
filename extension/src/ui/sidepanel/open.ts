@@ -1,11 +1,23 @@
 export type PanelView = 'system' | 'export';
 
-/** Opens the side panel on `view` for the active tab. Call straight from a click handler (needs the user gesture). */
-export async function openSidePanel(view: PanelView): Promise<void> {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab || tab.id === undefined) return;
-  await chrome.sidePanel.setOptions({ tabId: tab.id, path: `sidepanel.html?view=${view}`, enabled: true });
-  await chrome.sidePanel.open({ tabId: tab.id });
+export async function activeTabId(): Promise<number | null> {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    return tab?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Opens the side panel on `view`. Call straight from a click handler with a tabId resolved earlier:
+ * setOptions is not awaited and open is the first awaited call, so the user gesture is still live.
+ */
+export async function openSidePanel(tabId: number, view: PanelView): Promise<void> {
+  const options = chrome.sidePanel.setOptions({ tabId, path: `sidepanel.html?view=${view}`, enabled: true });
+  options.catch(() => {});
+  await chrome.sidePanel.open({ tabId });
+  await options;
 }
 
 export function viewFromSearch(search: string): PanelView {

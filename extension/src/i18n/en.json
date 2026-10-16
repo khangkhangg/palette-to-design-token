@@ -52,7 +52,8 @@
     "failedTitle": "Couldn't scan this page",
     "failedBody": "Something went wrong while reading the page. Reload it, then retry.",
     "retry": "Retry",
-    "openFullView": "Open full view"
+    "openFullView": "Open full view",
+    "openFailed": "Couldn't open the full view."
   },
   "type": {
     "fonts": "Fonts",

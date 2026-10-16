@@ -363,3 +363,4 @@ body.sidepanel, body.sidepanel #app { block-size: 100vh; }
 .sp-soon { margin: 0; font-size: 14px; color: var(--ink-2); }
 .sp .status, .sp .empty { flex-grow: 1; }
 .sp .btn-small { flex: 0 0 auto; }
+.header + .note { margin-inline: 16px; }

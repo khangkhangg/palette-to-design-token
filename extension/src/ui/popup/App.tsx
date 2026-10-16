@@ -8,7 +8,7 @@ import { Icon } from '../components/Icon';
 import { Tabs } from '../components/Tabs';
 import { plural, renderedLang, resolveLang, setLang, t } from '../i18n';
 import { applyTheme } from '../theme';
-import { openSidePanel } from '../sidepanel/open';
+import { activeTabId, openSidePanel, type PanelView } from '../sidepanel/open';
 import { ColoursTab, orderedColours, useCopy } from './ColoursTab';
 import { ContrastTab } from './ContrastTab';
 import { SpacingTab } from './SpacingTab';
@@ -26,13 +26,13 @@ export interface AppProps {
   onExport?(tokens: Tokens, settings: Settings): void;
 }
 
-const openPanel = (view: 'system' | 'export') => { void openSidePanel(view).catch(() => {}); };
-
-export function App({ onExport = () => openPanel('export') }: AppProps) {
+export function App({ onExport }: AppProps) {
   const [settings, setLocal] = useState<Settings | null>(null);
   const [lang, setLangState] = useState('en');
   const [state, setState] = useState<State>({ kind: 'scanning' });
   const [tab, setTab] = useState<string>('colours');
+  const [tabId, setTabId] = useState<number | null>(null);
+  const [panelError, setPanelError] = useState(false);
   const { copied, copy } = useCopy();
 
   const scan = async () => {
@@ -43,6 +43,19 @@ export function App({ onExport = () => openPanel('export') }: AppProps) {
       setState({ kind: 'ready', tokens });
     } catch (e) {
       setState({ kind: 'error', reason: e instanceof ScanError && e.reason === 'restricted' ? 'restricted' : 'failed' });
+    }
+  };
+
+  useEffect(() => { void activeTabId().then(setTabId); }, []);
+
+  const openPanel = (view: PanelView) => {
+    setPanelError(false);
+    const fail = (cause?: unknown) => { console.error('Could not open the side panel', cause); setPanelError(true); };
+    if (tabId === null) return fail();
+    try {
+      openSidePanel(tabId, view).catch(fail);
+    } catch (e) {
+      fail(e);
     }
   };
 
@@ -102,6 +115,7 @@ export function App({ onExport = () => openPanel('export') }: AppProps) {
         onRescan={scan}
         onOpenFull={() => openPanel('system')}
       />
+      {panelError && <p class="note" role="status"><Icon name="alert" size={14} /><span>{t('popup.openFailed')}</span></p>}
       {state.kind === 'scanning' && (
         <div class="status" role="status">
           <span class="spinner" aria-hidden="true" />
@@ -142,7 +156,7 @@ export function App({ onExport = () => openPanel('export') }: AppProps) {
               <Icon name={copied === 'list' ? 'check' : 'copy'} />
               {copied === 'list' ? t('colours.copied') : t('popup.copyHexList')}
             </button>
-            <button type="button" class="btn btn-primary" onClick={() => onExport(tokens, settings)}>
+            <button type="button" class="btn btn-primary" onClick={() => (onExport ?? (() => openPanel('export')))(tokens, settings)}>
               {t('popup.exportTokens')}
               {!settings.pro && <span class="badge">{t('popup.pro')}</span>}
             </button>

@@ -72,6 +72,7 @@ export function App({ initialView = viewFromSearch(location.search) }: AppProps)
     })();
     const stop = onSettingsChange((s) => {
       applyTheme(s.theme);
+      setLang(resolveLang(s.lang, navigator.language));
       setLocal(s);
     });
     return () => { live = false; stop(); };

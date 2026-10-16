@@ -6,6 +6,7 @@ import { EMPTY_TOKENS } from '../../src/model/tokens';
 import { ScanError } from '../../src/scan';
 import type { Settings } from '../../src/store';
 import { App as PopupApp } from '../../src/ui/popup/App';
+import { addDictionary } from '../../src/ui/i18n';
 import { App } from '../../src/ui/sidepanel/App';
 
 const mocks = vi.hoisted(() => ({
@@ -168,6 +169,17 @@ describe('side panel App', () => {
     expect((await screen.findAllByText('#1F5E4B')).length).toBeGreaterThan(0);
   });
 
+  it('follows language changes made elsewhere', async () => {
+    mocks.listScans.mockResolvedValue([brewline()]);
+    render(<App />);
+    await screen.findAllByText('#1F5E4B');
+    addDictionary('es', { panel: { title: 'Sistema de diseño' } });
+    expect(screen.getByText('Design system')).toBeTruthy();
+    act(() => mocks.listeners.forEach((l) => l({ ...mocks.settings, lang: 'es' })));
+    expect(screen.getByText('Sistema de diseño')).toBeTruthy();
+    expect(document.documentElement.lang).toBe('es');
+  });
+
   it('follows theme and plan changes made elsewhere via onSettingsChange', async () => {
     mocks.listScans.mockResolvedValue([brewline()]);
     mocks.settings = { ...mocks.settings, theme: 'light' };
@@ -182,18 +194,49 @@ describe('side panel App', () => {
 });
 
 describe('popup opens the side panel', () => {
-  it('Open full view opens the system view for the active tab', async () => {
+  const clickWhenReady = async (name: string | RegExp) => {
+    const btn = await screen.findByRole('button', { name });
+    await waitFor(() => expect(tabsQuery).toHaveBeenCalled());
+    await act(async () => { await Promise.resolve(); });
+    tabsQuery.mockClear();
+    fireEvent.click(btn);
+  };
+
+  it('Open full view opens the system view using the cached tab, inside the click', async () => {
     render(<PopupApp />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Open full view' }));
-    await waitFor(() => expect(sidePanel.open).toHaveBeenCalledWith({ tabId: 7 }));
+    await clickWhenReady('Open full view');
+    // synchronous: no awaited tabs.query before open, setOptions not awaited before open
+    expect(tabsQuery).not.toHaveBeenCalled();
+    expect(sidePanel.open).toHaveBeenCalledWith({ tabId: 7 });
     expect(sidePanel.setOptions).toHaveBeenCalledWith({ tabId: 7, path: 'sidepanel.html?view=system', enabled: true });
     expect(sidePanel.setOptions.mock.invocationCallOrder[0]).toBeLessThan(sidePanel.open.mock.invocationCallOrder[0]);
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
   it('Export tokens opens the export view', async () => {
     render(<PopupApp />);
-    fireEvent.click(await screen.findByRole('button', { name: /Export tokens/ }));
-    await waitFor(() => expect(sidePanel.open).toHaveBeenCalledWith({ tabId: 7 }));
+    await clickWhenReady(/Export tokens/);
+    expect(sidePanel.open).toHaveBeenCalledWith({ tabId: 7 });
     expect(sidePanel.setOptions).toHaveBeenCalledWith({ tabId: 7, path: 'sidepanel.html?view=export', enabled: true });
+  });
+
+  it('tells the user when the panel fails to open', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    sidePanel.open.mockRejectedValue(new Error('gesture'));
+    render(<PopupApp />);
+    await clickWhenReady('Open full view');
+    expect((await screen.findByRole('status')).textContent).toContain("Couldn't open the full view.");
+    expect(err).toHaveBeenCalled();
+    err.mockRestore();
+  });
+
+  it('tells the user when there is no active tab', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    tabsQuery.mockResolvedValue([]);
+    render(<PopupApp />);
+    await clickWhenReady('Open full view');
+    expect((await screen.findByRole('status')).textContent).toContain("Couldn't open the full view.");
+    expect(sidePanel.open).not.toHaveBeenCalled();
+    err.mockRestore();
   });
 });
