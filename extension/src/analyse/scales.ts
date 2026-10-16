@@ -30,7 +30,7 @@ export function analyseType(samples: TextSample[]): { fonts: Tokens['fonts']; ty
 
   const groups = new Map<string, Group>();
   for (const s of valid) {
-    const size = Math.round(s.sizePx * 2) / 2;
+    const size = s.sizePx;
     const key = `${s.family}|${size}|${s.weight}`;
     let g = groups.get(key);
     if (!g) { g = { family: s.family, size, weight: s.weight, chars: 0, bodyChars: 0, lh: new Map() }; groups.set(key, g); }

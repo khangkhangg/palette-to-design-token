@@ -48,6 +48,20 @@ describe('analyseType', () => {
     const { fonts } = analyseType([...page(), t({ sizePx: 48, chars: 400, heading: true, family: serif }), t({ sizePx: 14, chars: 50, family: mono, mono: true })]);
     expect(fonts).toEqual([{ name: 'body', family: HN }, { name: 'heading', family: serif }, { name: 'mono', family: mono }]);
   });
+  it('reports the raw size of a lone sample', () => {
+    expect(analyseType([t({ sizePx: 15.7, chars: 10 })]).type[0].sizePx).toBe(15.7);
+  });
+  it('does not merge sizes more than 0.5 apart', () => {
+    const { type } = analyseType([t({ sizePx: 15.7, chars: 100 }), t({ sizePx: 16.3, chars: 50 })]);
+    expect(type.map((x) => x.sizePx)).toEqual([16.3, 15.7]);
+  });
+  it('ignores zero/negative sizes and zero-char samples', () => {
+    const { type } = analyseType([t({ sizePx: 0, chars: 50 }), t({ sizePx: -4, chars: 50 }), t({ sizePx: 20, chars: 0 }), t({ sizePx: 16, chars: 10 })]);
+    expect(type.map((x) => [x.name, x.sizePx])).toEqual([['body', 16]]);
+  });
+  it('lineHeightPx is null when all null', () => {
+    expect(analyseType([t({ sizePx: 16, chars: 10 })]).type[0].lineHeightPx).toBeNull();
+  });
   it('empty input', () => {
     expect(analyseType([])).toEqual({ fonts: [], type: [] });
   });
