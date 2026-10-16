@@ -1,6 +1,7 @@
-# Palette to Design Token — design
+# Site to Design Token — design
 
-Date: 2026-10-16 · Status: draft for review · Mockups: https://claude.ai/artifact/XmJqpKxSAe3W8qDo4e4anH
+Date: 2026-10-16 · Status: approved 2026-10-16 · Mockups: https://claude.ai/artifact/XmJqpKxSAe3W8qDo4e4anH
+Repo: https://github.com/khangkhangg/palette-to-design-token
 
 ## 1. What we are building
 
@@ -29,32 +30,21 @@ straight into code.
 | UI | Popup (quick) **and** side panel (full); light and dark, user switchable |
 | Languages | 7 most-spoken: English, 中文 (Simplified), हिन्दी, Español, العربية (RTL), Français, বাংলা |
 | Refunds | None once purchased; buyer agrees at checkout |
-| Source | `C:\Projects\Palette Extension` |
+| Name | **Site to Design Token** (not "Palette": that is the competitor's brand) |
+| Source | `C:\Projects\Palette Extension` → github.com/khangkhangg/palette-to-design-token — extension **and** server code |
+| Tooling | Node 24 LTS (installed 2026-10-16 via winget) |
 
-## 3. Open decisions — need the owner before implementation
+## 3. Open decision
 
-1. **The name.** "Palette" is the competitor's brand (Site Palette, palette.site).
-   A name built on it invites a Chrome Web Store rejection for misleading
-   branding, a trademark complaint, and users confusing the two in search.
-   Recommendation: keep "to Design Token" and drop "Palette" — e.g.
-   **"Site to Design Token"** or **"Tokenize: Site to Design Tokens"**. Owner decides.
-2. **California sales tax.** California does not tax software delivered
-   electronically (no tangible copy — CDTFA Regulation 1502), and a California
-   rate cannot apply to a buyer in Vietnam or Germany. Charging it would collect
-   tax that is not owed, which the seller then has to refund or remit.
-   Recommendation: **no tax line; the checkout says "Price includes any
-   applicable taxes"**. Confirm with an accountant. If the owner still wants it:
-   7.25% state base on buyers whose PayPal address is in California only →
-   $1.60, computed server-side after PayPal returns the payer's address.
-3. **Where the server code lives.** The checkout and license API must run inside
-   the companies app to use its PayPal code, settings and database. Recommendation:
-   the extension lives in `C:\Projects\Palette Extension`; the server additions
-   are committed to the **companies repo** (`khangkhangg/vietnam-directory`) on a
-   branch from `main` (it is currently on `feat/user-admin`). A copy in the
-   extension folder would drift.
-4. **Node.js on this PC.** Building and testing the extension needs Node (none
-   installed per `C:\Projects\CLAUDE.md`). Plan: install Node 22 LTS with
-   `winget install OpenJS.NodeJS.LTS`.
+**Tax (affects slice 4 only).** The owner wants tax collected because all
+revenue is taxed as personal income. Those are different taxes: income tax is
+owed on the $1.49 whether or not a tax line is shown, and money collected as
+"sales tax" is not revenue — it must be paid over to the state, and California
+does not tax electronically delivered software (CDTFA Regulation 1502), so
+there is nothing to pay it over to. If the goal is to cover income tax, raise
+the price (e.g. $1.99). To be confirmed with the owner and an accountant before
+slice 4; slices 1–3 do not depend on it. If a California line is kept: 7.25% on
+buyers whose PayPal address is in California only, computed server-side.
 
 ## 4. Scope
 
@@ -189,7 +179,7 @@ URL with `<a download>`.
    `api/palette.php?action=create` (email) → PayPal order for **1.49 USD**.
 3. Buyer approves in PayPal → page calls `action=capture` → server captures
    (existing `pp_capture` path), then **issues a license**: key
-   `PDT-XXXX-XXXX-XXXX` (Crockford base32, 60 bits random), stored, emailed.
+   `SDT-XXXX-XXXX-XXXX` (Crockford base32, 60 bits random), stored, emailed.
 4. The page shows the key and sends it to the extension with
    `chrome.runtime.sendMessage(EXTENSION_ID, {type: 'license', key})`
    (allowed by `externally_connectable`). If the extension does not answer, the
@@ -206,28 +196,50 @@ Re-check: the extension re-verifies at most once every 30 days when online; a
 network failure keeps Pro on. A revoked key (chargeback) turns Pro off at the
 next check.
 
-### 7.2 Server (companies repo)
+### 7.2 Server (`server/` in this repo, deployed beside companies)
 
-- `palette/checkout.php` → served at `/palette/checkout` (nginx rewrite if the
-  existing extensionless handling does not cover it; edit
-  `sites-enabled/vietnamcos.com` on spo2x, which is a real file).
-- `palette/account.php` → claim / view keys for a signed-in user.
-- `api/palette.php` → `create`, `capture`, `verify`, `resend`, `claim`. CORS for
-  `verify` allows `chrome-extension://<EXTENSION_ID>` only.
-- `includes/palette.php` → licenses, key generation, mail.
-- `includes/paypal.php` changes:
-  - `paypal_orders.kind` enum gains `'palette'` (ALTER in `pp_migrate`);
-    `company_id`/`user_id` are 0 for these orders; email stored on the license.
-  - new `pp_create_palette_order(conn, email)` — fixed USD amount, not VND
-    converted; `custom_id = "palette:<license_request_id>"`.
-  - `pp_fulfil` gains a `palette` branch → issue license (idempotent: the
-    claim-first UPDATE already guarantees once).
-  - The existing webhook needs no change — it already captures/fulfils any
-    stored order, so a closed browser still gets its key by email.
-- Table `palette_licenses`: `id, license_key (unique), email, user_id NULL,
-  order_id, lang, created_at, revoked_at NULL`.
-- Rate limits: `verify` 30/min/IP, `resend` 3/hour/email and 10/hour/IP.
+The server code lives in this repo under `server/` and is deployed to
+`/var/www/duykhang/companies/palette/` on spo2x, so it is served at
+`vietnamcos.com/palette/…` from the companies docroot. **It changes no
+companies file.** It `require`s companies' `config.php` (DB connection, session),
+`includes/functions.php` (CSRF, mail) and `includes/paypal.php`, and uses only
+its generic helpers: `pp_settings`, `pp_ready`, `pp_api`, `pp_token`, `pp_http`
+(the test stub hook). That coupling is listed in `server/README.md`; a change
+to those signatures in companies breaks Palette.
+
+```
+server/
+  checkout.php      /palette/checkout (nginx rewrite if extensionless .php is not served)
+  account.php       claim / view keys for a signed-in vietnamcos user
+  api.php           create, capture, verify, resend, claim
+  webhook.php       PayPal webhook for Palette orders
+  setup.php         admin-only: registers webhook.php with PayPal, stores its id
+  lib/palette.php   orders, licenses, key generation, mail, rate limits
+  lib/i18n/*.php    checkout page strings, 7 languages
+  migrate.php       creates the tables (run on deploy)
+  tests/
+```
+
+- **Orders:** own table `palette_orders` (`order_id` unique, `email`,
+  `amount_usd`, `tax_usd`, `status` created|captured|failed, `capture_id`,
+  `consent_at`, `created_at`, `captured_at`) — `paypal_orders` is untouched.
+  Amount fixed at 1.49 USD (no VND conversion). `custom_id = "palette:<id>"`.
+- **Capture** mirrors `pp_capture`/`pp_fulfil`: capture server-side, check
+  amount and currency, claim the row with `UPDATE … WHERE status='created'`
+  (so page and webhook fulfil once), then issue the license and email it.
+- **Webhook:** a PayPal app can hold several webhooks, so Palette registers its
+  own URL (`/palette/webhook.php`) from `setup.php` and keeps its id in
+  `admin_settings` key `palette`. Events also reach the companies webhook, which
+  answers "unknown order" for Palette orders — harmless. Signature verified with
+  PayPal as companies does.
+- **Licenses:** table `palette_licenses`: `id, license_key (unique), email,
+  user_id NULL, order_id, lang, created_at, revoked_at NULL`. Key format
+  `SDT-XXXX-XXXX-XXXX`.
+- **CORS** for `verify` allows `chrome-extension://<EXTENSION_ID>` only.
+- **Rate limits:** `verify` 30/min/IP, `resend` 3/hour/email and 10/hour/IP.
 - The checkout page is translated into the same 7 languages (`?lang=`).
+- **Deploy:** copy `server/` to spo2x (per `courses/docs/INFRASTRUCTURE.md`),
+  run `migrate.php`, then `setup.php` once per PayPal mode (sandbox, live).
 
 ## 8. Price and fees
 
@@ -265,8 +277,10 @@ remain possible; a chargeback revokes the key.
 - **E2E (Playwright, unpacked extension in Chromium):** scan fixture → popup
   shows roles; export each format; free user hits the Pro gate; activate a key
   (server mocked); theme switch persists; Arabic layout mirrors.
-- **Server (PHP tests in companies, existing `pp_http` stub pattern as in
-  `tests/paypal-test.php`):** create → capture → license issued once; webhook
+- **Server (PHP tests in `server/tests/`, stubbing PayPal through
+  `$GLOBALS['pp_http']` as companies' `tests/paypal-test.php` does; PHP is not
+  installed on this PC, so they run on the spo2x test environment or after a
+  local `winget install PHP.PHP.8.3`):** create → capture → license issued once; webhook
   path; amount mismatch rejected; verify/resend/claim; rate limits. Then the
   PayPal **sandbox** end-to-end on the spo2x test environment before live.
 
