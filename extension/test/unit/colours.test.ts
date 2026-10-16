@@ -65,6 +65,13 @@ describe('analyseColours', () => {
     expect(analyseColours([])).toEqual([]);
   });
 
+  it('has no primary or accent when no chromatic colour is interactive or in nav', () => {
+    const t = analyseColours([s('#FFFFFF', 'bg', 500_000), s('#A9CDF2', 'bg', 500_000), s('#1B1A17', 'text', 3000)]);
+    expect(t.map((x) => x.role)).not.toContain('primary');
+    expect(t.map((x) => x.role)).not.toContain('accent');
+    expect(t.find((x) => x.hex === '#A9CDF2')?.role).toBe('other');
+  });
+
   it('weights sum to at most 1 and names are unique', () => {
     const t = analyseColours(page());
     expect(t.reduce((a, x) => a + x.weight, 0)).toBeLessThanOrEqual(1 + 1e-9);

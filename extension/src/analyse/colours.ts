@@ -83,6 +83,7 @@ function cluster(prepared: Prepared[]): Cluster[] {
 const dominantKind = (c: Cluster): ColourKind =>
   (Object.keys(c.kinds) as ColourKind[]).reduce((best, k) => (c.kinds[k] > c.kinds[best] ? k : best), 'bg');
 
+/** Output order: primary, accent, primary-n, other chromatic, surface (light to dark), text, border, other; by weight within a role. */
 export function analyseColours(samples: ColourSample[]): ColourToken[] {
   const clusters = cluster(prepare(samples)).filter((c) => c.weight >= MIN_WEIGHT || c.interactive);
   if (!clusters.length) return [];
@@ -97,15 +98,17 @@ export function analyseColours(samples: ColourSample[]): ColourToken[] {
 
   const chromatic = clusters.filter((c) => c.C > CHROMATIC);
   const primary = [...chromatic].sort((a, b) => b.actionWeight - a.actionWeight || byWeight(a, b))[0];
-  let accent: Cluster | undefined;
-  if (primary) {
+  if (primary && primary.actionWeight > 0) {
     assign(primary, 'primary');
     const far = chromatic.filter((c) => c !== primary && hueGap(c.h, primary.h) > ACCENT_HUE_GAP);
-    accent = [...far].sort((a, b) => b.interactiveWeight - a.interactiveWeight || byWeight(a, b))[0];
+    const accent = [...far].sort((a, b) => b.interactiveWeight - a.interactiveWeight || byWeight(a, b))[0];
     if (accent) assign(accent, 'accent');
     const rest = chromatic.filter((c) => c !== primary && c !== accent).sort(byWeight);
     for (const c of rest.filter((c) => hueGap(c.h, primary.h) <= ACCENT_HUE_GAP)) assign(c, 'primary');
     for (const c of rest.filter((c) => hueGap(c.h, primary.h) > ACCENT_HUE_GAP)) assign(c, 'other');
+  } else {
+    // No interactive or nav use: nothing qualifies as primary or accent.
+    for (const c of [...chromatic].sort(byWeight)) assign(c, 'other');
   }
 
   const neutral = clusters.filter((c) => c.C <= CHROMATIC);
