@@ -4,8 +4,7 @@
 function palette_mail(string $to, string $subject, string $html): bool
 {
     $to = strtolower(trim($to));
-    if (preg_match('/[
-]/', $to) || !filter_var($to, FILTER_VALIDATE_EMAIL)) return false;
+    if (preg_match('/[\r\n]/', $to) || !filter_var($to, FILTER_VALIDATE_EMAIL)) return false;
     // Test capture; a test that stubs $GLOBALS['pp_http'] exercises the real Resend path instead.
     if (defined('PALETTE_NO_MAIL') && !isset($GLOBALS['pp_http'])) {
         $GLOBALS['palette_sent'][] = ['to' => $to, 'subject' => $subject, 'html' => $html];
