@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Taskly - Team task board</title>
+<style>
+  /* A slice of Tailwind v3 output (preflight + the utilities this page uses), as a Tailwind build emits it:
+     colours as rgb(r g b / var(--tw-*-opacity)), shadows through --tw-shadow, preflight borders 0 solid.
+     Palette (expected.json):
+     primary  #4F46E5  indigo-600: buttons, links, nav
+     accent   #F59E0B  amber-500: "Upgrade" button
+     surface  #FFFFFF  white, surface-2 #F9FAFB gray-50 page band
+     text     #4B5563  gray-600 (most characters: card descriptions); text-2 #111827 gray-900 titles
+     border   #E5E7EB  gray-200 (border utilities)
+     Spacing: 4px base (p-3 12px, px-5 20px, gap-3 12px ...: not 70% multiples of 8).
+     Radius: rounded-md 6px, rounded-lg 8px, rounded-full 9999px. */
+  *, ::before, ::after { box-sizing: border-box; border-width: 0; border-style: solid; border-color: #e5e7eb; --tw-shadow: 0 0 #0000; --tw-ring-shadow: 0 0 #0000; --tw-ring-offset-shadow: 0 0 #0000; }
+  html { line-height: 1.5; font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"; }
+  body { margin: 0; line-height: inherit; }
+  h1, h2, h3, p { margin: 0; font-size: inherit; font-weight: inherit; }
+  a { color: inherit; text-decoration: inherit; }
+  button { font-family: inherit; font-size: 100%; font-weight: inherit; line-height: inherit; color: inherit; margin: 0; padding: 0; background-color: transparent; background-image: none; cursor: pointer; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  svg { display: block; vertical-align: middle; }
+
+  .mx-auto { margin-left: auto; margin-right: auto; }
+  .max-w-6xl { max-width: 72rem; }
+  .flex { display: flex; } .grid { display: grid; } .block { display: block; }
+  .grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .items-center { align-items: center; } .justify-between { justify-content: space-between; }
+  .gap-3 { gap: 0.75rem; } .gap-5 { gap: 1.25rem; } .gap-2 { gap: 0.5rem; }
+  .h-5 { height: 1.25rem; } .w-5 { width: 1.25rem; } .h-8 { height: 2rem; } .w-8 { width: 2rem; }
+  .p-5 { padding: 1.25rem; } .px-5 { padding-left: 1.25rem; padding-right: 1.25rem; } .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+  .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; } .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; } .py-12 { padding-top: 3rem; padding-bottom: 3rem; }
+  .mt-1 { margin-top: 0.25rem; } .mt-3 { margin-top: 0.75rem; } .mb-5 { margin-bottom: 1.25rem; }
+  .rounded-md { border-radius: 0.375rem; } .rounded-lg { border-radius: 0.5rem; } .rounded-full { border-radius: 9999px; }
+  .border { border-width: 1px; } .border-b { border-bottom-width: 1px; }
+  .border-gray-200 { --tw-border-opacity: 1; border-color: rgb(229 231 235 / var(--tw-border-opacity)); }
+  .bg-white { --tw-bg-opacity: 1; background-color: rgb(255 255 255 / var(--tw-bg-opacity)); }
+  .bg-gray-50 { --tw-bg-opacity: 1; background-color: rgb(249 250 251 / var(--tw-bg-opacity)); }
+  .bg-indigo-600 { --tw-bg-opacity: 1; background-color: rgb(79 70 229 / var(--tw-bg-opacity)); }
+  .bg-amber-500 { --tw-bg-opacity: 1; background-color: rgb(245 158 11 / var(--tw-bg-opacity)); }
+  .text-white { --tw-text-opacity: 1; color: rgb(255 255 255 / var(--tw-text-opacity)); }
+  .text-gray-900 { --tw-text-opacity: 1; color: rgb(17 24 39 / var(--tw-text-opacity)); }
+  .text-gray-600 { --tw-text-opacity: 1; color: rgb(75 85 99 / var(--tw-text-opacity)); }
+  .text-indigo-600 { --tw-text-opacity: 1; color: rgb(79 70 229 / var(--tw-text-opacity)); }
+  .text-sm { font-size: 0.875rem; line-height: 1.25rem; } .text-lg { font-size: 1.125rem; line-height: 1.75rem; }
+  .text-3xl { font-size: 1.875rem; line-height: 2.25rem; }
+  .font-semibold { font-weight: 600; } .font-bold { font-weight: 700; }
+  .shadow-sm { --tw-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow); }
+  .shadow { --tw-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow); }
+</style>
+</head>
+<body class="bg-white text-gray-900">
+<header class="bg-white border-b border-gray-200">
+  <nav class="mx-auto max-w-6xl flex items-center justify-between px-5 py-3">
+    <a href="#" class="flex items-center gap-2 font-bold text-lg text-indigo-600">
+      <svg class="h-8 w-8" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5zm4 6l3 3 7-7-1.4-1.4L10 11.2 8.4 9.6 7 11z"/></svg>
+      Taskly
+    </a>
+    <ul class="flex items-center gap-5 text-sm font-semibold">
+      <li><a href="#boards" class="text-indigo-600">Boards</a></li>
+      <li><a href="#timeline" class="text-indigo-600">Timeline</a></li>
+      <li><a href="#reports" class="text-indigo-600">Reports</a></li>
+      <li><button type="button" class="rounded-md bg-amber-500 px-3 py-1 text-white shadow-sm">Upgrade</button></li>
+      <li><button type="button" class="rounded-md bg-indigo-600 px-3 py-1 text-white shadow-sm">New task</button></li>
+    </ul>
+  </nav>
+</header>
+<main class="bg-gray-50 py-12">
+  <div class="mx-auto max-w-6xl px-5">
+    <h1 class="text-3xl font-bold mb-5">Sprint 24</h1>
+    <div class="grid grid-cols-3 gap-5">
+      <section class="rounded-lg border border-gray-200 bg-white p-5 shadow">
+        <h2 class="font-semibold">To do</h2>
+        <ul class="mt-3">
+          <li class="mt-3 rounded-md border border-gray-200 px-3 py-3"><p class="text-sm font-semibold">Write the onboarding email</p><p class="mt-1 text-sm text-gray-600">Draft copy for the three-day welcome sequence and send it for review.</p></li>
+          <li class="mt-3 rounded-md border border-gray-200 px-3 py-3"><p class="text-sm font-semibold">Audit empty states</p><p class="mt-1 text-sm text-gray-600">List every screen that can be empty and what it should say.</p></li>
+        </ul>
+      </section>
+      <section class="rounded-lg border border-gray-200 bg-white p-5 shadow">
+        <h2 class="font-semibold">In progress</h2>
+        <ul class="mt-3">
+          <li class="mt-3 rounded-md border border-gray-200 px-3 py-3"><p class="text-sm font-semibold">Billing settings page</p><p class="mt-1 text-sm text-gray-600">Plan switcher, invoices list and the card update form.</p></li>
+          <li class="mt-3 rounded-md border border-gray-200 px-3 py-3"><p class="text-sm font-semibold">Fix timezone in reports</p><p class="mt-1 text-sm text-gray-600">Reports group by UTC day; they should use the workspace timezone.</p></li>
+        </ul>
+      </section>
+      <section class="rounded-lg border border-gray-200 bg-white p-5 shadow">
+        <h2 class="font-semibold">Done</h2>
+        <ul class="mt-3">
+          <li class="mt-3 rounded-md border border-gray-200 px-3 py-3"><p class="text-sm font-semibold">Keyboard shortcuts</p><p class="mt-1 text-sm text-gray-600">Press N for a new task and slash to search.</p></li>
+          <li class="mt-3 rounded-md border border-gray-200 px-3 py-3"><p class="text-sm font-semibold">Avatar uploads</p><p class="mt-1 text-sm text-gray-600">Square crop, then stored at two sizes.</p></li>
+        </ul>
+        <a href="#archive" class="mt-3 block text-sm font-semibold text-indigo-600">View archive</a>
+      </section>
+    </div>
+    <div class="mt-3 flex items-center gap-3">
+      <span class="h-8 w-8 rounded-full bg-indigo-600 text-white text-sm flex items-center" style="justify-content:center">MK</span>
+      <span class="h-8 w-8 rounded-full bg-indigo-600 text-white text-sm flex items-center" style="justify-content:center">JS</span>
+      <span class="text-sm text-gray-600">2 people on this board</span>
+    </div>
+  </div>
+</main>
+</body>
+</html>

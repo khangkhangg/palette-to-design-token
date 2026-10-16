@@ -1,0 +1,101 @@
+{
+  "color": {
+    "primary": {
+      "$type": "color",
+      "$value": "#1F5E4B"
+    },
+    "primary-2": {
+      "$type": "color",
+      "$value": "#2E7A63"
+    },
+    "accent": {
+      "$type": "color",
+      "$value": "#E0763A"
+    },
+    "surface": {
+      "$type": "color",
+      "$value": "#FFFDF8"
+    },
+    "surface-2": {
+      "$type": "color",
+      "$value": "#F3EEE4"
+    },
+    "text": {
+      "$type": "color",
+      "$value": "#1B1A17"
+    },
+    "text-2": {
+      "$type": "color",
+      "$value": "#5C574E"
+    },
+    "border": {
+      "$type": "color",
+      "$value": "#E4DDD0"
+    },
+    "accent-aa": {
+      "$type": "color",
+      "$value": "#B4501A"
+    }
+  },
+  "font": {
+    "body": {
+      "$type": "string",
+      "$value": "\"DM Sans\", sans-serif"
+    },
+    "heading": {
+      "$type": "string",
+      "$value": "Fraunces, serif"
+    }
+  },
+  "space": {
+    "1": {
+      "$type": "number",
+      "$value": 4
+    },
+    "2": {
+      "$type": "number",
+      "$value": 8
+    },
+    "3": {
+      "$type": "number",
+      "$value": 12
+    },
+    "4": {
+      "$type": "number",
+      "$value": 16
+    },
+    "5": {
+      "$type": "number",
+      "$value": 24
+    },
+    "6": {
+      "$type": "number",
+      "$value": 32
+    },
+    "7": {
+      "$type": "number",
+      "$value": 48
+    }
+  },
+  "radius": {
+    "sm": {
+      "$type": "number",
+      "$value": 4
+    },
+    "md": {
+      "$type": "number",
+      "$value": 10
+    },
+    "full": {
+      "$type": "number",
+      "$value": 9999
+    }
+  },
+  "$extensions": {
+    "com.figma": {
+      "modes": [
+        "Light"
+      ]
+    }
+  }
+}

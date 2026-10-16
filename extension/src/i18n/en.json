@@ -1,0 +1,237 @@
+{
+  "app": {
+    "name": "Site to Design Token"
+  },
+  "header": {
+    "subtitle": "{site} · {counts}",
+    "counts": "{colours} · {fonts}",
+    "colours_one": "{n} colour",
+    "colours_other": "{n} colours",
+    "fonts_one": "{n} font",
+    "fonts_other": "{n} fonts",
+    "rescan": "Re-scan page",
+    "settings": "Settings"
+  },
+  "settings": {
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "language": "Language",
+    "langEn": "English"
+  },
+  "tabs": {
+    "label": "Sections",
+    "colours": "Colours",
+    "type": "Type",
+    "spacing": "Spacing",
+    "contrast": "Contrast"
+  },
+  "roles": {
+    "primary": "Primary",
+    "accent": "Accent",
+    "surface": "Surface",
+    "text": "Text",
+    "border": "Border",
+    "other": "Other"
+  },
+  "colours": {
+    "copy": "Copy {hex}, {share} of colour use",
+    "copied": "Copied",
+    "copyFailed": "Couldn't copy",
+    "lessThanOne": "<1%",
+    "foundLittle": "This site uses few brand colours, so there is no clear primary or accent. Here is everything we found.",
+    "none": "No colours found on this page."
+  },
+  "popup": {
+    "scanning": "Scanning page…",
+    "copyHexList": "Copy hex list",
+    "exportTokens": "Export tokens",
+    "pro": "PRO",
+    "restrictedTitle": "This page can't be scanned",
+    "restrictedBody": "Browser pages and the Chrome Web Store block extensions. Open a regular website and try again.",
+    "noAccess": "Click the Site to Design Token icon on this page to scan it.",
+    "failedTitle": "Couldn't scan this page",
+    "failedBody": "Something went wrong while reading the page. Reload it, then retry.",
+    "retry": "Retry",
+    "openFullView": "Open full view",
+    "openFailed": "Couldn't open the full view."
+  },
+  "type": {
+    "fonts": "Fonts",
+    "scale": "Scale",
+    "empty": "No type styles found",
+    "emptyBody": "This page has no readable text styles.",
+    "fontRole": {
+      "body": "Body",
+      "heading": "Heading",
+      "mono": "Mono"
+    },
+    "sampleName": {
+      "display": "Display",
+      "h1": "Heading 1",
+      "h2": "Heading 2",
+      "h3": "Heading 3",
+      "h4": "Heading 4",
+      "body": "Body text",
+      "small": "Small text",
+      "caption": "Caption",
+      "xs": "Extra small"
+    },
+    "sample": "Aa {name}",
+    "meta": "{family} {weight} · {size}/{lineHeight}"
+  },
+  "spacing": {
+    "scale": "Spacing scale",
+    "radius": "Radius",
+    "shadow": "Shadow",
+    "base": "{n}px base",
+    "noBase": "No consistent base",
+    "empty": "No spacing found",
+    "emptyBody": "This page has no spacing, radius or shadow values to show.",
+    "px": "{n}px",
+    "full": "Full"
+  },
+  "contrast": {
+    "pass": "pass WCAG AA",
+    "fail": "fail, fix them",
+    "unknown": "need a manual check",
+    "empty": "No colour pairs found",
+    "emptyBody": "No text and background pairs could be read on this page.",
+    "imageOrGradient": "image or gradient",
+    "pairColours": "{fg} on {bg}",
+    "where": {
+      "body text": "Body text",
+      "headings": "Headings",
+      "links": "Links",
+      "buttons": "Buttons",
+      "other": "Other"
+    },
+    "grade": {
+      "AAA": "AAA",
+      "AA": "AA",
+      "AA-large": "AA large",
+      "fail": "Fails",
+      "unknown": "Check manually"
+    },
+    "ratio": "{ratio}:1",
+    "fixTitle": {
+      "body text": "Suggested fix for body text",
+      "headings": "Suggested fix for headings",
+      "links": "Suggested fix for links",
+      "buttons": "Suggested fix for the button",
+      "other": "Suggested fix"
+    },
+    "fixLocked": "Unlock to see the fix",
+    "unlock": "Unlock",
+    "before": "Before",
+    "after": "After",
+    "sampleButton": "Sample",
+    "fixedRatio": "Fixed ratio {ratio}:1",
+    "uses_one": "{n} use",
+    "uses_other": "{n} uses",
+    "noFix": "No automatic fix found — try a darker or lighter shade by hand."
+  },
+  "panel": {
+    "title": "Design system",
+    "scanned": "{site} · scanned {when}",
+    "viewOnly": "View only",
+    "colours": "Colours",
+    "colourRoles": "Colour roles",
+    "typography": "Typography",
+    "spacing": "Spacing",
+    "radius": "Radius",
+    "shadows": "Shadows",
+    "exportDesignSystem": "Export design system",
+    "exportFormats": "CSS · Tailwind · Figma · JSON · DESIGN.md for AI",
+    "back": "Back to design system",
+    "dismiss": "Dismiss",
+    "loading": "Reading this page…"
+  },
+  "export": {
+    "title": "Export tokens",
+    "proUnlocked": "Pro unlocked",
+    "format": "Format",
+    "formatLabel": "Export format",
+    "include": "Include",
+    "preview": "Preview",
+    "previewLabel": "Preview of {file}",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyFailed": "Couldn't copy",
+    "download": "Download {file}",
+    "tailwindVersion": "Tailwind version",
+    "v4": "v4",
+    "v3": "v3",
+    "formats": {
+      "md": {
+        "label": "DESIGN.md",
+        "sub": "for AI coding"
+      },
+      "css": {
+        "label": "CSS",
+        "sub": "variables"
+      },
+      "tailwind": {
+        "label": "Tailwind",
+        "sub": "theme config"
+      },
+      "figma": {
+        "label": "Figma",
+        "sub": "variables"
+      },
+      "json": {
+        "label": "JSON",
+        "sub": "W3C tokens"
+      },
+      "all": {
+        "label": "All",
+        "sub": ".zip bundle"
+      }
+    },
+    "parts": {
+      "colours": "Colours",
+      "typography": "Typography",
+      "spacing": "Spacing",
+      "radius": "Radius",
+      "shadows": "Shadows"
+    },
+    "zipSummary": "{count} files · {size} KB",
+    "zipBuilding": "Building the bundle…"
+  },
+  "unlock": {
+    "title": "Take the design system with you",
+    "price": "$1.49",
+    "priceNote": "once · yours forever",
+    "perks": {
+      "export": {
+        "title": "Export tokens",
+        "text": "as CSS, Tailwind, Figma or JSON"
+      },
+      "designMd": {
+        "title": "DESIGN.md",
+        "text": "so Claude, Cursor or Copilot builds on-brand"
+      },
+      "system": {
+        "title": "Full design system",
+        "text": "type, spacing, radius, shadows"
+      },
+      "contrast": {
+        "title": "Contrast fixes",
+        "text": "not just pass or fail"
+      },
+      "scans": {
+        "title": "Unlimited saved sites",
+        "text": "instead of the last 3"
+      }
+    },
+    "paypal": "Pay with PayPal",
+    "comingSoon": "Coming soon",
+    "alreadyPaid": "already paid?",
+    "keyLabel": "License key",
+    "keyPlaceholder": "SDT-XXXX-XXXX-XXXX",
+    "activate": "Activate",
+    "close": "Close",
+    "refund": "All sales are final. Because Pro unlocks instantly and costs $1.49, we do not offer refunds after purchase."
+  }
+}

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pipeline - Deploys</title>
+<style>
+  /* Palette (expected.json):
+     surface  #0D1117  page (most area, darkest), surface-2 #161B22 sidebar + top bar, surface-3 #21262D panels
+     text     #E6EDF3  body copy; text-2 #8B949E secondary
+     primary  #2F81F7  links, active nav item, "New deploy" button
+     accent   #F78166  "Roll back" button
+     border   #30363D  row separators and the sidebar rule: bottom / inline-end borders only
+     Spacing multiples of 4. Radius 6px. */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: #0D1117; height: 100%; }
+  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 14px; line-height: 20px; color: #E6EDF3; display: flex; }
+  a { color: #2F81F7; text-decoration: none; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: #8B949E; }
+
+  aside { width: 240px; background: #161B22; border-inline-end: 1px solid #30363D; padding: 16px 12px; }
+  aside .brand { font-weight: 600; font-size: 16px; padding: 8px 12px; margin-bottom: 16px; color: #E6EDF3; }
+  aside nav a { display: block; padding: 8px 12px; border-radius: 6px; color: #8B949E; }
+  aside nav a.active { color: #2F81F7; background: #21262D; }
+
+  main { flex: 1; display: flex; flex-direction: column; }
+  .top { height: 56px; background: #161B22; border-bottom: 1px solid #30363D; display: flex; align-items: center; padding: 0 24px; gap: 12px; }
+  .top h1 { font-size: 16px; font-weight: 600; margin-inline-end: auto; }
+  .btn { padding: 4px 12px; border-radius: 6px; font-weight: 600; font-family: inherit; font-size: 14px; line-height: 20px; border: 0; cursor: pointer; }
+  .btn-primary { background: #2F81F7; color: #0D1117; }
+  .btn-accent { background: #F78166; color: #0D1117; }
+
+  .content { padding: 24px; display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
+  .panel { background: #21262D; border-radius: 6px; padding: 16px; }
+  .panel h2 { font-size: 16px; line-height: 24px; margin-bottom: 12px; }
+  .row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #30363D; }
+  .row span { color: #8B949E; }
+  .stat { margin-bottom: 12px; }
+  .stat b { display: block; font-size: 24px; line-height: 32px; }
+  .stat span { color: #8B949E; }
+</style>
+</head>
+<body>
+<aside>
+  <div class="brand">Pipeline</div>
+  <nav>
+    <a class="active" href="#deploys">Deploys</a>
+    <a href="#builds">Builds</a>
+    <a href="#environments">Environments</a>
+    <a href="#secrets">Secrets</a>
+    <a href="#settings">Settings</a>
+  </nav>
+</aside>
+<main>
+  <div class="top">
+    <h1>Deploys</h1>
+    <button class="btn btn-accent" type="button">Roll back</button>
+    <button class="btn btn-primary" type="button">New deploy</button>
+  </div>
+  <div class="content">
+    <section class="panel">
+      <h2>Recent deploys</h2>
+      <div class="row"><a href="#d1">api-gateway to production</a><span>2 minutes ago by mira</span></div>
+      <div class="row"><a href="#d2">web-frontend to staging</a><span>14 minutes ago by joel</span></div>
+      <div class="row"><a href="#d3">billing-worker to production</a><span>1 hour ago by mira</span></div>
+      <div class="row"><a href="#d4">search-indexer to production</a><span>3 hours ago by sam</span></div>
+      <div class="row"><a href="#d5">web-frontend to production</a><span>yesterday by joel</span></div>
+      <div class="row"><a href="#d6">auth-service to staging</a><span>yesterday by priya</span></div>
+      <p style="margin-top: 12px">Deploys run the pipeline defined in <code>.pipeline/deploy.yml</code> on the target branch, then promote the build once health checks pass on every instance.</p>
+    </section>
+    <section class="panel">
+      <h2>This week</h2>
+      <div class="stat"><b>48</b><span>deploys</span></div>
+      <div class="stat"><b>2</b><span>roll backs</span></div>
+      <div class="stat"><b>6 min</b><span>median deploy time</span></div>
+      <p>Production has been healthy for 6 days. The last incident was resolved by rolling back billing-worker.</p>
+    </section>
+  </div>
+</main>
+</body>
+</html>
