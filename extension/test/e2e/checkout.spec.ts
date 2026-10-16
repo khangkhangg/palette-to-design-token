@@ -376,3 +376,55 @@ test('product page fits a phone in a long-script language and in Arabic', async 
     expect(overflow, lang).toBe(false);
   }
 });
+
+test('landing: download, Get Pro to the checkout buy card, screenshots load, terms in the footer', async ({ page }) => {
+  await seed(page);
+  await fakePayPal(page);
+  const res = await page.goto('/palette/?lang=en');
+  expect(res!.headers()['content-security-policy']).toContain("default-src 'self'");
+  await expect(page.getByRole('link', { name: 'Download the extension (free)' })).toHaveAttribute('href', '/palette/download/site-to-design-token-latest.zip');
+  await expect(page.locator('img').first()).toHaveJSProperty('naturalWidth', 1280);
+  const srcs = await page.locator('#shots img').evaluateAll((imgs) => imgs.map((i) => (i as HTMLImageElement).getAttribute('src') ?? ''));
+  expect(srcs).toHaveLength(5);
+  for (const src of srcs) {
+    const r = await page.request.get(src);
+    expect(r.status(), src).toBe(200);
+    expect(r.headers()['content-type']).toBe('image/png');
+  }
+  const terms = page.locator('footer').getByRole('link', { name: 'Terms' });
+  await expect(terms).toHaveAttribute('href', '/palette/terms?lang=en');
+
+  const getPro = page.getByRole('link', { name: 'Get Pro — $1.49' });
+  await expect(getPro).toHaveAttribute('href', '/palette/checkout?lang=en#buy');
+  await getPro.click();
+  await expect(page).toHaveURL('/palette/checkout?lang=en#buy');
+  await expect(page.locator('#buy')).toBeInViewport();
+
+  await page.goto('/palette/terms?lang=en');
+  await expect(page.getByRole('heading', { level: 1, name: 'Terms of sale and use' })).toBeVisible();
+  await expect(page.getByText('Operated by vietnamcos.com', { exact: false })).toBeVisible();
+});
+
+test('landing: Arabic at 360px has no horizontal overflow, FAQ opens', async ({ page }) => {
+  await seed(page);
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto('/palette/?lang=ar');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(overflow).toBe(false);
+  const first = page.locator('#faq details').first();
+  await first.locator('summary').click();
+  await expect(first).toHaveAttribute('open', '');
+});
+
+test('plans table: the wrapper becomes a focusable labelled region only when it overflows', async ({ page }) => {
+  await seed(page);
+  await page.goto('/palette/?lang=en');
+  const wrap = page.locator('#plans .plans-wrap');
+  await expect(wrap).not.toHaveAttribute('tabindex', /.*/);
+  await page.addStyleTag({ content: '.plans { min-inline-size: 2000px; }' });
+  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+  await expect(wrap).toHaveAttribute('tabindex', '0');
+  await expect(wrap).toHaveAttribute('role', 'region');
+  await expect(wrap).toHaveAttribute('aria-label', 'Free vs Pro');
+});

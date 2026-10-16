@@ -16,9 +16,9 @@ $server = dirname(__DIR__);
 $path = (string)parse_url((string)($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH);
 
 // Static assets need no database.
-if (preg_match('#^/palette/assets/([A-Za-z0-9_-]+(?:/[A-Za-z0-9_.-]+)?\.(css|js|woff2|txt))$#', $path, $m)
+if (preg_match('#^/palette/assets/([A-Za-z0-9_-]+(?:/[A-Za-z0-9_.-]+)?\.(css|js|woff2|txt|png))$#', $path, $m)
     && is_file($file = $server . '/assets/' . $m[1])) {
-    $types = ['css' => 'text/css; charset=utf-8', 'js' => 'text/javascript; charset=utf-8', 'woff2' => 'font/woff2', 'txt' => 'text/plain; charset=utf-8'];
+    $types = ['css' => 'text/css; charset=utf-8', 'js' => 'text/javascript; charset=utf-8', 'woff2' => 'font/woff2', 'txt' => 'text/plain; charset=utf-8', 'png' => 'image/png'];
     header('Content-Type: ' . $types[$m[2]]);
     header('Cache-Control: no-store');
     readfile($file);
@@ -99,7 +99,7 @@ if ($path === '/') {
     return true;
 }
 
-$routes = ['/palette/checkout' => 'checkout.php', '/palette/account' => 'account.php', '/palette/privacy' => 'privacy.php', '/palette/api.php' => 'api.php'];
+$routes = ['/palette/' => 'index.php', '/palette/index' => 'index.php', '/palette/terms' => 'terms.php', '/palette/checkout' => 'checkout.php', '/palette/account' => 'account.php', '/palette/privacy' => 'privacy.php', '/palette/api.php' => 'api.php'];
 $route = $routes[$path] ?? $routes[preg_replace('#\.php$#', '', $path)] ?? null;
 if ($route === null) {
     http_response_code(404);

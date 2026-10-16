@@ -73,6 +73,24 @@
     });
   });
 
+  // ---- scroll regions: a [data-scroll-label] wrapper that overflows becomes a focusable, labelled region
+  // so keyboard users can scroll it; when everything fits it stays a plain wrapper.
+  function markScrollRegions() {
+    document.querySelectorAll('[data-scroll-label]').forEach(function (el) {
+      if (el.scrollWidth > el.clientWidth + 1) {
+        el.setAttribute('tabindex', '0');
+        el.setAttribute('role', 'region');
+        el.setAttribute('aria-label', el.getAttribute('data-scroll-label'));
+      } else {
+        el.removeAttribute('tabindex');
+        el.removeAttribute('role');
+        el.removeAttribute('aria-label');
+      }
+    });
+  }
+  markScrollRegions();
+  window.addEventListener('resize', markScrollRegions);
+
   // ---- copy buttons: [data-copy="text"] or [data-copy-from="element id"]
   function selectText(el) {
     var range = document.createRange();

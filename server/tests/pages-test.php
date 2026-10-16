@@ -257,5 +257,102 @@ foreach (LANGS as $l) {
 }
 // Opera has no chrome.sidePanel: no page or string may claim it.
 $opera = [];
-foreach (LANGS as $l) foreach (palette_strings($l) as $k => $v) if (stripos($v, 'opera') !== false) $opera[] = "$l:$k";
+foreach (LANGS as $l) foreach (palette_strings($l) as $k => $v) if (preg_match('/\bOpera\b/i', $v)) $opera[] = "$l:$k";
 ok('no string claims Opera support: ' . implode(', ', $opera), $opera === []);
+
+// ---- shared footer: privacy, terms, keys, support on every page
+foreach (['checkout' => checkout(['lang' => 'es']),
+          'account' => palette_render_account(['query' => ['lang' => 'es'], 'accept_language' => '', 'session' => []]),
+          'privacy' => palette_render_privacy(['query' => ['lang' => 'es'], 'accept_language' => '']),
+          'terms' => palette_render_terms(['query' => ['lang' => 'es'], 'accept_language' => '']),
+          'landing' => palette_render_landing(['query' => ['lang' => 'es'], 'accept_language' => ''])] as $name => $html) {
+    ok("$name footer: privacy, terms, keys, support", preg_match('#<footer.*</footer>#s', $html, $fm) === 1
+        && str_contains($fm[0], 'href="/palette/privacy?lang=es"') && str_contains($fm[0], 'href="/palette/terms?lang=es"')
+        && str_contains($fm[0], 'href="/palette/account?lang=es"') && str_contains($fm[0], 'href="mailto:support@vietnamcos.com"')
+        && str_contains($fm[0], h(palette_t('es', 'page_terms'))));
+    ok("$name: brand links home", str_contains($html, 'class="brand" href="/palette/?lang=es"'));
+}
+
+// ---- landing (/palette/)
+const LP_KEYS = ['lp_title', 'lp_h1', 'lp_lead', 'lp_shots_h', 'lp_shot_1', 'lp_shot_2', 'lp_shot_3', 'lp_shot_4', 'lp_shot_5',
+    'lp_how_h', 'lp_how_1', 'lp_how_2', 'lp_how_3', 'lp_ai_h', 'lp_ai_text', 'lp_ai_where', 'lp_faq_h', 'lp_faq_free_q', 'lp_faq_free_a',
+    'lp_faq_pro_q', 'lp_faq_pro_a', 'lp_faq_key_q', 'lp_faq_data_q', 'lp_faq_data_a', 'lp_faq_data_link', 'lp_faq_refund_q', 'page_terms',
+    'terms_title', 'terms_intro', 'terms_buy_h', 'terms_buy', 'terms_pay_h', 'terms_pay', 'terms_final_h', 'terms_revoke_h', 'terms_revoke',
+    'terms_use_h', 'terms_use', 'terms_asis_h', 'terms_asis', 'terms_liability_h', 'terms_liability', 'terms_changes_h', 'terms_changes',
+    'terms_contact_h', 'terms_contact'];
+$missing = [];
+foreach (LANGS as $l) foreach (LP_KEYS as $k) {
+    $v = palette_strings($l)[$k] ?? '';
+    if (trim($v) === '' || preg_match(EMOJI_RE, $v) || ($l !== 'en' && $v === palette_t('en', $k))) $missing[] = "$l:$k";
+}
+ok('landing + terms strings in all 7 languages, translated, no emoji: ' . implode(', ', array_slice($missing, 0, 12)), $missing === []);
+function landing(array $query = [], string $accept = ''): string
+{
+    return palette_render_landing(['query' => $query, 'accept_language' => $accept]);
+}
+$lp = landing(['lang' => 'en']);
+$at = fn(string $needle) => strpos($lp, $needle);
+ok('landing: download link with download attribute', preg_match('#<a[^>]*href="/palette/download/site-to-design-token-latest\.zip"[^>]*\bdownload\b#', $lp) === 1);
+ok('landing: Get Pro goes to the checkout buy card', preg_match('~<a[^>]*href="/palette/checkout\?lang=en#buy"[^>]*>Get Pro — \$1\.49</a>~', $lp) === 1);
+ok('landing: version and browsers', str_contains($lp, 'Works in Chrome, Edge and Brave. Version <bdi dir="ltr">' . PALETTE_EXT_VERSION . '</bdi>.'));
+ok('landing: sections in order', $at('id="hero-actions"') < $at('id="shots"') && $at('id="shots"') < $at('id="how"') && $at('id="how"') < $at('id="what"')
+    && $at('id="what"') < $at('id="plans"') && $at('id="plans"') < $at('id="ai"') && $at('id="ai"') < $at('id="install"') && $at('id="install"') < $at('id="faq"'));
+ok('landing: five screenshots with size, alt and lazy loading after the first',
+    preg_match_all('#<img src="/palette/assets/screenshots/([1-5]-[a-z-]+\.png)" width="1280" height="800" alt="([^"]+)"( loading="lazy")?#', $lp, $im) === 5
+    && $im[3][0] === '' && count(array_filter(array_slice($im[3], 1))) === 4 && $im[2][0] === h(palette_t('en', 'lp_shot_1')));
+$files = true;
+foreach ($im[1] as $f) if (!is_file(PALETTE_DIR . '/assets/screenshots/' . $f)) $files = false;
+ok('landing: screenshot files exist', $files && count($im[1]) === 5);
+ok('landing: how it works has 3 steps', preg_match('#id="how".*?</section>#s', $lp, $hm) === 1 && substr_count($hm[0], '<li') === 3);
+ok('landing: reuses features, plans and install from checkout', preg_match('#id="what".*?</section>#s', $lp, $a) === 1
+    && preg_match('#id="what".*?</section>#s', checkout(['lang' => 'en']), $b) === 1 && $a[0] === $b[0]
+    && str_contains($lp, '<table class="plans">') && str_contains($lp, 'data-copy="chrome://extensions"'));
+ok('landing: AI block explains DESIGN.md', preg_match('#id="ai".*?</section>#s', $lp, $am) === 1 && str_contains($am[0], 'DESIGN.md')
+    && str_contains($am[0], h(palette_t('en', 'lp_ai_text'))));
+ok('landing: FAQ with 5 questions, privacy link and the refund line', preg_match('#id="faq".*?</section>#s', $lp, $qm) === 1
+    && substr_count($qm[0], '<details') === 5 && str_contains($qm[0], 'href="/palette/privacy?lang=en"') && str_contains($qm[0], h($refundEn))
+    && str_contains($qm[0], h(palette_t('en', 'pp_key_1'))));
+ok('landing: no inline script', preg_match_all('/<script(?![^>]*\bsrc=)(?![^>]*type="application\/json")[^>]*>/', $lp) === 0);
+ok('landing: no Opera', preg_match('/\bOpera\b/i', $lp) === 0);
+foreach (LANGS as $l) {
+    $html = landing(['lang' => $l]);
+    $alts = true;
+    for ($i = 1; $i <= 5; $i++) if (!str_contains($html, 'alt="' . h(palette_t($l, "lp_shot_$i")) . '"')) $alts = false;
+    ok("landing $l: lang/dir, alts, no emoji, switcher, title", str_contains($html, '<html lang="' . $l . '" dir="' . ($l === 'ar' ? 'rtl' : 'ltr') . '">')
+        && $alts && preg_match(EMOJI_RE, $html) === 0 && str_contains($html, 'href="/palette/?lang=fr"')
+        && str_contains($html, '<title>' . h(palette_t($l, 'lp_title')) . '</title>'));
+}
+ok('landing fr: price as 1,49 $ US', str_contains(landing(['lang' => 'fr']), h(palette_t('fr', 'pp_get_pro', ['price' => FR_PRICE]))));
+ok('landing: Accept-Language', str_contains(landing([], 'hi-IN,hi;q=0.9'), '<html lang="hi"'));
+$_GET = ['lang' => 'zh-CN'];
+ob_start();
+include PALETTE_DIR . '/index.php';
+$out = (string)ob_get_clean();
+ok('index.php renders the landing', str_contains($out, '<html lang="zh-CN"') && str_contains($out, 'id="shots"'));
+
+// ---- terms
+$tm = palette_render_terms(['query' => ['lang' => 'en'], 'accept_language' => '']);
+ok('terms: personal non-transferable license', str_contains($tm, 'personal, non-transferable license'));
+ok('terms: PayPal, one-time, price', str_contains($tm, 'PayPal') && str_contains($tm, h(palette_t('en', 'terms_pay', ['price' => '$1.49']))));
+ok('terms: exact refund line', str_contains($tm, h($refundEn)));
+ok('terms: revocation, acceptable use, as is, liability', str_contains($tm, 'chargeback') && str_contains($tm, 'resell')
+    && str_contains($tm, h('"as is"')) && str_contains($tm, 'limited to the amount you paid'));
+ok('terms: operated by vietnamcos.com, updated date, contact', str_contains($tm, 'Operated by vietnamcos.com') && str_contains($tm, '2026-10-17')
+    && str_contains($tm, 'href="mailto:support@vietnamcos.com"'));
+ok('terms: no invented legal entity or governing law', !preg_match('/governing law|LLC|Ltd|Inc\.|registered/i', $tm));
+foreach (LANGS as $l) {
+    $p = palette_render_terms(['query' => ['lang' => $l], 'accept_language' => '']);
+    $all = true;
+    foreach (['terms_buy', 'terms_revoke', 'terms_use', 'terms_asis', 'terms_liability', 'terms_changes', 'co_refund'] as $k) if (!str_contains($p, h(palette_t($l, $k)))) $all = false;
+    ok("terms $l: every section, lang/dir, no emoji", $all && str_contains($p, '<html lang="' . $l . '" dir="' . ($l === 'ar' ? 'rtl' : 'ltr') . '">')
+        && preg_match(EMOJI_RE, $p) === 0 && str_contains($p, 'vietnamcos.com'));
+}
+ok('fr terms price as 1,49 $ US', str_contains(palette_render_terms(['query' => ['lang' => 'fr'], 'accept_language' => '']), h(palette_t('fr', 'terms_pay', ['price' => FR_PRICE]))));
+$_GET = ['lang' => 'ar'];
+ob_start();
+include PALETTE_DIR . '/terms.php';
+$out = (string)ob_get_clean();
+ok('terms.php renders', str_contains($out, 'dir="rtl"') && str_contains($out, h(palette_t('ar', 'terms_title'))));
+
+// ---- plans table scroll region (made focusable by checkout.js only when it overflows)
+ok('plans wrapper carries its scroll label', str_contains($lp, 'class="plans-wrap" data-scroll-label="' . h(palette_t('en', 'pp_plans_h')) . '"'));

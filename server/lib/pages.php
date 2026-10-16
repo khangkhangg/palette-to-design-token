@@ -7,6 +7,7 @@ const PALETTE_BASE = '/palette';
 const PALETTE_LANG_NAMES = ['en' => 'English', 'zh-CN' => '中文', 'hi' => 'हिन्दी', 'es' => 'Español',
                             'ar' => 'العربية', 'fr' => 'Français', 'bn' => 'বাংলা'];
 const PALETTE_PRIVACY_UPDATED = '2026-10-17';
+const PALETTE_TERMS_UPDATED = '2026-10-17';
 const PALETTE_SUPPORT_EMAIL = 'support@vietnamcos.com';
 // The extension version the checkout page offers (keep in step with extension/public/manifest.json; pages-test checks).
 const PALETTE_EXT_VERSION = '0.1.0';
@@ -182,20 +183,183 @@ function palette_page_shell(string $page, string $lang, array $keep, string $tit
         . '<script src="' . palette_h(palette_asset('checkout.js')) . '" defer></script></head>' . "\n"
         . '<body class="page-' . $page . '">'
         . '<header class="topbar"><div class="topbar-in">'
-        . '<a class="brand" href="' . palette_h(palette_page_url('checkout', $lang, array_intersect_key($keep, ['ext' => 1]))) . '">'
+        . '<a class="brand" href="' . palette_h(palette_page_url('', $lang)) . '">'
         . '<span class="mark" aria-hidden="true"></span><span class="brand-name">Site to Design Token</span>'
         . '<span class="brand-by">' . $t('page_by') . '</span></a>'
-        . palette_lang_switcher($page, $lang, $keep)
+        . palette_lang_switcher($page === 'landing' ? '' : $page, $lang, $keep)
         . '</div></header>' . "\n"
         . $main . "\n"
         . '<footer class="foot"><div class="foot-in">'
         . '<a href="' . palette_h(palette_page_url('privacy', $lang)) . '">' . $t('page_privacy') . '</a>'
+        . '<a href="' . palette_h(palette_page_url('terms', $lang)) . '">' . $t('page_terms') . '</a>'
         . '<a href="' . palette_h(palette_page_url('account', $lang)) . '">' . $t('page_keys') . '</a>'
         . '<a href="mailto:' . PALETTE_SUPPORT_EMAIL . '">' . $t('page_support') . ': <span dir="ltr">' . PALETTE_SUPPORT_EMAIL . '</span></a>'
         . '<span class="foot-copy">vietnamcos.com</span>'
         . '</div></footer>' . "\n"
         . '<script type="application/json" id="palette-data">' . $json . '</script>' . "\n"
         . '</body></html>' . "\n";
+}
+
+// French writes "1,49 $ US" (no-break space before $) everywhere: checkout, extension, listing.
+function palette_usd(string $lang, string $amount): string
+{
+    return $lang === 'fr' ? str_replace('.', ',', $amount) . "\u{a0}\$ US" : '$' . $amount;
+}
+
+// The Pro price as this language writes it, from the palette settings.
+function palette_price_label(string $lang): string
+{
+    return palette_usd($lang, palette_money(palette_money_settings(palette_settings($GLOBALS['conn']))['price']));
+}
+
+// ---- sections shared by the landing and checkout pages
+
+// Download (free) + Get Pro, and the version / browsers line. $proHref: '#buy' on checkout, the checkout URL elsewhere.
+function palette_section_hero_actions(string $lang, string $price, string $proHref): string
+{
+    return '<div class="hero-actions" id="hero-actions">'
+        . '<a class="btn btn-accent btn-lg" href="' . PALETTE_DOWNLOAD_URL . '" download>' . palette_icon('download', 17) . '<span>' . palette_h(palette_t($lang, 'pp_download')) . '</span></a>'
+        . '<a class="btn btn-quiet btn-lg" href="' . palette_h($proHref) . '">' . palette_h(palette_t($lang, 'pp_get_pro', ['price' => $price])) . '</a>'
+        . '</div>'
+        . '<p class="works-in">' . palette_t_html($lang, 'pp_works_in', ['version' => palette_ltr(PALETTE_EXT_VERSION)]) . '</p>';
+}
+
+function palette_section_features(string $lang): string
+{
+    $t = fn(string $k) => palette_h(palette_t($lang, $k));
+    $features = '';
+    foreach (['colours' => 'palette', 'system' => 'layers', 'contrast' => 'contrast', 'export' => 'code'] as $k => $icon) {
+        $features .= '<li class="feature"><span class="feature-icon">' . palette_icon($icon, 18) . '</span><div>'
+            . '<h3>' . $t('pp_feat_' . $k . '_h') . '</h3><p>' . $t('pp_feat_' . $k) . '</p></div></li>';
+    }
+    return '<section class="pp-section" id="what" aria-labelledby="what-h"><h2 id="what-h">' . $t('pp_what_h') . '</h2>'
+        . '<ul class="features">' . $features . '</ul></section>';
+}
+
+// The wrapper becomes a focusable, labelled region (checkout.js) only when the table overflows it.
+function palette_section_plans(string $lang, string $price): string
+{
+    $t = fn(string $k) => palette_h(palette_t($lang, $k));
+    $yes = '<span class="plan-yes">' . palette_icon('check', 16) . '<span class="sr-only">' . $t('pp_yes') . '</span></span>';
+    $no = '<span class="plan-no">' . palette_icon('minus', 16) . '<span class="sr-only">' . $t('pp_no') . '</span></span>';
+    $rows = '';
+    foreach ([['pp_row_scan', $yes, $yes], ['pp_row_view', $yes, $yes], ['pp_row_copy', $yes, $yes], ['pp_row_contrast', $yes, $yes],
+              ['pp_row_saved', $t('pp_saved_free'), $t('pp_saved_pro')], ['pp_row_exports', $no, $yes], ['pp_row_fixes', $no, $yes]] as [$k, $free, $pro]) {
+        $rows .= '<tr><th scope="row">' . $t($k) . '</th><td>' . $free . '</td><td>' . $pro . '</td></tr>';
+    }
+    return '<section class="pp-section" id="plans" aria-labelledby="plans-h"><h2 id="plans-h">' . $t('pp_plans_h') . '</h2>'
+        . '<div class="plans-wrap" data-scroll-label="' . $t('pp_plans_h') . '"><table class="plans"><thead><tr><th scope="col"><span class="sr-only">' . $t('pp_plan_feature') . '</span></th>'
+        . '<th scope="col">' . $t('pp_plan_free') . '</th>'
+        . '<th scope="col" class="plan-pro">' . palette_h(palette_t($lang, 'pp_plan_pro', ['price' => $price])) . '</th></tr></thead>'
+        . '<tbody>' . $rows . '</tbody></table></div></section>';
+}
+
+function palette_section_install(string $lang): string
+{
+    $t = fn(string $k) => palette_h(palette_t($lang, $k));
+    // chrome:// links are blocked from web pages, so the address is copyable text.
+    $url = '<span class="copyable"><code dir="ltr">chrome://extensions</code>'
+        . '<button type="button" class="btn btn-quiet btn-sm" data-copy="chrome://extensions" data-copy-status="install-copy-status">'
+        . palette_icon('copy', 14) . '<span>' . $t('co_copy') . '</span></button></span>';
+    $steps = '';
+    foreach (['pp_install_1', 'pp_install_2', 'pp_install_3', 'pp_install_4', 'pp_install_5'] as $k) {
+        $steps .= '<li>' . ($k === 'pp_install_2' ? palette_t_html($lang, $k, ['url' => $url]) : $t($k)) . '</li>';
+    }
+    return '<section class="pp-section" id="install" aria-labelledby="install-h"><h2 id="install-h">' . $t('pp_install_h') . '</h2>'
+        . '<ol class="steps">' . $steps . '</ol>'
+        . '<p class="sr-only" id="install-copy-status" role="status"></p>'
+        . '<p class="pp-note">' . palette_icon('info', 15) . '<span>' . $t('pp_install_note') . '</span></p></section>';
+}
+
+// Strings checkout.js needs on every page (copy buttons).
+function palette_script_strings(string $lang): array
+{
+    $strings = [];
+    foreach (PALETTE_SCRIPT_STRINGS as $k) $strings[$k] = palette_t($lang, $k);
+    return $strings;
+}
+
+const PALETTE_SCREENSHOTS = ['1-popup-colours.png', '2-contrast.png', '3-side-panel-light.png', '4-side-panel-dark.png', '5-export.png'];
+// A short DESIGN.md excerpt for the landing page (code, so not translated).
+const PALETTE_DESIGN_MD_SAMPLE = "# Design system — fernleaf.example\n\nUse only these tokens for UI.\nDo not invent new colours, fonts or spacing.\n\n"
+    . "| Role    | Token           | Hex     |\n| ------- | --------------- | ------- |\n| primary | --color-primary | #1F5E4B |\n"
+    . "| accent  | --color-accent  | #E0763A |\n| text    | --color-text    | #1A1A1A |\n\nSpacing: 4 px base (4, 8, 12, 16, 24, 32)";
+
+function palette_render_landing(array $ctx): string
+{
+    $query = is_array($ctx['query'] ?? null) ? $ctx['query'] : [];
+    $lang = palette_page_lang($query, (string)($ctx['accept_language'] ?? ''));
+    $t = fn(string $k) => palette_h(palette_t($lang, $k));
+    $price = palette_price_label($lang);
+
+    $hero = '<section class="hero lp-hero">'
+        . '<h1>' . $t('lp_h1') . '</h1>'
+        . '<p class="lead">' . $t('lp_lead') . '</p>'
+        . palette_section_hero_actions($lang, $price, palette_page_url('checkout', $lang) . '#buy')
+        . '</section>';
+
+    $shots = '';
+    foreach (PALETTE_SCREENSHOTS as $i => $file) {
+        $shots .= '<figure class="shot' . ($i === 0 ? ' shot-main' : '') . '"><img src="' . PALETTE_BASE . '/assets/screenshots/' . $file . '" width="1280" height="800"'
+            . ' alt="' . $t('lp_shot_' . ($i + 1)) . '"' . ($i === 0 ? '' : ' loading="lazy"') . ' decoding="async"></figure>';
+    }
+    $showcase = '<section class="pp-section lp-shots" id="shots" aria-labelledby="shots-h"><h2 id="shots-h" class="sr-only">' . $t('lp_shots_h') . '</h2>'
+        . '<div class="shots">' . $shots . '</div></section>';
+
+    $how = '<section class="pp-section" id="how" aria-labelledby="how-h"><h2 id="how-h">' . $t('lp_how_h') . '</h2>'
+        . '<ol class="steps steps-row"><li>' . $t('lp_how_1') . '</li><li>' . $t('lp_how_2') . '</li><li>' . $t('lp_how_3') . '</li></ol></section>';
+
+    $ai = '<section class="pp-section lp-ai" id="ai" aria-labelledby="ai-h"><div class="lp-ai-text">'
+        . '<h2 id="ai-h">' . palette_icon('code', 18) . $t('lp_ai_h') . '</h2><p>' . $t('lp_ai_text') . '</p>'
+        . '<p class="pp-aside">' . $t('lp_ai_where') . '</p></div>'
+        . '<pre class="md-sample" dir="ltr" lang="en"><code>' . palette_h(PALETTE_DESIGN_MD_SAMPLE) . '</code></pre></section>';
+
+    $privacy = '<a href="' . palette_h(palette_page_url('privacy', $lang)) . '">' . $t('lp_faq_data_link') . '</a>';
+    $faqs = [
+        [$t('lp_faq_free_q'), $t('lp_faq_free_a')],
+        [$t('lp_faq_pro_q'), palette_h(palette_t($lang, 'lp_faq_pro_a', ['price' => $price]))],
+        [$t('lp_faq_key_q'), $t('pp_key_1') . ' ' . $t('pp_key_2')],
+        [$t('lp_faq_data_q'), $t('lp_faq_data_a') . ' ' . $privacy],
+        [$t('lp_faq_refund_q'), $t('co_refund')],
+    ];
+    $items = '';
+    foreach ($faqs as [$q, $a]) {
+        $items .= '<details class="faq-item"><summary>' . $q . palette_icon('chevron', 16) . '</summary><p>' . $a . '</p></details>';
+    }
+    $faq = '<section class="pp-section" id="faq" aria-labelledby="faq-h"><h2 id="faq-h">' . $t('lp_faq_h') . '</h2>'
+        . '<div class="faq">' . $items . '</div></section>';
+
+    $main = '<main class="wrap landing">' . $hero . $showcase . $how . palette_section_features($lang) . palette_section_plans($lang, $price)
+        . $ai . palette_section_install($lang) . $faq . '</main>';
+    return palette_page_shell('landing', $lang, [], palette_t($lang, 'lp_title'), $main, ['t' => palette_script_strings($lang)]);
+}
+
+function palette_render_terms(array $ctx): string
+{
+    $query = is_array($ctx['query'] ?? null) ? $ctx['query'] : [];
+    $lang = palette_page_lang($query, (string)($ctx['accept_language'] ?? ''));
+    $t = fn(string $k) => palette_h(palette_t($lang, $k));
+    $mail = '<a href="mailto:' . PALETTE_SUPPORT_EMAIL . '" dir="ltr">' . PALETTE_SUPPORT_EMAIL . '</a>';
+
+    $sections = '';
+    foreach ([['buy', 'key', $t('terms_buy')],
+              ['pay', 'card', palette_h(palette_t($lang, 'terms_pay', ['price' => palette_price_label($lang)]))],
+              ['final', 'alert', $t('co_refund')],
+              ['revoke', 'lock', $t('terms_revoke')],
+              ['use', 'shield', $t('terms_use')],
+              ['asis', 'info', $t('terms_asis')],
+              ['liability', 'shield', $t('terms_liability')],
+              ['changes', 'globe', $t('terms_changes')],
+              ['contact', 'chat', palette_t_html($lang, 'terms_contact', ['email' => $mail])]] as [$k, $icon, $body]) {
+        $sections .= '<section class="policy-item"><span class="policy-icon">' . palette_icon($icon, 18) . '</span><div>'
+            . '<h2>' . $t('terms_' . $k . '_h') . '</h2><p>' . $body . '</p></div></section>';
+    }
+    $main = '<main class="wrap narrow"><article class="policy">'
+        . '<div class="page-head"><h1>' . $t('terms_title') . '</h1><p class="lead">' . $t('terms_intro') . '</p></div>'
+        . '<div class="card policy-list">' . $sections . '</div>'
+        . '<p class="updated">' . palette_t_html($lang, 'priv_updated', ['date' => palette_ltr(PALETTE_TERMS_UPDATED)]) . '</p>'
+        . '</article></main>';
+    return palette_page_shell('terms', $lang, [], palette_t($lang, 'terms_title') . ' | Site to Design Token', $main);
 }
 
 function palette_render_checkout(array $ctx): string
@@ -210,9 +374,8 @@ function palette_render_checkout(array $ctx): string
     $money = palette_money_settings($settings);
     $ready = pp_ready(pp_settings($conn));
     $ca = $money['tax_mode'] === 'ca';
-    // French writes "1,49 $ US" (no-break space before $) everywhere: checkout, extension, listing.
     $fr = $lang === 'fr';
-    $usd = fn(string $amount): string => $fr ? str_replace('.', ',', $amount) . "\u{a0}\$ US" : '$' . $amount;
+    $usd = fn(string $amount): string => palette_usd($lang, $amount);
     $price = $usd(palette_money($money['price']));
     $withTax = palette_total($settings, 'US', 'CA');
 
@@ -228,56 +391,19 @@ function palette_render_checkout(array $ctx): string
         . '<span class="eyebrow">' . $t('co_eyebrow') . '</span>'
         . '<h1>' . $t('co_h1') . '</h1>'
         . '<p class="lead">' . $t('co_lead') . '</p>'
-        . '<div class="hero-actions" id="hero-actions">'
-        . '<a class="btn btn-accent btn-lg" href="' . PALETTE_DOWNLOAD_URL . '" download>' . palette_icon('download', 17) . '<span>' . $t('pp_download') . '</span></a>'
-        . '<a class="btn btn-quiet btn-lg" href="#buy">' . palette_h(palette_t($lang, 'pp_get_pro', ['price' => $price])) . '</a>'
-        . '</div>'
-        . '<p class="works-in">' . palette_t_html($lang, 'pp_works_in', ['version' => palette_ltr(PALETTE_EXT_VERSION)]) . '</p>'
+        . palette_section_hero_actions($lang, $price, '#buy')
         . $summary
         . '<ul class="trust">'
         . '<li>' . palette_icon('lock', 15) . $t('co_trust_paypal') . '</li>'
         . '<li>' . palette_icon('browser', 15) . $t('co_trust_browsers') . '</li>'
         . '</ul></section>';
 
-    $features = '';
-    foreach (['colours' => 'palette', 'system' => 'layers', 'contrast' => 'contrast', 'export' => 'code'] as $k => $icon) {
-        $features .= '<li class="feature"><span class="feature-icon">' . palette_icon($icon, 18) . '</span><div>'
-            . '<h3>' . $t('pp_feat_' . $k . '_h') . '</h3><p>' . $t('pp_feat_' . $k) . '</p></div></li>';
-    }
-    $what = '<section class="pp-section" id="what" aria-labelledby="what-h"><h2 id="what-h">' . $t('pp_what_h') . '</h2>'
-        . '<ul class="features">' . $features . '</ul></section>';
-
-    $yes = '<span class="plan-yes">' . palette_icon('check', 16) . '<span class="sr-only">' . $t('pp_yes') . '</span></span>';
-    $no = '<span class="plan-no">' . palette_icon('minus', 16) . '<span class="sr-only">' . $t('pp_no') . '</span></span>';
-    $rows = '';
-    foreach ([['pp_row_scan', $yes, $yes], ['pp_row_view', $yes, $yes], ['pp_row_copy', $yes, $yes], ['pp_row_contrast', $yes, $yes],
-              ['pp_row_saved', $t('pp_saved_free'), $t('pp_saved_pro')], ['pp_row_exports', $no, $yes], ['pp_row_fixes', $no, $yes]] as [$k, $free, $pro]) {
-        $rows .= '<tr><th scope="row">' . $t($k) . '</th><td>' . $free . '</td><td>' . $pro . '</td></tr>';
-    }
-    $plans = '<section class="pp-section" id="plans" aria-labelledby="plans-h"><h2 id="plans-h">' . $t('pp_plans_h') . '</h2>'
-        . '<div class="plans-wrap"><table class="plans"><thead><tr><th scope="col"><span class="sr-only">' . $t('pp_plan_feature') . '</span></th>'
-        . '<th scope="col">' . $t('pp_plan_free') . '</th>'
-        . '<th scope="col" class="plan-pro">' . palette_h(palette_t($lang, 'pp_plan_pro', ['price' => $price])) . '</th></tr></thead>'
-        . '<tbody>' . $rows . '</tbody></table></div></section>';
-
-    // chrome:// links are blocked from web pages, so the address is copyable text.
-    $url = '<span class="copyable"><code dir="ltr">chrome://extensions</code>'
-        . '<button type="button" class="btn btn-quiet btn-sm" data-copy="chrome://extensions" data-copy-status="install-copy-status">'
-        . palette_icon('copy', 14) . '<span>' . $t('co_copy') . '</span></button></span>';
-    $steps = '';
-    foreach (['pp_install_1', 'pp_install_2', 'pp_install_3', 'pp_install_4', 'pp_install_5'] as $k) {
-        $steps .= '<li>' . ($k === 'pp_install_2' ? palette_t_html($lang, $k, ['url' => $url]) : $t($k)) . '</li>';
-    }
-    $install = '<section class="pp-section" id="install" aria-labelledby="install-h"><h2 id="install-h">' . $t('pp_install_h') . '</h2>'
-        . '<ol class="steps">' . $steps . '</ol>'
-        . '<p class="sr-only" id="install-copy-status" role="status"></p>'
-        . '<p class="pp-note">' . palette_icon('info', 15) . '<span>' . $t('pp_install_note') . '</span></p></section>';
-
     $haveKey = '<section class="pp-section" id="have-key" aria-labelledby="have-key-h"><h2 id="have-key-h">' . palette_icon('key', 18) . $t('pp_key_h') . '</h2>'
         . '<ol class="steps steps-short"><li>' . $t('pp_key_1') . '</li><li>' . $t('pp_key_2') . '</li></ol>'
         . '<p class="pp-aside">' . $t('pp_key_email') . ' <a href="#resend">' . $t('pp_key_lost') . '</a></p></section>';
 
-    $pitch = '<div class="pitch">' . $hero . $what . $plans . $install . $haveKey . '</div>';
+    $pitch = '<div class="pitch">' . $hero . palette_section_features($lang) . palette_section_plans($lang, $price)
+        . palette_section_install($lang) . $haveKey . '</div>';
 
     $tax = '';
     if ($ca) {

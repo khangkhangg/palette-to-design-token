@@ -71,11 +71,14 @@ Errors are `{ok:false, error:<i18n key>, message:<localised>}`; 419 bad CSRF, 42
 `verify` sends CORS headers only for `chrome-extension://<id>` origins whose id is in the `extension_ids` setting; the client IP is `palette_client_ip($_SERVER)`: `CF-Connecting-IP` only when `REMOTE_ADDR` is inside Cloudflare's published ranges (`PALETTE_CLOUDFLARE_CIDRS`, refresh yearly), else `REMOTE_ADDR`; never `X-Forwarded-For`.
 `resend` answers first and runs `palette_resend` after `fastcgi_finish_request()` (ruling S4); on servers without it (CLI, `php -S`) the work stays synchronous.
 
-## Pages (`checkout.php`, `account.php`, `privacy.php`)
+## Pages (`index.php`, `checkout.php`, `account.php`, `privacy.php`, `terms.php`)
 
-Served as `/palette/checkout`, `/palette/account` and `/palette/privacy` (extensionless: the vhost needs a rewrite
-to the `.php` file if it does not already try `$uri.php`). Each file is a thin adapter over a pure renderer in
-`lib/pages.php` (`palette_render_checkout/account/privacy(array $ctx): string`, tested by `tests/pages-test.php`);
+Served as `/palette/` (landing, via the vhost's `index index.php`), `/palette/checkout`, `/palette/account`,
+`/palette/privacy` and `/palette/terms` (extensionless: the vhost needs a rewrite to the `.php` file). Each file is a
+thin adapter over a pure renderer in `lib/pages.php` (`palette_render_landing/checkout/account/privacy/terms(array $ctx):
+string`, tested by `tests/pages-test.php`). The landing and checkout pages share section helpers
+(`palette_section_hero_actions/features/plans/install`); screenshots are `assets/screenshots/` (copies of
+`docs/store/screenshots/`, regenerate with `npm run screenshots` in `extension/`);
 behaviour is in `assets/checkout.js` (vanilla, no build), styles in `assets/checkout.css` (light + dark, logical
 properties for Arabic), Geist self-hosted under `assets/fonts/` (OFL). No external fonts, no inline scripts.
 
