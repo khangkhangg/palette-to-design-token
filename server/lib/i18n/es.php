@@ -261,7 +261,7 @@ return [
     'lp_ins_text' => 'Pulsa Analizar en cualquier sitio y obtén un veredicto breve, lo que dicen sus colores sobre la marca y sitios parecidos y competidores encontrados con una búsqueda web. Incluido en Pro + AI.',
     'lp_ins_b1' => 'Un veredicto sobre el diseño, con lo que funciona y lo que mejorar',
     'lp_ins_b2' => 'El significado de cada color clave y cuánto encaja la paleta con su sector',
-    'lp_ins_b3' => 'De tres a seis sitios parecidos y competidores, cada uno con su enlace',
+    'lp_ins_b3' => 'De tres a seis sitios parecidos y competidores; los que se encuentran con la búsqueda web llevan enlace',
     'lp_shot_6' => 'La sección de análisis con IA en el panel lateral (Pro + AI): el veredicto, el significado de los colores y los sitios parecidos y competidores.',
     'lp_faq_ai_q' => '¿Qué es Pro + AI?',
     'lp_faq_ai_a' => 'Pro más análisis con IA: pulsa Analizar en un sitio para obtener un veredicto, el significado de sus colores y sitios parecidos y competidores encontrados con una búsqueda web. Cuesta {price} al mes e incluye hasta {n} análisis al mes.',

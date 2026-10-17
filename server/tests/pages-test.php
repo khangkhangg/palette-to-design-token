@@ -324,6 +324,7 @@ ok('landing: AI block explains DESIGN.md', preg_match('#id="ai".*?</section>#s',
 ok('landing: FAQ with 7 questions, privacy link and the refund line', preg_match('#id="faq".*?</section>#s', $lp, $qm) === 1
     && substr_count($qm[0], '<details') === 7 && str_contains($qm[0], 'href="/palette/privacy?lang=en"') && str_contains($qm[0], h($refundEn))
     && str_contains($qm[0], h(palette_t('en', 'pp_key_1'))));
+ok('landing: AI block no longer claims every site is linked', !str_contains($lp, 'each linked'));
 ok('landing: no inline script', preg_match_all('/<script(?![^>]*\bsrc=)(?![^>]*type="application\/json")[^>]*>/', $lp) === 0);
 ok('landing: no Opera', preg_match('/\bOpera\b/i', $lp) === 0);
 foreach (LANGS as $l) {

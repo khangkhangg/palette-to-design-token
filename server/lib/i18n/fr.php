@@ -261,7 +261,7 @@ return [
     'lp_ins_text' => 'Appuyez sur Analyser sur n’importe quel site pour obtenir un verdict court, ce que ses couleurs disent de la marque, et des sites similaires et concurrents trouvés par recherche web. Inclus dans Pro + AI.',
     'lp_ins_b1' => 'Un verdict sur le design, avec ce qui fonctionne et ce qu’il faut améliorer',
     'lp_ins_b2' => 'La signification de chaque couleur clé et l’adéquation de la palette à son secteur',
-    'lp_ins_b3' => 'De trois à six sites similaires et concurrents, chacun avec son lien',
+    'lp_ins_b3' => 'De trois à six sites similaires et concurrents ; ceux trouvés par la recherche web ont un lien',
     'lp_shot_6' => 'La section d’analyses IA du panneau latéral (Pro + AI) : le verdict, la signification des couleurs et les sites similaires et concurrents.',
     'lp_faq_ai_q' => 'Qu’est-ce que Pro + AI ?',
     'lp_faq_ai_a' => 'Pro plus les analyses IA : appuyez sur Analyser sur un site pour obtenir un verdict, la signification de ses couleurs et des sites similaires et concurrents trouvés par recherche web. Il coûte {price} par mois et inclut jusqu’à {n} analyses par mois.',

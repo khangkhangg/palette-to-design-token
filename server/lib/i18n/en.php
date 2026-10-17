@@ -262,7 +262,7 @@ return [
     'lp_ins_text' => 'Press Analyse on any site to get a short verdict, what its colours say about the brand, and similar and competitor sites found with a web search. Part of Pro + AI.',
     'lp_ins_b1' => 'A verdict on the design, with what works and what to improve',
     'lp_ins_b2' => 'The meaning of each key colour and how well the palette fits its sector',
-    'lp_ins_b3' => 'Three to six similar and competitor websites, each linked',
+    'lp_ins_b3' => 'Three to six similar and competitor websites; the ones found by web search are linked',
     'lp_shot_6' => 'The AI insights section in the side panel (Pro + AI): the verdict, what the colours mean, and similar and competitor sites.',
     'lp_faq_ai_q' => 'What is Pro + AI?',
     'lp_faq_ai_a' => 'Pro plus AI insights: press Analyse on a site to get a verdict, what its colours mean, and similar and competitor sites found with a web search. It costs {price} a month and includes up to {n} analyses a month.',
