@@ -305,7 +305,7 @@ Sandbox payments cost nothing; on 6a fix and repeat as needed, on 6b close the w
      ```bash
      curl -sI https://vietnamcos.com/palette/download/site-to-design-token-latest.zip | grep -iE '^HTTP|^content-type'   # HTTP/2 200, content-type: application/zip
      ```
-   - **Web Store, unlisted** (store id differs from the direct id; add both): `npm run package` (strips `"key"`, which the Store rejects), upload `extension/site-to-design-token-0.1.0.zip` in the Developer Dashboard with Visibility = Unlisted, save, and copy the item id (that is the extension id).
+   - **Web Store, unlisted** (store id differs from the direct id; add both): `npm run package` (strips `"key"`, which the Store rejects), upload `extension/site-to-design-token-0.2.0.zip` in the Developer Dashboard with Visibility = Unlisted, save, and copy the item id (that is the extension id).
 3. Add the id to settings (merge, do not overwrite):
 
 ```bash
@@ -345,7 +345,7 @@ curl -si -X OPTIONS -H "Origin: chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 ## 9. Store submission checklist
 
-- [ ] `cd extension && npm run package && npm run package:check` (`package:check` is not part of `npm test`); zip is `extension/site-to-design-token-0.1.0.zip`, manifest version matches.
+- [ ] `cd extension && npm run package && npm run package:check` (`package:check` is not part of `npm test`); zip is `extension/site-to-design-token-0.2.0.zip`, manifest version matches.
 - [ ] Upload the zip in the Chrome Web Store Developer Dashboard.
 - [ ] Listing text from `docs/store/listing.<lang>.md` (en, zh_CN, hi, es, ar, fr, bn).
 - [ ] Screenshots from `docs/store/screenshots/` (1280x800 or 640x400) and the promo tile `docs/store/promo-440x280.png`. The store takes **five**: upload `1-popup-colours`, `2-contrast`, `3-side-panel-light`, `5-export` and `6-ai-insights` (the Pro + AI results, made with a stubbed analysis by `npm run screenshots`); `4-side-panel-dark` is used only on the landing page. Known polish: screenshots show host `fernleaf.example`, not a real site.

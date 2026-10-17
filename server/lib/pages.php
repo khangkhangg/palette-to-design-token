@@ -10,7 +10,7 @@ const PALETTE_PRIVACY_UPDATED = '2026-10-17';
 const PALETTE_TERMS_UPDATED = '2026-10-17';
 const PALETTE_SUPPORT_EMAIL = 'support@vietnamcos.com';
 // The extension version the checkout page offers (keep in step with extension/public/manifest.json; pages-test checks).
-const PALETTE_EXT_VERSION = '0.1.0';
+const PALETTE_EXT_VERSION = '0.2.0';
 // Direct download, uploaded to server/download/ at deploy (npm run package:direct); never committed.
 const PALETTE_DOWNLOAD_URL = PALETTE_BASE . '/download/site-to-design-token-latest.zip';
 const PALETTE_US_STATES = [
