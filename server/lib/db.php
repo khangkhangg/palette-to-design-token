@@ -69,6 +69,8 @@ function palette_migrate(mysqli $conn): void
         updated_at      DATETIME NOT NULL,
         UNIQUE KEY subscription_id (subscription_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    // The price the subscription was sold at (ruling A10); renewals are checked against it, not the live setting.
+    palette_add_column($conn, 'palette_subscriptions', 'price_usd', 'DECIMAL(10,2) NULL');
     $conn->query("CREATE TABLE IF NOT EXISTS palette_sub_payments (
         id              INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
         subscription_id VARCHAR(40) NOT NULL,

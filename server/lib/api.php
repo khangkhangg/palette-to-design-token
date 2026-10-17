@@ -139,12 +139,13 @@ function palette_api_handle(array $req): array
             $_SESSION['palette_subs'] = array_slice($mine, -PALETTE_API_SESSION_ORDERS);
             return palette_api_reply(200, ['ok' => true, 'plan_id' => $r['plan_id'], 'custom_id' => $r['custom_id']]);
         case 'subscribe_confirm':
+            if (!palette_rate_hit('sub:confirm:ip:' . (string)($req['ip'] ?? ''), 30, 3600)) return palette_api_error(429, 'api_rate_limited', $lang);
             $r = palette_sub_confirm($conn, $str('subscription_id'));
             if (!$r['ok']) {
                 if ($r['error'] === 'err_bad_request') return palette_api_error(400, 'err_bad_request', $lang);
                 return !empty($r['retry']) ? palette_api_error(503, 'err_retry', $lang) : palette_api_error(502, $r['error'], $lang);
             }
-            if (!empty($r['pending'])) {   // approved but not yet active: ACTIVATED / the first sale will fulfil and email the key
+            if (!empty($r['pending'])) {   // not active or not paid yet: ACTIVATED / the first sale will fulfil and email the key
                 return palette_api_reply(202, ['ok' => true, 'pending' => true, 'message' => palette_t($lang, 'co_err_confirm')]);
             }
             if (!palette_api_owns_sub((int)$r['row_id'])) {
@@ -154,6 +155,7 @@ function palette_api_handle(array $req): array
             }
             return palette_api_reply(200, ['ok' => true, 'key' => $r['key'], 'email_masked' => $r['email_masked']]);
         case 'sub_cancel':
+            if (!palette_rate_hit('sub:cancel:ip:' . (string)($req['ip'] ?? ''), 10, 3600)) return palette_api_error(429, 'api_rate_limited', $lang);
             $uid = $req['session']['user_id'] ?? null;
             $uid = (is_int($uid) || (is_string($uid) && ctype_digit($uid))) && (int)$uid > 0 ? (int)$uid : null;
             $r = palette_sub_cancel($conn, $str('key'), $uid, $str('email') !== '' ? $str('email') : null);
