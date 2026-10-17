@@ -8,7 +8,8 @@ function palette_sites_json($v): string
 }
 
 // $page: url/title/description; $design: the whitelisted summary; $result: the validated AI result.
-// Only the scrubbed title (ruling A9) and the brand derived from it are stored; the description and url are not.
+// Of the page only the domain and the brand name (from the scrubbed title, ruling A9) are stored (ruling A15): the title
+// column is left NULL (and cleared on update), and the description and url are never stored.
 function palette_sites_record(mysqli $c, string $host, array $page, array $design, array $result): void
 {
     if ($host === '' || strlen($host) > 190) return;
@@ -25,12 +26,12 @@ function palette_sites_record(mysqli $c, string $host, array $page, array $desig
     $fonts = palette_sites_json(array_values(array_filter(is_array($design['fonts'] ?? null) ? $design['fonts'] : [], 'is_string')));
 
     // LAST_INSERT_ID(id) makes insert_id the row's id on the update path too.
-    $st = $c->prepare('INSERT INTO palette_sites (domain, name, title, sector, tags_json, colours_json, fonts_json, first_seen, last_seen, analyses_count)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-                       ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), name = VALUES(name), title = VALUES(title), sector = VALUES(sector),
+    $st = $c->prepare('INSERT INTO palette_sites (domain, name, sector, tags_json, colours_json, fonts_json, first_seen, last_seen, analyses_count)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+                       ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id), name = VALUES(name), title = NULL, sector = VALUES(sector),
                          tags_json = VALUES(tags_json), colours_json = VALUES(colours_json), fonts_json = VALUES(fonts_json),
                          last_seen = VALUES(last_seen), analyses_count = analyses_count + 1');
-    $st->bind_param('sssssssss', $host, $name, $title, $sector, $tags, $colours, $fonts, $now, $now);
+    $st->bind_param('ssssssss', $host, $name, $sector, $tags, $colours, $fonts, $now, $now);
     $st->execute();
     $siteId = (int)$c->insert_id;
     $st->close();
@@ -61,14 +62,14 @@ function palette_sites_record(mysqli $c, string $host, array $page, array $desig
 function palette_sites_top(mysqli $c, int $limit = 200): array
 {
     $limit = max(1, min($limit, 5000));
-    $st = $c->prepare('SELECT domain, name, title, sector, tags_json, analyses_count, suggested_count, first_seen, last_seen
+    $st = $c->prepare('SELECT domain, name, sector, tags_json, analyses_count, suggested_count, first_seen, last_seen
                        FROM palette_sites ORDER BY analyses_count + suggested_count DESC, last_seen DESC, domain LIMIT ?');
     $st->bind_param('i', $limit);
     $st->execute();
     $out = [];
     foreach ($st->get_result() as $r) {
         $tags = json_decode((string)$r['tags_json'], true);
-        $out[] = ['domain' => $r['domain'], 'name' => $r['name'], 'title' => $r['title'], 'sector' => $r['sector'],
+        $out[] = ['domain' => $r['domain'], 'name' => $r['name'], 'sector' => $r['sector'],
                   'tags' => is_array($tags) ? $tags : [], 'analyses_count' => (int)$r['analyses_count'],
                   'suggested_count' => (int)$r['suggested_count'], 'first_seen' => $r['first_seen'], 'last_seen' => $r['last_seen']];
     }
@@ -83,11 +84,11 @@ function palette_csv_cell($v): string
     return $s !== '' && strpbrk($s[0], "=+-@\t\r") !== false ? "'" . $s : $s;
 }
 
-const PALETTE_SITES_COLUMNS = ['domain', 'name', 'title', 'sector', 'tags', 'analyses_count', 'suggested_count', 'first_seen', 'last_seen'];
+const PALETTE_SITES_COLUMNS = ['domain', 'name', 'sector', 'tags', 'analyses_count', 'suggested_count', 'first_seen', 'last_seen'];
 
 function palette_sites_row(array $s): array
 {
-    return [$s['domain'], $s['name'] ?? '', $s['title'] ?? '', $s['sector'] ?? '', implode('; ', $s['tags']),
+    return [$s['domain'], $s['name'] ?? '', $s['sector'] ?? '', implode('; ', $s['tags']),
             $s['analyses_count'], $s['suggested_count'], $s['first_seen'], $s['last_seen']];
 }
 

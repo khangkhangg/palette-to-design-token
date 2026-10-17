@@ -544,6 +544,13 @@ foreach (LANGS as $l) {
     ok("privacy $l: the address is only its main part, with the example.com/shop example (ruling A14)",
         str_contains($ai, 'example.com/shop') && !str_contains($ai, '?'));
 }
+// ruling A15: the site list keeps only names and domains, and the policy says how long
+$retention = ['en' => 'The list is kept until we delete it.', 'es' => 'La lista se conserva hasta que la borremos.',
+    'fr' => 'La liste est conservée jusqu’à ce que nous la supprimions.', 'ar' => 'نحتفظ بهذه القائمة إلى أن نحذفها.',
+    'bn' => 'আমরা মুছে না ফেলা পর্যন্ত তালিকাটি রাখা হয়।', 'hi' => 'यह सूची तब तक रखी जाती है जब तक हम इसे हटा न दें।',
+    'zh-CN' => '该列表会一直保留，直到我们将其删除。'];
+foreach (LANGS as $l) ok("privacy $l: site list retention sentence (ruling A15)", str_contains(palette_t($l, 'priv_ai'), $retention[$l]));
+ok('privacy en: the list holds site names and domains only', str_contains(palette_t('en', 'priv_ai'), 'combined list of analysed site names and domains, without any user identifiers'));
 
 $ten = $terms('en');
 ok('terms en: subscription, monthly PayPal, renews until cancelled, cancel from account, access to end of paid month, final sales',

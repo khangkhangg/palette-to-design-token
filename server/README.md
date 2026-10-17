@@ -42,7 +42,7 @@ fixed windows, an atomic `INSERT ... ON DUPLICATE KEY UPDATE count = count + 1`,
 day on about 1 in 50 calls. Buckets: `verify:ip:` 30/60 s, `resend:ip:` 10/h, `resend:email:<sha1>` 3/h, `create:ip:` 20/h,
 `claim:user:` 30/h, `sub:start:ip:` 10/h, `sub:confirm:ip:` 30/h, `sub:cancel:ip:` 10/h, `ai:min:<license id>` 6/60 s, `ai:hour:<license id>` 60/h, `ai:ip:` 20/h.
 
-AI insights tables: `palette_ai_usage` (lib/usage.php), `palette_ai_cache(host, lang, colour_hash, result_json, created_at)`
+AI insights tables: `palette_ai_usage` (lib/usage.php), `palette_ai_cache(host, lang, colour_hash, page_hash, result_json, created_at)`
 (lib/analyse.php: 7-day TTL, expired rows purged on every store) and the private site list `palette_sites` +
 `palette_site_links` (lib/sites.php: aggregate counters only, no licence, user, email or IP is stored).
 
@@ -129,12 +129,12 @@ Errors are `{ok:false, error:<i18n key>, message:<localised>}`; 419 bad CSRF, 42
 `lib/analyse.php`. Request: `{key, url, title, description, lang, design}` where `design` is
 `{colours: [{role, hex}] (<= 10), fonts: [string] (<= 3), type_sizes: [number] (<= 12), spacing_base: number|null,
 radius: [number] (<= 6), contrast: {pass, fail, failing: [{fg, bg, ratio}] (<= 6)}}`; anything else is dropped before
-the prompt. `url` must be a public http(s) page (`palette_host`), path <= 300 characters; only origin + path is used.
+the prompt. `url` must be a public http(s) page (`palette_host`), path <= 300 characters; only the origin and the first path segment, when it is <= 24 characters with no digits or @, are used (ruling A14; anything else becomes `/`).
 `title` and `description` pass through `palette_scrub_text` (ruling A9: URLs, emails, @handles, unread counters, runs of
-6+ digits removed) before the prompt, the searches, the shared cache and the site list (which keeps only the scrubbed
-title and its brand).
-Order: per-IP limit -> input -> licence (`plan = 'ai'`, not revoked, `paid_through >= now`) -> per-licence limits -> cache (same host, lang
-and sorted-hex sha1 within 7 days: `cached: true`, no analysis used) -> reserve one analysis -> two searches
+6+ digits removed) before the prompt, the searches, the shared cache and the site list (which keeps only the domain
+and the brand name taken from the scrubbed title; its `title` column stays NULL, ruling A15).
+Order: per-IP limit -> input -> licence (`plan = 'ai'`, not revoked, `paid_through >= now`) -> per-licence limits -> cache (same host, lang,
+sorted-hex sha1 and sha1 of the scrubbed title + "\n" + description (ruling A13) within 7 days: `cached: true`, no analysis used) -> reserve one analysis -> two searches
 (`"<brand>" competitors`, `<description or title> similar websites`; both unavailable = AI only with
 `result.search_unavailable: true`) -> AI call (tokens always recorded) -> validation -> cache, site list -> 200
 `{ok, result, cached, usage: {used, limit, resets_on}}`. A failed call or invalid answer releases the analysis.

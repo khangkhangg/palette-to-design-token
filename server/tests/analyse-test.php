@@ -137,7 +137,7 @@ $byDomain = array_column($sites, null, 'domain');
 ok('sites: analysed + suggested rows', array_keys($byDomain) === ['bluebottle.example', 'imagined.example', 'shop.example']);
 $own = $byDomain['shop.example'];
 ok('sites: analysed site fields', (int)$own['analyses_count'] === 1 && (int)$own['suggested_count'] === 0 && $own['name'] === 'Ridge Coffee'
-    && $own['title'] === 'Ridge Coffee | Small batch' && $own['sector'] === 'Specialty coffee'
+    && $own['title'] === null && $own['sector'] === 'Specialty coffee'
     && json_decode($own['tags_json'], true) === ['Online shop'] && json_decode($own['fonts_json'], true) === ['Inter']
     && json_decode($own['colours_json'], true) === [['role' => 'primary', 'hex' => '#1f5e4b'], ['role' => 'background', 'hex' => '#f4efe6']]);
 ok('sites: suggested site counted', (int)$byDomain['bluebottle.example']['suggested_count'] === 1 && (int)$byDomain['bluebottle.example']['analyses_count'] === 0
@@ -313,10 +313,10 @@ ok('scrub: analyse succeeds', $r['status'] === 200);
 ok('scrub: prompt and search queries hold no email, counter or phone', !str_contains($prompt, 'jane.doe') && !str_contains($prompt, '(3)') && !str_contains($prompt, '345 678')
     && !str_contains($queries, 'jane.doe') && !str_contains($queries, '345'));
 ok('scrub: site list and cache hold no email', !str_contains($rows, 'jane.doe') && !str_contains($rows, '345 678')
-    && count_rows($conn, "SELECT COUNT(*) FROM palette_sites WHERE domain = 'mail.example' AND title = 'Inbox – Mail' AND name = 'Inbox – Mail'") === 1);
+    && count_rows($conn, "SELECT COUNT(*) FROM palette_sites WHERE domain = 'mail.example' AND title IS NULL AND name = 'Inbox – Mail'") === 1);
 ok('scrub: sites_record scrubs on its own too', (function () use ($conn) {
     palette_sites_record($conn, 'direct.example', ['title' => '(5) bob@example.com | Direct'], palette_analyse_design([]), ['sector' => '', 'tags' => [], 'sites' => []]);
-    return count_rows($conn, "SELECT COUNT(*) FROM palette_sites WHERE domain = 'direct.example' AND title = 'Direct' AND name = 'Direct'") === 1;
+    return count_rows($conn, "SELECT COUNT(*) FROM palette_sites WHERE domain = 'direct.example' AND title IS NULL AND name = 'Direct'") === 1;
 })());
 
 // ---- a deep page: the model sees only the origin and a safe first segment (ruling A14)
