@@ -242,7 +242,7 @@ ok('sections in order: hero, what, plans, install, key, then the buy card',
 ok('four features with inline SVG icons', preg_match('#id="what".*?</section>#s', $en, $wm) === 1 && substr_count($wm[0], '<li class="feature">') === 4
     && substr_count($wm[0], '<svg') >= 4 && str_contains($wm[0], h(palette_t('en', 'pp_feat_export'))));
 ok('free vs pro table', preg_match('#id="plans".*?</section>#s', $en, $pm) === 1 && str_contains($pm[0], '<table')
-    && str_contains($pm[0], 'Pro, $1.49 once') && substr_count($pm[0], '<tr') === 8 && str_contains($pm[0], h(palette_t('en', 'pp_saved_free'))));
+    && str_contains($pm[0], 'Pro, $1.49 once') && substr_count($pm[0], '<tr') === 9 && str_contains($pm[0], h(palette_t('en', 'pp_saved_free'))));
 ok('install steps: 5, chrome://extensions as copyable code, not a link', preg_match('#id="install".*?</section>#s', $en, $im) === 1
     && substr_count($im[0], '<li') === 5 && str_contains($im[0], '<code dir="ltr">chrome://extensions</code>')
     && str_contains($im[0], 'data-copy="chrome://extensions"') && !str_contains($im[0], 'href="chrome:')
@@ -282,7 +282,9 @@ const LP_KEYS = ['lp_title', 'lp_h1', 'lp_lead', 'lp_shots_h', 'lp_shot_1', 'lp_
     'lp_faq_pro_q', 'lp_faq_pro_a', 'lp_faq_key_q', 'lp_faq_data_q', 'lp_faq_data_a', 'lp_faq_data_link', 'lp_faq_refund_q', 'page_terms',
     'terms_title', 'terms_intro', 'terms_buy_h', 'terms_buy', 'terms_pay_h', 'terms_pay', 'terms_final_h', 'terms_revoke_h', 'terms_revoke',
     'terms_use_h', 'terms_use', 'terms_asis_h', 'terms_asis', 'terms_liability_h', 'terms_liability', 'terms_changes_h', 'terms_changes',
-    'terms_contact_h', 'terms_contact'];
+    'terms_contact_h', 'terms_contact',
+    'priv_ai_h', 'priv_ai', 'terms_sub_h', 'terms_sub', 'terms_ai_h', 'terms_ai', 'pp_plan_ai', 'pp_row_ai', 'pp_ai_n',
+    'lp_ins_h', 'lp_ins_text', 'lp_ins_b1', 'lp_ins_b2', 'lp_ins_b3', 'lp_shot_6', 'lp_faq_ai_q', 'lp_faq_ai_a', 'lp_faq_cancel_q', 'lp_faq_cancel_a'];
 $missing = [];
 foreach (LANGS as $l) foreach (LP_KEYS as $k) {
     $v = palette_strings($l)[$k] ?? '';
@@ -312,8 +314,8 @@ ok('landing: reuses features, plans and install from checkout', preg_match('#id=
     && str_contains($lp, '<table class="plans">') && str_contains($lp, 'data-copy="chrome://extensions"'));
 ok('landing: AI block explains DESIGN.md', preg_match('#id="ai".*?</section>#s', $lp, $am) === 1 && str_contains($am[0], 'DESIGN.md')
     && str_contains($am[0], h(palette_t('en', 'lp_ai_text'))));
-ok('landing: FAQ with 5 questions, privacy link and the refund line', preg_match('#id="faq".*?</section>#s', $lp, $qm) === 1
-    && substr_count($qm[0], '<details') === 5 && str_contains($qm[0], 'href="/palette/privacy?lang=en"') && str_contains($qm[0], h($refundEn))
+ok('landing: FAQ with 7 questions, privacy link and the refund line', preg_match('#id="faq".*?</section>#s', $lp, $qm) === 1
+    && substr_count($qm[0], '<details') === 7 && str_contains($qm[0], 'href="/palette/privacy?lang=en"') && str_contains($qm[0], h($refundEn))
     && str_contains($qm[0], h(palette_t('en', 'pp_key_1'))));
 ok('landing: no inline script', preg_match_all('/<script(?![^>]*\bsrc=)(?![^>]*type="application\/json")[^>]*>/', $lp) === 0);
 ok('landing: no Opera', preg_match('/\bOpera\b/i', $lp) === 0);
@@ -511,3 +513,129 @@ foreach (LANGS as $l) {
         && preg_match(EMOJI_RE, $a) === 0);
 }
 ok('checkout.js never uses window.confirm', !preg_match('/\bconfirm\s*\(/', (string)file_get_contents(PALETTE_DIR . '/assets/checkout.js')));
+
+// ---- Task 11: privacy, terms, landing and checkout copy for Pro + AI
+cfg($conn, ['ai_paypal_plan_id' => 'P-TESTPLAN1', 'ai_paypal_plan_mode' => 'sandbox', 'ai_price_usd' => '3.99', 'ai_monthly_analyses' => '100']);
+$privacy = fn(string $l) => palette_render_privacy(['query' => ['lang' => $l], 'accept_language' => '']);
+$terms = fn(string $l) => palette_render_terms(['query' => ['lang' => $l], 'accept_language' => '']);
+$pen = $privacy('en');
+ok('privacy en: AI insights only on Analyse, with the address minus its query string',
+    str_contains($pen, h(palette_t('en', 'priv_ai_h'))) && str_contains(palette_t('en', 'priv_ai'), 'only when you press Analyse')
+    && str_contains(palette_t('en', 'priv_ai'), 'without anything after the ?') && str_contains(palette_t('en', 'priv_ai'), 'title') && str_contains(palette_t('en', 'priv_ai'), 'description')
+    && str_contains(palette_t('en', 'priv_ai'), 'summary of the design') && str_contains($pen, h(palette_t('en', 'priv_ai'))));
+ok('privacy en: scrubbing, Brave Search, DeepSeek, 7-day shared cache, aggregate list, PayPal and what we keep',
+    str_contains(palette_t('en', 'priv_ai'), 'email addresses and phone numbers') && str_contains(palette_t('en', 'priv_ai'), 'Brave Search')
+    && str_contains(palette_t('en', 'priv_ai'), 'DeepSeek, an AI provider') && str_contains(palette_t('en', 'priv_ai'), 'cached for 7 days')
+    && str_contains(palette_t('en', 'priv_ai'), 'other people who analyse the same site') && str_contains(palette_t('en', 'priv_ai'), 'without any user identifiers')
+    && str_contains(palette_t('en', 'priv_ai'), 'billed monthly by PayPal') && str_contains(palette_t('en', 'priv_ai'), 'email, subscription id and payment dates'));
+ok('privacy en: What it sends names the optional feature; existing sections kept',
+    str_contains($pen, 'Only your license key, to vietnamcos.com, to check that it is valid.') && str_contains(palette_t('en', 'priv_sends'), 'AI insights')
+    && str_contains($pen, h(palette_t('en', 'priv_pay'))) && str_contains($pen, h(palette_t('en', 'priv_track'))) && str_contains($pen, '2026-10-17'));
+ok('privacy en: AI section sits between What it sends and What our server processes',
+    strpos($pen, h(palette_t('en', 'priv_sends_h'))) < strpos($pen, h(palette_t('en', 'priv_ai_h'))) && strpos($pen, h(palette_t('en', 'priv_ai_h'))) < strpos($pen, h(palette_t('en', 'priv_server_h'))));
+foreach (LANGS as $l) {
+    $p = $privacy($l);
+    $ai = palette_t($l, 'priv_ai');
+    ok("privacy $l: AI section names Brave Search and DeepSeek, 7 days, What it sends mentions the feature, no emoji",
+        str_contains($p, h(palette_t($l, 'priv_ai_h'))) && str_contains($p, h($ai)) && str_contains($p, h(palette_t($l, 'priv_sends')))
+        && str_contains($ai, 'Brave Search') && str_contains($ai, 'DeepSeek') && str_contains($ai, '7') && str_contains($ai, 'PayPal') && str_contains($ai, 'vietnamcos.com')
+        && str_contains(palette_t($l, 'priv_sends'), 'Pro + AI') && preg_match(EMOJI_RE, $p) === 0);
+}
+
+$ten = $terms('en');
+ok('terms en: subscription, monthly PayPal, renews until cancelled, cancel from account, access to end of paid month, final sales',
+    str_contains($ten, h(palette_t('en', 'terms_sub_h'))) && str_contains($ten, h(palette_t('en', 'terms_sub', ['price' => '$3.99'])))
+    && str_contains(palette_t('en', 'terms_sub'), 'a month, billed monthly through PayPal') && str_contains(palette_t('en', 'terms_sub'), 'renews automatically every month until you cancel')
+    && str_contains(palette_t('en', 'terms_sub'), 'cancel at any time from your account page') && str_contains(palette_t('en', 'terms_sub'), 'stay on until the end of the month you already paid for')
+    && str_contains(palette_t('en', 'terms_sub'), 'All sales are final') && str_contains(palette_t('en', 'terms_sub'), 'chargeback'));
+ok('terms en: analyses limit from settings, may change with notice, fair use, AI may be wrong',
+    str_contains($ten, h(palette_t('en', 'terms_ai', ['n' => 100]))) && str_contains($ten, 'currently 100') && str_contains($ten, 'may change with notice')
+    && str_contains($ten, 'no automated or bulk use') && str_contains($ten, 'can be wrong or out of date') && str_contains($ten, 'without any guarantee'));
+cfg($conn, ['ai_monthly_analyses' => '250']);
+ok('terms: the analyses limit follows the setting', str_contains($terms('en'), 'currently 250'));
+cfg($conn, ['ai_monthly_analyses' => '100']);
+ok('terms en: Pro stays one-time; no invented legal entity', str_contains(palette_t('en', 'terms_pay'), 'does not renew') && str_contains($ten, 'Pro + AI')
+    && !preg_match('/governing law|LLC|Ltd|Inc\.|registered/i', $ten));
+foreach (LANGS as $l) {
+    $t = $terms($l);
+    $price = $l === 'fr' ? "3,99\u{a0}\$ US" : '$3.99';
+    ok("terms $l: subscription and AI sections, price and limit filled in, no emoji",
+        str_contains($t, h(palette_t($l, 'terms_sub_h'))) && str_contains($t, h(palette_t($l, 'terms_sub', ['price' => $price])))
+        && str_contains($t, h(palette_t($l, 'terms_ai', ['n' => 100]))) && str_contains($t, h(palette_t($l, 'co_refund'))) && str_contains($t, h(palette_t($l, 'terms_liability')))
+        && preg_match('/{(price|n)}/', $t) === 0 && preg_match(EMOJI_RE, $t) === 0);
+}
+
+// landing: 3-column plan comparison, AI insights section, FAQ
+$lp3 = landing(['lang' => 'en']);
+preg_match('#id="plans".*?</section>#s', $lp3, $pl);
+ok('plans table: Free, Pro and Pro + AI columns with prices from settings', preg_match('#<thead>(.*?)</thead>#s', $pl[0], $th) === 1
+    && substr_count($th[1], '<th scope="col"') === 4 && str_contains($th[1], 'Pro, $1.49 once') && str_contains($th[1], 'Pro + AI, $3.99 a month')
+    && !str_contains($th[1], h(palette_t('en', 'co_plan_soon'))));
+ok('plans table: every row has three value cells; AI insights row is Pro + AI only', preg_match_all('#<tr><th scope="row">.*?</tr>#s', $pl[0], $rows) === 8
+    && count(array_filter($rows[0], fn($r) => substr_count($r, '<td>') !== 3)) === 0
+    && preg_match('#<tr><th scope="row">AI insights</th><td>(.*?)</td><td>(.*?)</td><td>(.*?100 a month.*?)</td></tr>#s', $pl[0], $air) === 1
+    && str_contains($air[1], 'Not included') && str_contains($air[2], 'Not included'));
+cfg($conn, ['ai_price_usd' => '5.49']);
+ok('plans table: Pro + AI price follows the setting', str_contains(landing(['lang' => 'en']), 'Pro + AI, $5.49 a month'));
+cfg($conn, ['ai_price_usd' => '3.99', 'ai_paypal_plan_id' => '']);
+$lpOff = landing(['lang' => 'en']);
+preg_match('#id="plans".*?</section>#s', $lpOff, $plOff);
+preg_match('#<thead>(.*?)</thead>#s', $plOff[0], $thOff);
+ok('plans table, AI off: the Pro + AI column says Coming soon instead of a price', str_contains($thOff[1], 'Pro + AI') && str_contains($thOff[1], h(palette_t('en', 'co_plan_soon')))
+    && !str_contains($thOff[1], '$3.99') && !str_contains($lpOff, 'plan=ai'));
+preg_match('#id="insights".*?</section>#s', $lpOff, $insOff);
+ok('AI insights section, AI off: Coming soon, no checkout link', str_contains($insOff[0], h(palette_t('en', 'co_plan_soon'))) && !str_contains($insOff[0], 'checkout'));
+cfg($conn, ['ai_paypal_plan_id' => 'P-TESTPLAN1']);
+$lpOn = landing(['lang' => 'en']);
+preg_match('#id="insights".*?</section>#s', $lpOn, $ins);
+ok('AI insights section: heading, text, three bullets, Pro + AI link to the plan checkout', ($ins[0] ?? '') !== '' && str_contains($ins[0], h(palette_t('en', 'lp_ins_h'))) && str_contains($ins[0], h(palette_t('en', 'lp_ins_text')))
+    && preg_match_all('#<li>#', $ins[0]) === 3 && str_contains($ins[0], h(palette_t('en', 'lp_ins_b1'))) && str_contains($ins[0], h(palette_t('en', 'lp_ins_b3')))
+    && str_contains($ins[0], 'href="/palette/checkout?lang=en&amp;plan=ai#buy"') && !str_contains($ins[0], h(palette_t('en', 'co_plan_soon'))));
+ok('AI insights section sits between the plans table and the DESIGN.md block', strpos($lpOn, 'id="plans"') < strpos($lpOn, 'id="insights"') && strpos($lpOn, 'id="insights"') < strpos($lpOn, 'id="ai"'));
+ok('AI insights screenshot: 6-ai-insights.png, sized, lazy, alt mentions Pro + AI; files exist',
+    preg_match('#<img src="/palette/assets/screenshots/6-ai-insights\.png" width="1280" height="800" alt="([^"]+)" loading="lazy"#', $ins[0], $sm) === 1
+    && $sm[1] === h(palette_t('en', 'lp_shot_6')) && str_contains($sm[1], 'Pro + AI') && is_file(PALETTE_DIR . '/assets/screenshots/6-ai-insights.png')
+    && is_file(PALETTE_DIR . '/../docs/store/screenshots/6-ai-insights.png'));
+ok('landing: still five gallery screenshots (the sixth lives in the AI section)', preg_match_all('#<img src="/palette/assets/screenshots/[1-5]-#', $lpOn) === 5);
+preg_match('#id="faq".*?</section>#s', $lpOn, $faq);
+ok('FAQ gains what Pro + AI is (price and limit) and how to cancel', str_contains($faq[0], h(palette_t('en', 'lp_faq_ai_q'))) && str_contains($faq[0], h(palette_t('en', 'lp_faq_ai_a', ['price' => '$3.99', 'n' => 100])))
+    && str_contains($faq[0], 'up to 100 analyses a month') && str_contains($faq[0], h(palette_t('en', 'lp_faq_cancel_q'))) && str_contains($faq[0], 'select Cancel subscription')
+    && str_contains($faq[0], 'stay on until the end of the month you paid for'));
+ok('FAQ data answer mentions the Analyse data', str_contains(palette_t('en', 'lp_faq_data_a'), 'Only if you use Pro + AI and press Analyse'));
+foreach (LANGS as $l) {
+    $h = landing(['lang' => $l]);
+    $price = $l === 'fr' ? "3,99\u{a0}\$ US" : '$3.99';
+    ok("landing $l: AI section, screenshot alt, 3-column table, FAQ items, no emoji",
+        str_contains($h, 'alt="' . h(palette_t($l, 'lp_shot_6')) . '"') && str_contains($h, h(palette_t($l, 'lp_ins_h'))) && str_contains($h, h(palette_t($l, 'lp_ins_b2')))
+        && str_contains($h, h(palette_t($l, 'pp_plan_ai', ['price' => $price]))) && str_contains($h, h(palette_t($l, 'lp_faq_ai_q'))) && str_contains($h, h(palette_t($l, 'lp_faq_cancel_a')))
+        && str_contains($h, h(palette_t($l, 'lp_faq_ai_a', ['price' => $price, 'n' => 100]))) && substr_count($h, '<details class="faq-item">') === 7
+        && str_contains($h, h(palette_t($l, 'pp_ai_n', ['n' => 100]))) && preg_match('/{(price|n)}/', $h) === 0 && preg_match(EMOJI_RE, $h) === 0);
+}
+$cen = checkout(['lang' => 'en']);
+ok('checkout shares the 3-column table and its lead names both plans', str_contains($cen, 'Pro + AI, $3.99 a month') && str_contains($cen, h(palette_t('en', 'co_lead'))) && str_contains(palette_t('en', 'co_lead'), 'Pro + AI is a monthly plan'));
+
+// ---- Task 11: the deploy runbook and the README carry the Pro + AI operations
+$deploy = (string)file_get_contents(PALETTE_DIR . '/DEPLOY.md');
+$readme = (string)file_get_contents(PALETTE_DIR . '/README.md');
+ok('DEPLOY: search_key is set through a silent read and ssh stdin, never echoed',
+    str_contains($deploy, 'read -rs') && str_contains($deploy, "printf '%s' \"\$SEARCH_KEY\" | \$SSH") && str_contains($deploy, 'stream_get_contents(STDIN)')
+    && str_contains($deploy, 'palette_settings_put(\$conn, \$s)') && str_contains($deploy, 'strlen(\$t[\"search_key\"])') && !preg_match('/search_key[^\n]*echo[^\n]*\$s\[/', $deploy));
+ok('DEPLOY: the settings print masks search_key', str_contains($deploy, '\$p[\"search_key\"]=\$p[\"search_key\"]!==\"\"?\"(set)\":\"\"')
+    && !preg_match('/echo json_encode\(palette_settings\(\$conn\)\)/', $deploy));
+ok('DEPLOY: setup.php Subscription plan in sandbox then live', str_contains($deploy, 'Create or find the subscription plan') && str_contains($deploy, '`(sandbox)`') && str_contains($deploy, '`(live)`')
+    && str_contains($deploy, '`ai_paypal_plan_mode` = `live`'));
+ok('DEPLOY: the daily cron line, installed in /etc/cron.d/palette with owner and mode',
+    str_contains($deploy, '15 3 * * * www-data php /var/www/duykhang/companies/palette/cron-subscriptions.php') && str_contains($deploy, '/etc/cron.d/palette')
+    && str_contains($deploy, 'chown root:root /etc/cron.d/palette') && str_contains($deploy, 'chmod 644 /etc/cron.d/palette'));
+ok('DEPLOY: companies prerequisites (gateway files, platform key, ai_enabled)', str_contains($deploy, 'tools/api/ai-gateway.php') && str_contains($deploy, 'tools/api/ai-usage.php')
+    && str_contains($deploy, 'DEEPSEEK_API_KEY') && str_contains($deploy, 'hiring settings') && str_contains($deploy, '`ai_enabled=1`'));
+ok('DEPLOY: sandbox subscription checklist (subscribe, key, renewal, cancel, refund, alerts)', str_contains($deploy, '### 6c. Pro + AI subscription pass (sandbox)')
+    && str_contains($deploy, 'Renewal:') && str_contains($deploy, 'Cancel from the account page') && str_contains($deploy, 'Refund: refund a sandbox sale')
+    && str_contains($deploy, 'PALETTE_PAID_UNFULFILLED') && str_contains($deploy, 'PALETTE_CANCEL_FAILED') && str_contains($deploy, 'Alert on every line that starts with `PALETTE_`'));
+ok('DEPLOY: known limitations from the ledger (user -1, scrubbing, lost checkout, kill switch, deferred gaps)', str_contains($deploy, 'logged as user -1') && str_contains($deploy, 'Page text is scrubbed')
+    && str_contains($deploy, 'Lost pending subscription checkout') && str_contains($deploy, 'ai_enabled = 0') && str_contains($deploy, 'A8') && str_contains($deploy, 'A9') && str_contains($deploy, 'A10(c)'));
+ok('DEPLOY: store checklist names the data disclosure and the five screenshots', str_contains($deploy, '**Website content**') && str_contains($deploy, '**Web history**') && str_contains($deploy, '6-ai-insights'));
+ok('README: the AI/subscription contract lists the gateway helpers, user -1, ai_enabled, field names and error keys',
+    str_contains($readme, '### AI insights and subscription contract (Pro + AI)') && str_contains($readme, 'ai_key_for($conn, 0)') && str_contains($readme, 'ai_provider_request')
+    && str_contains($readme, 'ai_http_call') && str_contains($readme, 'ai_provider_parse') && str_contains($readme, 'PALETTE_AI_LOG_USER') && str_contains($readme, '`hiring_settings.ai_enabled = 0`')
+    && str_contains($readme, 'search_unavailable') && str_contains($readme, 'spacing_base') && str_contains($readme, 'err_quota') && str_contains($readme, 'err_ended') && str_contains($readme, 'err_not_ai'));

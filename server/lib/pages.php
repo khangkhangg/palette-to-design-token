@@ -153,6 +153,7 @@ function palette_icon(string $name, int $size = 16): string
         'code' => '<path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/>',
         'minus' => '<path d="M5 12h14"/>',
         'info' => '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+        'spark' => '<path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 3v4M17 5h4"/>',
     ];
     return '<svg class="icon icon-' . $name . '" width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
         . ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' . ($paths[$name] ?? '') . '</svg>';
@@ -289,21 +290,28 @@ function palette_section_features(string $lang): string
         . '<ul class="features">' . $features . '</ul></section>';
 }
 
-// The wrapper becomes a focusable, labelled region (checkout.js) only when the table overflows it.
+// Free / Pro / Pro + AI. The wrapper becomes a focusable, labelled region (checkout.js) only when the table overflows.
+// The Pro + AI header shows its monthly price once the PayPal plan exists for this mode, and "Coming soon" until then.
 function palette_section_plans(string $lang, string $price): string
 {
     $t = fn(string $k) => palette_h(palette_t($lang, $k));
+    $aiOn = palette_ai_on();
     $yes = '<span class="plan-yes">' . palette_icon('check', 16) . '<span class="sr-only">' . $t('pp_yes') . '</span></span>';
     $no = '<span class="plan-no">' . palette_icon('minus', 16) . '<span class="sr-only">' . $t('pp_no') . '</span></span>';
+    $perMonth = palette_h(palette_t($lang, 'pp_ai_n', ['n' => palette_usage_limit(palette_settings($GLOBALS['conn']))]));
     $rows = '';
-    foreach ([['pp_row_scan', $yes, $yes], ['pp_row_view', $yes, $yes], ['pp_row_copy', $yes, $yes], ['pp_row_contrast', $yes, $yes],
-              ['pp_row_saved', $t('pp_saved_free'), $t('pp_saved_pro')], ['pp_row_exports', $no, $yes], ['pp_row_fixes', $no, $yes]] as [$k, $free, $pro]) {
-        $rows .= '<tr><th scope="row">' . $t($k) . '</th><td>' . $free . '</td><td>' . $pro . '</td></tr>';
+    foreach ([['pp_row_scan', $yes, $yes, $yes], ['pp_row_view', $yes, $yes, $yes], ['pp_row_copy', $yes, $yes, $yes], ['pp_row_contrast', $yes, $yes, $yes],
+              ['pp_row_saved', $t('pp_saved_free'), $t('pp_saved_pro'), $t('pp_saved_pro')], ['pp_row_exports', $no, $yes, $yes], ['pp_row_fixes', $no, $yes, $yes],
+              ['pp_row_ai', $no, $no, $perMonth]] as [$k, $free, $pro, $ai]) {
+        $rows .= '<tr><th scope="row">' . $t($k) . '</th><td>' . $free . '</td><td>' . $pro . '</td><td>' . $ai . '</td></tr>';
     }
+    $aiHead = $aiOn ? palette_h(palette_t($lang, 'pp_plan_ai', ['price' => palette_ai_price_label($lang)]))
+        : 'Pro + AI <span class="plan-soon">' . $t('co_plan_soon') . '</span>';
     return '<section class="pp-section" id="plans" aria-labelledby="plans-h"><h2 id="plans-h">' . $t('pp_plans_h') . '</h2>'
         . '<div class="plans-wrap" data-scroll-label="' . $t('pp_plans_h') . '"><table class="plans"><thead><tr><th scope="col"><span class="sr-only">' . $t('pp_plan_feature') . '</span></th>'
         . '<th scope="col">' . $t('pp_plan_free') . '</th>'
-        . '<th scope="col" class="plan-pro">' . palette_h(palette_t($lang, 'pp_plan_pro', ['price' => $price])) . '</th></tr></thead>'
+        . '<th scope="col" class="plan-pro">' . palette_h(palette_t($lang, 'pp_plan_pro', ['price' => $price])) . '</th>'
+        . '<th scope="col" class="plan-ai">' . $aiHead . '</th></tr></thead>'
         . '<tbody>' . $rows . '</tbody></table></div></section>';
 }
 
@@ -333,6 +341,8 @@ function palette_script_strings(string $lang): array
 }
 
 const PALETTE_SCREENSHOTS = ['1-popup-colours.png', '2-contrast.png', '3-side-panel-light.png', '4-side-panel-dark.png', '5-export.png'];
+// The AI results shot sits in the AI insights section, not in the gallery.
+const PALETTE_AI_SCREENSHOT = '6-ai-insights.png';
 // A short DESIGN.md excerpt for the landing page (code, so not translated).
 const PALETTE_DESIGN_MD_SAMPLE = "# Design system — fernleaf.example\n\nUse only these tokens for UI.\nDo not invent new colours, fonts or spacing.\n\n"
     . "| Role    | Token           | Hex     |\n| ------- | --------------- | ------- |\n| primary | --color-primary | #1F5E4B |\n"
@@ -363,6 +373,19 @@ function palette_render_landing(array $ctx): string
     $how = '<section class="pp-section" id="how" aria-labelledby="how-h"><h2 id="how-h">' . $t('lp_how_h') . '</h2>'
         . '<ol class="steps steps-row"><li>' . $t('lp_how_1') . '</li><li>' . $t('lp_how_2') . '</li><li>' . $t('lp_how_3') . '</li></ol></section>';
 
+    $aiOn = palette_ai_on();
+    $bullets = '';
+    foreach (['lp_ins_b1', 'lp_ins_b2', 'lp_ins_b3'] as $k) $bullets .= '<li>' . palette_icon('check', 16) . '<span>' . $t($k) . '</span></li>';
+    $cta = $aiOn
+        ? '<a class="btn btn-accent" href="' . palette_h(palette_page_url('checkout', $lang, ['plan' => 'ai']) . '#buy') . '">'
+            . palette_h(palette_t($lang, 'pp_get_ai', ['price' => palette_ai_price_label($lang)])) . '</a>'
+        : '<span class="plan-soon">Pro + AI: ' . $t('co_plan_soon') . '</span>';
+    $insights = '<section class="pp-section lp-insights" id="insights" aria-labelledby="insights-h"><div class="lp-ins-text">'
+        . '<h2 id="insights-h">' . palette_icon('spark', 18) . $t('lp_ins_h') . '</h2><p>' . $t('lp_ins_text') . '</p>'
+        . '<ul class="ticks">' . $bullets . '</ul><div class="lp-ins-cta">' . $cta . '</div></div>'
+        . '<figure class="shot"><img src="' . PALETTE_BASE . '/assets/screenshots/' . PALETTE_AI_SCREENSHOT . '" width="1280" height="800"'
+        . ' alt="' . $t('lp_shot_6') . '" loading="lazy" decoding="async"></figure></section>';
+
     $ai = '<section class="pp-section lp-ai" id="ai" aria-labelledby="ai-h"><div class="lp-ai-text">'
         . '<h2 id="ai-h">' . palette_icon('code', 18) . $t('lp_ai_h') . '</h2><p>' . $t('lp_ai_text') . '</p>'
         . '<p class="pp-aside">' . $t('lp_ai_where') . '</p></div>'
@@ -375,6 +398,8 @@ function palette_render_landing(array $ctx): string
         [$t('lp_faq_key_q'), $t('pp_key_1') . ' ' . $t('pp_key_2')],
         [$t('lp_faq_data_q'), $t('lp_faq_data_a') . ' ' . $privacy],
         [$t('lp_faq_refund_q'), $t('co_refund')],
+        [$t('lp_faq_ai_q'), palette_h(palette_t($lang, 'lp_faq_ai_a', ['price' => palette_ai_price_label($lang), 'n' => palette_usage_limit(palette_settings($GLOBALS['conn']))]))],
+        [$t('lp_faq_cancel_q'), $t('lp_faq_cancel_a')],
     ];
     $items = '';
     foreach ($faqs as [$q, $a]) {
@@ -384,7 +409,7 @@ function palette_render_landing(array $ctx): string
         . '<div class="faq">' . $items . '</div></section>';
 
     $main = '<main class="wrap landing">' . $hero . $showcase . $how . palette_section_features($lang) . palette_section_plans($lang, $price)
-        . $ai . palette_section_install($lang) . $faq . '</main>';
+        . $insights . $ai . palette_section_install($lang) . $faq . '</main>';
     return palette_page_shell('landing', $lang, [], palette_t($lang, 'lp_title'), $main, ['t' => palette_script_strings($lang)]);
 }
 
@@ -398,9 +423,11 @@ function palette_render_terms(array $ctx): string
     $sections = '';
     foreach ([['buy', 'key', $t('terms_buy')],
               ['pay', 'card', palette_h(palette_t($lang, 'terms_pay', ['price' => palette_price_label($lang)]))],
+              ['sub', 'card', palette_h(palette_t($lang, 'terms_sub', ['price' => palette_ai_price_label($lang)]))],
               ['final', 'alert', $t('co_refund')],
               ['revoke', 'lock', $t('terms_revoke')],
               ['use', 'shield', $t('terms_use')],
+              ['ai', 'spark', palette_h(palette_t($lang, 'terms_ai', ['n' => palette_usage_limit(palette_settings($GLOBALS['conn']))]))],
               ['asis', 'info', $t('terms_asis')],
               ['liability', 'shield', $t('terms_liability')],
               ['changes', 'globe', $t('terms_changes')],
@@ -643,7 +670,7 @@ function palette_render_privacy(array $ctx): string
     $t = fn(string $k) => palette_h(palette_t($lang, $k));
 
     $sections = '';
-    foreach (['reads' => 'eye', 'stores' => 'hdd', 'sends' => 'send', 'server' => 'globe', 'pay' => 'card', 'email' => 'mail', 'track' => 'shield'] as $k => $icon) {
+    foreach (['reads' => 'eye', 'stores' => 'hdd', 'sends' => 'send', 'ai' => 'spark', 'server' => 'globe', 'pay' => 'card', 'email' => 'mail', 'track' => 'shield'] as $k => $icon) {
         $sections .= '<section class="policy-item"><span class="policy-icon">' . palette_icon($icon, 18) . '</span><div>'
             . '<h2>' . $t('priv_' . $k . '_h') . '</h2><p>' . $t('priv_' . $k) . '</p></div></section>';
     }

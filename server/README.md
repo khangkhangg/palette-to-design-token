@@ -18,6 +18,21 @@ directory of this folder.
 
 If any of these change in companies, this add-on must be updated.
 
+### AI insights and subscription contract (Pro + AI)
+
+What the extension, the pages and operations rely on, in one place. Each item is explained in the sections below and in DEPLOY.md.
+
+- **AI gateway helpers** (companies, called only from `lib/ai.php`, never modified): `ai_key_for($conn, 0)`, `ai_provider_request`, `ai_http_call` (through `palette_ai_transport`), `ai_provider_parse`, `ai_log($conn, PALETTE_AI_LOG_USER, 'palette_ai', ...)`, plus `hiring_setting($conn, 'ai_enabled' | 'ai_cloud_model')`. Never `ai_chat()`.
+- **Log user `-1`.** `PALETTE_AI_LOG_USER` is -1 (ruling A8), so palette calls are their own row in `/hiring-admin/ai/reports` and never use the guest (user 0) quota. The key itself is the platform key (`ai_key_for($conn, 0)`).
+- **Kill switch.** `hiring_settings.ai_enabled = 0` makes every analysis answer `err_ai_unavailable` (503) with no HTTP call, no log row and no charge.
+- **Companies prerequisites on production:** `tools/api/ai-gateway.php`, `tools/api/ai-usage.php` and `tools/api/hiring-admin.php` present, a platform DeepSeek key (hiring settings `deepseek_key` or `DEEPSEEK_API_KEY` in `.env`), `ai_enabled = 1` (DEPLOY.md step 1d).
+- **Palette settings** (`admin_settings` key `palette`, merged read-modify-write): `ai_price_usd` (3.99), `ai_monthly_analyses` (100), `ai_monthly_token_cap` (600000, hidden), `search_provider` (`brave` | `tavily`), `search_key` (a secret: no API action returns it, nothing prints it; DEPLOY.md step 5b sets it without echoing), `ai_paypal_plan_id`, `ai_paypal_plan_mode`, `ai_paypal_product_id`. The landing, checkout, terms and FAQ read the price and the limit from these, never from a constant.
+- **Request field names** (`analyse` body, anything else is dropped): `key`, `url`, `title`, `description`, `lang`, `design` = `{colours: [{role, hex}], fonts, type_sizes, spacing_base, radius, contrast: {pass, fail, failing: [{fg, bg, ratio}]}}`.
+- **Result field names** (spec section 5.3): `sector`, `tags`, `verdict` (`behind` | `on_par` | `competitive`), `summary`, `colours: [{hex, title, meaning}]`, `fit: {level: strong | ok | weak, reason}`, `works`, `improve`, `sites: [{name, domain, url, why, relation: competitor | similar, source: web | ai}]`, `search_unavailable`. The envelope is `{ok, result, cached, usage: {used, limit, resets_on}}`; `verify` for `plan: 'ai'` keys adds `plan`, `ai_active`, `paid_through`, `sub_status` and `usage`.
+- **Error keys the extension maps** (`extension/src/ai.ts`): `err_bad_request` (400, also 413) -> bad request, `err_not_ai` (403, any other 403) -> not AI, `err_ended` (403, `ended_on`) -> ended, `api_rate_limited` (429) -> rate limited, `err_quota` (429, `resets_on`, `usage`) -> quota, `err_ai_unavailable` and anything else (503 ...) -> unavailable; a 200 that does not fit the schema -> invalid. Subscription and cancel errors the pages show: `err_paused`, `err_retry`, `err_paypal`, `err_csrf`, `err_not_owner`, `err_invalid_key`.
+- **Alert prefixes** (PHP error log; alert on every line starting `PALETTE_`): `PALETTE_MAIL_FAILED`, `PALETTE_PAID_UNFULFILLED`, `PALETTE_CANCEL_FAILED`.
+- **Cron:** `15 3 * * * www-data php /var/www/duykhang/companies/palette/cron-subscriptions.php` (DEPLOY.md step 4b).
+
 ## Schema
 
 `php migrate.php` creates `palette_orders`, `palette_licenses` and `palette_rate` (idempotent).
@@ -96,6 +111,7 @@ migrations 045, 048, 049, 059) in the test database.
 
 - `palette_resend` must run after the HTTP response is flushed (it does DB and Resend work only for existing addresses, which would otherwise leak address existence through response timing).
 - A licence email that fails after a capture logs `PALETTE_MAIL_FAILED order=<id>` (alert on it; see DEPLOY.md Known limitations).
+- Pro + AI: the deferred monitoring and account-page gaps, the user -1 logging, page-text scrubbing and the lost pending checkout are listed in DEPLOY.md Known limitations.
 
 ## JSON API (`api.php?action=...`)
 
@@ -135,8 +151,14 @@ Served as `/palette/` (landing, via the vhost's `index index.php`), `/palette/ch
 `/palette/privacy` and `/palette/terms` (extensionless: the vhost needs a rewrite to the `.php` file). Each file is a
 thin adapter over a pure renderer in `lib/pages.php` (`palette_render_landing/checkout/account/privacy/terms(array $ctx):
 string`, tested by `tests/pages-test.php`). The landing and checkout pages share section helpers
-(`palette_section_hero_actions/features/plans/install`); screenshots are `assets/screenshots/` (copies of
-`docs/store/screenshots/`, regenerate with `npm run screenshots` in `extension/`);
+(`palette_section_hero_actions/features/plans/install`); the plans table has three columns (Free, Pro, Pro + AI): the Pro + AI
+header shows its monthly price once a PayPal plan exists for the current mode (`palette_ai_on()`) and "Coming soon" until
+then, and so does the "AI insights" section of the landing page (heading, three bullets, the results screenshot
+`6-ai-insights.png` with a per-language alt `lp_shot_6`, a Pro + AI link). The FAQ has seven questions (what Pro + AI is,
+how to cancel). The terms add `terms_sub` (subscription) and `terms_ai` (analyses limit from settings, fair use, AI output
+may be wrong); the privacy page adds `priv_ai` (AI insights, Brave Search and DeepSeek, 7-day shared cache). Screenshots are
+`assets/screenshots/` (copies of `docs/store/screenshots/`, regenerate with `npm run screenshots` in `extension/`: the sixth
+shot uses a stubbed analysis, and the Web Store takes only five of the six);
 behaviour is in `assets/checkout.js` (vanilla, no build), styles in `assets/checkout.css` (light + dark, logical
 properties for Arabic), Geist self-hosted under `assets/fonts/` (OFL). No external fonts, no inline scripts.
 

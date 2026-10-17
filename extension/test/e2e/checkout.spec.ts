@@ -335,7 +335,7 @@ test('product page: free download link, Get Pro jumps to the buy card, install a
   await expect(download).toHaveAttribute('href', '/palette/download/site-to-design-token-latest.zip');
   await expect(download).toHaveAttribute('download', '');
   await expect(page.getByText('Works in Chrome, Edge and Brave. Version 0.1.0.')).toBeVisible();
-  for (const h of ['What it does', 'Free vs Pro', 'Install in 1 minute', 'Already bought Pro?']) {
+  for (const h of ['What it does', 'Free, Pro and Pro + AI', 'Install in 1 minute', 'Already bought Pro?']) {
     await expect(page.getByRole('heading', { name: h })).toBeVisible();
   }
 
@@ -434,7 +434,7 @@ test('plans table: the wrapper becomes a focusable labelled region only when it 
   await page.evaluate(() => window.dispatchEvent(new Event('resize')));
   await expect(wrap).toHaveAttribute('tabindex', '0');
   await expect(wrap).toHaveAttribute('role', 'region');
-  await expect(wrap).toHaveAttribute('aria-label', 'Free vs Pro');
+  await expect(wrap).toHaveAttribute('aria-label', 'Free, Pro and Pro + AI');
 });
 
 test('landing at 360px: the DESIGN.md sample scrolls and is a keyboard-reachable labelled region', async ({ page }) => {
@@ -633,9 +633,13 @@ test('landing: Get Pro + AI goes to the checkout with the Pro + AI plan selected
   await seed(page);
   await fakePayPal(page);
   await page.goto('/palette/?lang=en');
-  const link = page.getByRole('link', { name: 'Get Pro + AI — $3.99/month' });
-  await expect(link).toHaveAttribute('href', '/palette/checkout?lang=en&plan=ai#buy');
-  await link.click();
+  // the hero button and the AI insights section both lead to the Pro + AI checkout; the section also shows the AI screenshot
+  const links = page.getByRole('link', { name: 'Get Pro + AI — $3.99/month' });
+  await expect(links).toHaveCount(2);
+  for (const l of await links.all()) await expect(l).toHaveAttribute('href', '/palette/checkout?lang=en&plan=ai#buy');
+  await expect(page.locator('#insights img')).toHaveAttribute('src', '/palette/assets/screenshots/6-ai-insights.png');
+  await expect(page.locator('#plans thead .plan-ai')).toContainText('Pro + AI, $3.99 a month');
+  await links.first().click();
   await expect(page.locator('.plan-card[data-plan="ai"]')).toHaveAttribute('aria-checked', 'true');
   await seed(page, 'ready', 'none', 'off');
   await page.goto('/palette/?lang=en');

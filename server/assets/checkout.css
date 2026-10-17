@@ -194,8 +194,13 @@ h3 { margin: 0; }
 .plans thead th { font-size: 13px; font-weight: 600; color: var(--ink-2); background: var(--surface-2); }
 .plans thead .plan-pro { color: var(--accent); }
 .plans tbody th { font-weight: 500; }
-.plans td { inline-size: 26%; color: var(--ink-2); font-size: 13.5px; }
+.plans td { inline-size: 22%; color: var(--ink-2); font-size: 13.5px; }
 .plans td:last-child { background: color-mix(in srgb, var(--key-bg) 55%, transparent); }
+.plans thead .plan-ai { color: var(--accent); }
+.plan-soon {
+  display: inline-block; margin-inline-start: 6px; padding: 1px 8px; border-radius: 999px; vertical-align: middle;
+  background: var(--key-bg); color: var(--key-ink); font-size: 11.5px; font-weight: 600;
+}
 .plan-yes, .plan-no { display: inline-flex; vertical-align: middle; }
 .plan-yes { color: var(--pass-ink); }
 .plan-no { color: var(--muted); opacity: .7; }
@@ -488,6 +493,14 @@ input::placeholder { color: var(--muted); opacity: .7; }
 .lp-ai { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; align-items: start; }
 .lp-ai-text { display: flex; flex-direction: column; gap: 12px; }
 .lp-ai-text p { font-size: 15.5px; line-height: 1.65; color: var(--ink-2); }
+.lp-insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; align-items: center; }
+.lp-ins-text { display: flex; flex-direction: column; gap: 12px; }
+.lp-ins-text p { font-size: 15.5px; line-height: 1.65; color: var(--ink-2); }
+.ticks { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.ticks li { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; line-height: 1.5; color: var(--ink-2); }
+.ticks .icon { flex: none; margin-block-start: 3px; color: var(--pass-ink); }
+.lp-ins-cta { margin-block-start: 4px; }
+.lp-insights .shot img { max-block-size: 520px; object-fit: contain; background: var(--surface-2); }
 .md-sample {
   margin: 0; padding: 18px 20px; border-radius: 14px; overflow-x: auto; text-align: start;
   background: #16181D; color: #E6E8EE; border: 1px solid var(--line);
@@ -508,7 +521,7 @@ input::placeholder { color: var(--muted); opacity: .7; }
 @media (max-width: 640px) {
   .landing { gap: 40px; }
   .shots { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .lp-ai { grid-template-columns: minmax(0, 1fr); }
+  .lp-ai, .lp-insights { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ---- footer */

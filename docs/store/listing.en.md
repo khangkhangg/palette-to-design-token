@@ -35,13 +35,22 @@ Pro, a one-time $1.49 unlock
 - Suggested contrast fixes.
 - Saved sites: unlimited.
 
+Pro + AI, $3.99 a month
+- Everything in Pro.
+- AI insights: press Analyse on a site to get a verdict, what its colours mean, and similar and competitor sites found with a web search. Up to 100 analyses a month.
+- Billed monthly through PayPal. Cancel any time; Pro and AI stay on until the end of the month you paid for.
+
 Privacy
 
-Scanning happens on your device. The extension reads the colours and styles of the page you choose, only when you click its icon, and sends nothing about the pages you scan anywhere. The only network request is the optional Pro licence check, which sends your licence key. Read the full policy: https://vietnamcos.com/palette/privacy
+Scanning happens on your device. The extension reads the colours and styles of the page you choose, only when you click its icon, and sends nothing about the pages you scan anywhere, unless you use Pro + AI and press Analyse (see below). Apart from that, the only network request is the optional Pro licence check, which sends your licence key.
+
+AI insights (Pro + AI) run only when you press Analyse. The extension then sends vietnamcos.com the address of the page (without its query string), its title, its description and a summary of the design. Personal details such as email addresses and phone numbers are removed from the title and description first. We run a web search with Brave Search and ask DeepSeek, an AI provider, to write the analysis. Read the full policy: https://vietnamcos.com/palette/privacy
 
 Refunds
 
 All sales are final. Because Pro unlocks instantly and costs $1.49, we do not offer refunds after purchase.
+
+Pro + AI is also final: there are no refunds for the current or past months. Cancel any time and it stays on until the end of the month you paid for.
 
 ## Single purpose
 
@@ -54,6 +63,28 @@ Extract a website's colours, typography, spacing, radius, shadows and contrast r
 - storage: saves the user's settings, recent scans and the Pro licence key on the device.
 - sidePanel: shows the full design system and the export screen in Chrome's side panel.
 - externally_connectable (https://vietnamcos.com/palette/* and https://www.vietnamcos.com/palette/*): lets the checkout page on that site hand the purchased licence key to the extension, so Pro unlocks without copy and paste.
+
+## Pricing note
+
+Free to install and use. Pro is a one-time $1.49 unlock and Pro + AI is a subscription at $3.99 a month. Both are paid through PayPal on vietnamcos.com, not through the Chrome Web Store. Pro + AI can be cancelled any time from https://vietnamcos.com/palette/account.
+
+## Data disclosure
+
+For the Privacy practices tab. Declare these data types as collected. The first two exist only for the optional Pro + AI feature and are sent only when the user presses Analyse.
+
+- Website content: the page title and description, and a summary of the design (colours, fonts, sizes, spacing). Used to write the AI analysis. Personal details such as email addresses and phone numbers are removed from the title and description on our server before anything else happens.
+- Web history: the address of the analysed page, without its query string. Used to look up similar and competitor sites and to cache the result for 7 days. It is user-initiated: nothing is sent unless the user presses Analyse.
+- Authentication information: the licence key, to check that Pro or Pro + AI is active.
+
+Third parties that process the analysis request on our behalf: Brave Search (web search) and DeepSeek (AI provider).
+
+Not collected: personally identifiable information, health, financial or payment information (PayPal handles payments on the website), location, or user activity such as clicks and keystrokes.
+
+Certifications to tick: the data is not sold to third parties outside the approved use cases; it is not used or transferred for purposes unrelated to the item's single purpose; it is not used or transferred to determine creditworthiness or for lending.
+
+## Screenshots
+
+The store takes five. Upload 1-popup-colours, 2-contrast, 3-side-panel-light, 5-export and 6-ai-insights from docs/store/screenshots. 4-side-panel-dark is used on the landing page only.
 
 ## Links
 
