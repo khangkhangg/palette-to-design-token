@@ -83,7 +83,7 @@ if ($stub) {
             $row = palette_sub_row($conn, 'id', (int)$m[2]);
             if (!$row) return ['status' => 404, 'json' => ['name' => 'RESOURCE_NOT_FOUND']];
             if (str_starts_with((string)$row['email'], 'retry@')) return ['status' => 503, 'json' => ['name' => 'SERVICE_UNAVAILABLE']];
-            $sub = ['id' => $m[1], 'status' => 'ACTIVE', 'plan_id' => $row['plan_id'], 'custom_id' => 'palette-sub:' . $row['id'],
+            $sub = ['id' => $m[1], 'status' => 'ACTIVE', 'plan_id' => $row['plan_id'], 'custom_id' => palette_sub_custom_id($conn, (int)$row['id']),
                 'billing_info' => ['next_billing_time' => gmdate('Y-m-d\TH:i:s\Z', time() + 30 * 86400)]];
             if (!str_starts_with((string)$row['email'], 'pending@')) {
                 $sub['billing_info']['last_payment'] = ['amount' => ['currency_code' => 'USD', 'value' => (string)$row['price_usd']], 'time' => gmdate('Y-m-d\TH:i:s\Z')];

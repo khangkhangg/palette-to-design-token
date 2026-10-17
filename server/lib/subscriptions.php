@@ -132,18 +132,43 @@ function palette_sub_row(mysqli $c, string $col, string|int $val): ?array
     return $r ?: null;
 }
 
-// Row id from custom_id "palette-sub:<id>"; null when absent; false when it belongs to someone else.
-function palette_sub_custom_row(array $res): int|false|null
+// The server secret behind custom_id (admin_settings palette `sub_secret`): 64 hex, generated with random_bytes on first
+// use and never printed or returned. Re-read after storing so two first uses settle on the stored value.
+function palette_sub_secret(mysqli $c): string
+{
+    $s = palette_settings($c);
+    $secret = is_string($s['sub_secret'] ?? null) ? $s['sub_secret'] : '';
+    if (preg_match('/^[0-9a-f]{64}$/D', $secret)) return $secret;
+    palette_settings_put($c, ['sub_secret' => bin2hex(random_bytes(32))] + palette_settings($c));
+    return (string)palette_settings($c)['sub_secret'];
+}
+
+// "palette-sub:<row id>:<first 16 hex of HMAC-SHA256(row id, sub_secret)>": unguessable, so nobody can attach a
+// PayPal subscription of their own to someone else's checkout row.
+function palette_sub_custom_id(mysqli $c, int $rowId): string
+{
+    return 'palette-sub:' . $rowId . ':' . substr(hash_hmac('sha256', (string)$rowId, palette_sub_secret($c)), 0, 16);
+}
+
+// True when the custom_id claims to be a palette checkout ("palette-sub:..."), valid or not.
+function palette_sub_is_palette_cid(array $res): bool
+{
+    return is_string($res['custom_id'] ?? null) && str_starts_with($res['custom_id'], 'palette-sub:');
+}
+
+// Row id from a valid custom_id; null when absent; false when it belongs to someone else or its HMAC is wrong.
+function palette_sub_custom_row(mysqli $c, array $res): int|false|null
 {
     $cid = $res['custom_id'] ?? null;
     if ($cid === null || $cid === '') return null;
-    return is_string($cid) && preg_match('/^palette-sub:(\d{1,10})$/', $cid, $m) ? (int)$m[1] : false;
+    if (!is_string($cid) || !preg_match('/^palette-sub:(\d{1,10}):([0-9a-f]{16})$/D', $cid, $m)) return false;
+    return hash_equals(palette_sub_custom_id($c, (int)$m[1]), $cid) ? (int)$m[1] : false;
 }
 
 // True when PayPal's subscription object is the one this row handed out: its custom_id, its plan (not overridden
 // by the buyer's browser: the JS SDK can send its own billing_cycles with our plan_id), and the subscription id the
 // row is bound to (if any).
-function palette_sub_matches(array $row, array $sub): bool
+function palette_sub_matches(mysqli $c, array $row, array $sub): bool
 {
     $sid = $sub['id'] ?? null;
     if (!empty($sub['plan_overridden'])) {
@@ -151,7 +176,7 @@ function palette_sub_matches(array $row, array $sub): bool
         return false;
     }
     return is_string($sid) && preg_match(PALETTE_SUB_ID_RE, $sid)
-        && palette_sub_custom_row($sub) === (int)$row['id']
+        && palette_sub_custom_row($c, $sub) === (int)$row['id']
         && ($sub['plan_id'] ?? null) === $row['plan_id']
         && ($row['subscription_id'] === null || $row['subscription_id'] === $sid);
 }
@@ -233,7 +258,7 @@ function palette_sub_start(mysqli $c, string $email, string $lang, bool $consent
     $st->execute();
     $id = (int)$c->insert_id;
     $st->close();
-    return ['ok' => true, 'plan_id' => $plan, 'custom_id' => 'palette-sub:' . $id, 'row_id' => $id];
+    return ['ok' => true, 'plan_id' => $plan, 'custom_id' => palette_sub_custom_id($c, $id), 'row_id' => $id];
 }
 
 // The issued key for a fulfilled row, as palette_sub_confirm answers it.
@@ -256,9 +281,9 @@ function palette_sub_confirm(mysqli $c, string $subscriptionId): array
     $g = palette_sub_get($c, $subscriptionId);
     if (!$g['ok']) return ['ok' => false, 'error' => 'err_paypal'] + ($g['retry'] ? ['retry' => true] : []);
     $sub = $g['sub'];
-    $rowId = palette_sub_custom_row($sub);
+    $rowId = palette_sub_custom_row($c, $sub);
     $row = is_int($rowId) ? palette_sub_row($c, 'id', $rowId) : null;
-    if (!$row || !palette_sub_matches($row, $sub)) {
+    if (!$row || !palette_sub_matches($c, $row, $sub)) {
         error_log("palette: subscription $subscriptionId does not match a palette checkout (custom_id " . json_encode($sub['custom_id'] ?? null)
             . ', plan ' . json_encode($sub['plan_id'] ?? null) . ')');
         return ['ok' => false, 'error' => 'err_paypal'];
@@ -294,7 +319,7 @@ function palette_sub_fulfil(mysqli $c, array $subRow, array $paypalSub, ?int $sa
     $ppStatus = (string)($paypalSub['status'] ?? '');
     $saleProof = $saleCents !== null && $saleCents >= $price;
     $statusOk = $ppStatus === 'ACTIVE' || ($saleProof && ($ppStatus === 'CANCELLED' || $ppStatus === 'SUSPENDED'));
-    if (!palette_sub_matches($subRow, $paypalSub) || !$statusOk) return ['ok' => false, 'error' => 'err_paypal'];
+    if (!palette_sub_matches($c, $subRow, $paypalSub) || !$statusOk) return ['ok' => false, 'error' => 'err_paypal'];
     $initial = $ppStatus === 'ACTIVE' ? 'active' : strtolower($ppStatus);
     $paid = max(palette_sub_last_paid($paypalSub) ?? -1, $saleCents ?? -1);
     if ($paid < $price) {
@@ -367,7 +392,8 @@ function palette_sub_set_status(mysqli $c, array $row, string $to, array $from):
 }
 
 // Webhook events for subscriptions and their sales (the event is already signature-verified by palette_webhook).
-// Returns 'activated'|'renewed'|'cancelled'|'suspended'|'expired'|'revoked'|'already'|'pending'|'ignored'|'retry'.
+// Returns 'activated'|'renewed'|'cancelled'|'suspended'|'expired'|'revoked'|'already'|'pending'|'ignored'|'retry', or
+// 'unfulfilled' for a payment on a subscription without a live key (alerted, cancel retried, HTTP 200).
 function palette_sub_event(mysqli $c, string $type, array $resource): string
 {
     try {
@@ -385,7 +411,7 @@ function palette_sub_status_event(mysqli $c, string $type, array $res): string
 {
     $sid = $res['id'] ?? null;
     if (!is_string($sid) || !preg_match(PALETTE_SUB_ID_RE, $sid)) return 'ignored';
-    $cr = palette_sub_custom_row($res);
+    $cr = palette_sub_custom_row($c, $res);
     if ($cr === false) return 'ignored';   // a companies subscription on the shared PayPal app
     $row = palette_sub_row($c, 'subscription_id', $sid);
     if (!$row && is_int($cr)) {
@@ -428,13 +454,24 @@ function palette_sub_sale(mysqli $c, array $res): string
     $row = palette_sub_row($c, 'subscription_id', $sid);
     $sub = null;
     if (!$row) {
-        // Unknown subscription id: a renewal-before-activation, or someone else's. Its custom_id decides.
+        // Unknown subscription id: a renewal-before-activation, or someone else's. Its custom_id decides. Money on a
+        // subscription that says palette-sub: (or that we cannot look up at all) but fulfils nothing raises the alert.
         $g = palette_sub_get($c, $sid);
-        if (!$g['ok']) return $g['retry'] ? 'retry' : 'ignored';
+        if (!$g['ok']) {
+            if ($g['retry']) return 'retry';
+            error_log("PALETTE_PAID_UNFULFILLED sale $saleId for $sid: subscription lookup failed, so it may be a palette checkout; ignored");
+            return 'ignored';
+        }
         $sub = $g['sub'];
-        $cr = palette_sub_custom_row($sub);
+        $cr = palette_sub_custom_row($c, $sub);
         $row = is_int($cr) ? palette_sub_row($c, 'id', $cr) : null;
-        if (!$row || !palette_sub_matches($row, $sub)) return 'ignored';
+        if (!$row || !palette_sub_matches($c, $row, $sub)) {
+            if (palette_sub_is_palette_cid($sub)) {
+                error_log("PALETTE_PAID_UNFULFILLED sale $saleId for $sid: custom_id " . json_encode($sub['custom_id']) . ', plan ' . json_encode($sub['plan_id'] ?? null)
+                    . (!empty($sub['plan_overridden']) ? ' (plan_overridden)' : '') . ' matches no palette checkout; ignored');
+            }
+            return 'ignored';
+        }
     }
     $st = $c->prepare('SELECT 1 FROM palette_sub_payments WHERE sale_id = ?');
     $st->bind_param('s', $saleId);
@@ -442,6 +479,10 @@ function palette_sub_sale(mysqli $c, array $res): string
     $seen = $st->get_result()->num_rows > 0;
     $st->close();
     if ($seen) return 'already';
+
+    // A renewal on a subscription whose key was refunded (licence revoked) or never issued (closed before the first
+    // sale): never extend; record it, alert, and try again to stop the billing.
+    if ($row['status'] !== 'pending' && !palette_sub_live_licence($c, $row)) return palette_sub_sale_no_key($c, $row, $sid, $saleId, $res);
 
     // Money that reached a palette checkout but issues no key logs PALETTE_PAID_UNFULFILLED: alert on that prefix.
     $pending = $row['status'] === 'pending';
@@ -459,7 +500,7 @@ function palette_sub_sale(mysqli $c, array $res): string
             return 'ignored';
         }
         $sub = $g['sub'];
-        if (!palette_sub_matches($row, $sub)) {
+        if (!palette_sub_matches($c, $row, $sub)) {
             $unfulfilled('subscription no longer matches the checkout; ignored');
             return 'ignored';
         }
@@ -498,15 +539,62 @@ function palette_sub_sale(mysqli $c, array $res): string
     return 'renewed';
 }
 
-// Call inside a transaction. paid_through only moves forward; period_start (the usage period) moves only to a
-// later payment, which resets usage. True when the licence changed.
+// True when the row has an issued licence that is not revoked.
+function palette_sub_live_licence(mysqli $c, array $row): bool
+{
+    if ($row['license_id'] === null) return false;
+    $lid = (int)$row['license_id'];
+    $l = $c->query("SELECT revoked_at FROM palette_licenses WHERE id = $lid")->fetch_assoc();
+    return $l !== null && $l['revoked_at'] === null;
+}
+
+// PAYMENT.SALE.COMPLETED on a subscription with no live key (finding 1): the payment is recorded (a redelivery answers
+// 'already'), PALETTE_PAID_UNFULFILLED is logged, and the PayPal cancel is retried (PALETTE_CANCEL_FAILED if it fails
+// again; the daily reconcile keeps retrying for revoked licences). Nothing is extended. Returns 'unfulfilled'.
+function palette_sub_sale_no_key(mysqli $c, array $row, string $sid, string $saleId, array $res): string
+{
+    $amount = palette_money(palette_dec_cents($res['amount']['total'] ?? null) ?? 0);
+    $paidAt = palette_sub_time($res['create_time'] ?? null) ?? palette_sub_now();
+    try {
+        $st = $c->prepare("INSERT INTO palette_sub_payments (subscription_id, sale_id, amount_usd, status, paid_at) VALUES (?, ?, ?, 'completed', ?)");
+        $st->bind_param('ssss', $sid, $saleId, $amount, $paidAt);
+        $st->execute();
+        $st->close();
+    } catch (mysqli_sql_exception $e) {
+        if ($e->getCode() === 1062) return 'already';   // a concurrent delivery of the same sale
+        throw $e;
+    }
+    error_log("PALETTE_PAID_UNFULFILLED sale $saleId for $sid: paid $amount USD but the key was refunded or never issued; not extended, cancelling the subscription");
+    palette_sub_stop_billing($c, $row, $sid, 'a payment on a subscription without a live key');
+    return 'unfulfilled';
+}
+
+// Best-effort PayPal cancel for a subscription that must not bill again; marks the row cancelled when it works.
+function palette_sub_stop_billing(mysqli $c, array $row, string $sid, string $why): bool
+{
+    try {
+        if (palette_sub_paypal_cancel($c, $sid, PALETTE_SUB_REFUND_REASON)) {
+            palette_sub_set_status($c, $row, 'cancelled', ['active', 'suspended']);
+            return true;
+        }
+        error_log("PALETTE_CANCEL_FAILED subscription=$sid after $why; cancel it in PayPal by hand");
+    } catch (Throwable $e) {
+        error_log("PALETTE_CANCEL_FAILED subscription=$sid after $why: " . $e->getMessage());
+    }
+    return false;
+}
+
+// Call inside a transaction. paid_through only moves forward; period_start (the usage period) moves only to a payment
+// more than PALETTE_SUB_RECONCILE_MIN_GAP after the current one, which resets usage: a first sale that lands just after
+// the key was issued never resets the period twice. True when the licence changed.
 function palette_sub_extend(mysqli $c, array $row, ?string $paidThrough, ?string $periodStart): bool
 {
     $lid = (int)$row['license_id'];
     $l = $c->query("SELECT paid_through, period_start FROM palette_licenses WHERE id = $lid FOR UPDATE")->fetch_assoc();
     if (!$l) return false;
     $pt = palette_sub_later($l['paid_through'], $paidThrough);
-    $ps = palette_sub_later($l['period_start'], $periodStart);
+    $gapOk = $periodStart !== null && ($l['period_start'] === null || strtotime($periodStart) > strtotime($l['period_start']) + PALETTE_SUB_RECONCILE_MIN_GAP);
+    $ps = $gapOk ? palette_sub_later($l['period_start'], $periodStart) : $l['period_start'];
     $rid = (int)$row['id'];
     $c->query("UPDATE palette_subscriptions SET updated_at = '" . $c->real_escape_string(palette_sub_now()) . "' WHERE id = $rid");
     if ($pt === $l['paid_through'] && $ps === $l['period_start']) return false;
@@ -549,9 +637,9 @@ function palette_sub_refund(mysqli $c, string $type, array $res): string
         // close the pending row so neither a later ACTIVATED nor the redelivered sale issues a key for refunded money.
         $g = palette_sub_get($c, $sid);
         if (!$g['ok']) return $g['retry'] ? 'retry' : 'ignored';
-        $cr = palette_sub_custom_row($g['sub']);
+        $cr = palette_sub_custom_row($c, $g['sub']);
         $row = is_int($cr) ? palette_sub_row($c, 'id', $cr) : null;
-        if (!$row || $row['status'] !== 'pending' || !palette_sub_matches($row, $g['sub'])) return 'ignored';   // not a palette sale
+        if (!$row || $row['status'] !== 'pending' || !palette_sub_matches($c, $row, $g['sub'])) return 'ignored';   // not a palette sale
         $rid = (int)$row['id'];
         $now = palette_sub_now();
         $upd = $c->prepare("UPDATE palette_subscriptions SET status = 'cancelled', subscription_id = ?, updated_at = ? WHERE id = ? AND status = 'pending'");
@@ -584,22 +672,15 @@ function palette_sub_refund(mysqli $c, string $type, array $res): string
     } else {
         error_log("palette: $type for subscription $sid before any key was issued; checkout closed");
     }
-    // Stop billing (ruling A10). Best effort: a failure is logged and never undoes the revoke.
-    try {
-        if ($closed || in_array($row['status'], ['active', 'suspended'], true)) {
-            if (palette_sub_paypal_cancel($c, $sid, PALETTE_SUB_REFUND_REASON)) {
-                if (!$closed) palette_sub_set_status($c, $row, 'cancelled', ['active', 'suspended']);
-            } else {
-                error_log("PALETTE_CANCEL_FAILED subscription=$sid after $type; cancel it in PayPal by hand");
-            }
-        }
-    } catch (Throwable $e) {
-        error_log("PALETTE_CANCEL_FAILED subscription=$sid after $type: " . $e->getMessage());
-    }
+    // Stop billing (ruling A10). Best effort: a failure is logged and never undoes the revoke; a later sale on this
+    // subscription and the daily reconcile retry it.
+    if ($closed || in_array($row['status'], ['active', 'suspended'], true)) palette_sub_stop_billing($c, $row, $sid, $type);
     return 'revoked';
 }
 
 // Owner = the signed-in user the key is claimed by, or whoever knows the key and the subscribing email.
+// A revoked (refunded) key is accepted too, so its owner can still stop billing when the refund's PayPal cancel failed;
+// its access already ended, so ends_on is the revoke date.
 // ['ok' => true, 'ends_on' => 'Y-m-d'] or ['ok' => false, 'error' => err_invalid_key|err_not_owner|err_paypal].
 function palette_sub_cancel(mysqli $c, string $rawKey, ?int $userId, ?string $email): array
 {
@@ -611,11 +692,12 @@ function palette_sub_cancel(mysqli $c, string $rawKey, ?int $userId, ?string $em
     $st->execute();
     $row = $st->get_result()->fetch_assoc();
     $st->close();
-    if (!$row || $row['revoked_at'] !== null || $row['subscription_id'] === null) return ['ok' => false, 'error' => 'err_invalid_key'];
+    if (!$row || $row['subscription_id'] === null) return ['ok' => false, 'error' => 'err_invalid_key'];
     $byUser = $userId !== null && $userId > 0 && $row['user_id'] !== null && (int)$row['user_id'] === $userId;
     $byEmail = $email !== null && trim($email) !== '' && strcasecmp(trim($email), (string)$row['email']) === 0;
     if (!$byUser && !$byEmail) return ['ok' => false, 'error' => 'err_not_owner'];
-    $endsOn = $row['paid_through'] === null ? null : date('Y-m-d', strtotime($row['paid_through']));
+    $end = $row['revoked_at'] ?? $row['paid_through'];
+    $endsOn = $end === null ? null : date('Y-m-d', strtotime($end));
     if ($row['status'] === 'cancelled' || $row['status'] === 'expired') return ['ok' => true, 'ends_on' => $endsOn];
 
     $sid = (string)$row['subscription_id'];
@@ -629,14 +711,17 @@ function palette_sub_cancel(mysqli $c, string $rawKey, ?int $userId, ?string $em
 // Daily (cron-subscriptions.php): GETs up to 200 active, suspended or still-paid cancelled subscriptions, least
 // recently updated first, and syncs status. It extends paid_through and resets the usage period only on proof of a
 // new payment: ACTIVE, no failed payments, last_payment at the row's price and more than a day after the current
-// period start. Revoked licences are left alone.
+// period start. A revoked licence whose row is still active or suspended (the refund's PayPal cancel failed) is never
+// extended: while PayPal still bills it the cancel is retried (finding 1), else its status is synced.
 function palette_sub_reconcile(mysqli $c): array
 {
     $now = palette_sub_now();
     $limit = PALETTE_SUB_RECONCILE_BATCH;
-    $st = $c->prepare("SELECT s.*, l.period_start AS lic_period_start FROM palette_subscriptions s JOIN palette_licenses l ON l.id = s.license_id
-                       WHERE l.revoked_at IS NULL AND s.subscription_id IS NOT NULL
-                         AND (s.status IN ('active', 'suspended') OR (s.status = 'cancelled' AND l.paid_through >= ?))
+    $st = $c->prepare("SELECT s.*, l.period_start AS lic_period_start, l.revoked_at AS lic_revoked_at
+                       FROM palette_subscriptions s JOIN palette_licenses l ON l.id = s.license_id
+                       WHERE s.subscription_id IS NOT NULL
+                         AND ((l.revoked_at IS NULL AND (s.status IN ('active', 'suspended') OR (s.status = 'cancelled' AND l.paid_through >= ?)))
+                           OR (l.revoked_at IS NOT NULL AND s.status IN ('active', 'suspended')))
                        ORDER BY s.updated_at, s.id LIMIT ?");
     $st->bind_param('si', $now, $limit);
     $st->execute();
@@ -650,13 +735,20 @@ function palette_sub_reconcile(mysqli $c): array
         $c->query("UPDATE palette_subscriptions SET updated_at = '" . $c->real_escape_string(palette_sub_now()) . "' WHERE id = $rid");   // rotate the batch
         try {
             $g = palette_sub_get($c, (string)$row['subscription_id']);
-            if (!$g['ok'] || !palette_sub_matches($row, $g['sub']) || !isset($map[$g['sub']['status'] ?? ''])) {
+            if (!$g['ok'] || !palette_sub_matches($c, $row, $g['sub']) || !isset($map[$g['sub']['status'] ?? ''])) {
                 $out['failed']++;
                 continue;
             }
             $sub = $g['sub'];
             $to = $map[$sub['status']];
             $changed = false;
+            if ($row['lic_revoked_at'] !== null) {
+                // Refunded, but PayPal may still bill: stop it; never extend.
+                if ($to === 'active' || $to === 'suspended') $changed = palette_sub_stop_billing($c, $row, (string)$row['subscription_id'], 'reconcile of a refunded subscription');
+                else $changed = palette_sub_set_status($c, $row, $to, [$row['status']]);
+                if ($changed) $out['changed']++;
+                continue;
+            }
             $paidAt = palette_sub_time($sub['billing_info']['last_payment']['time'] ?? null);
             $failed = $sub['billing_info']['failed_payments_count'] ?? 0;
             $start = $row['lic_period_start'] === null ? false : strtotime($row['lic_period_start']);

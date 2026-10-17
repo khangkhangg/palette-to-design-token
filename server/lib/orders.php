@@ -269,7 +269,7 @@ function palette_webhook(mysqli $c, array $headersLower, string $body): string
     $type = (string)($event['event_type'] ?? '');
     $res = is_array($event['resource'] ?? null) ? $event['resource'] : [];
     if (!in_array($type, PALETTE_WEBHOOK_EVENTS, true)) return 'ignored';
-    // Subscriptions carry custom_id "palette-sub:<id>" (sales carry none): lib/subscriptions.php sorts them out.
+    // Subscriptions carry custom_id "palette-sub:<id>:<hmac16>" (sales carry none): lib/subscriptions.php sorts them out.
     if (str_starts_with($type, 'BILLING.SUBSCRIPTION.') || str_starts_with($type, 'PAYMENT.SALE.')) return palette_sub_event($c, $type, $res);
     $rowId = palette_custom_row($res);
     if ($rowId === false) return 'ignored';   // a companies order on the shared PayPal app

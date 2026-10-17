@@ -9,7 +9,9 @@ function palette_defaults(): array
             'ai_price_usd' => '3.99', 'ai_monthly_analyses' => 100, 'ai_monthly_token_cap' => 600000,
             'search_provider' => 'brave', 'search_key' => '', 'ai_paypal_plan_id' => '', 'ai_paypal_plan_mode' => '', 'ai_paypal_product_id' => '',
             // The USD price the stored PayPal plan bills (ruling A18): written by setup.php, shown and sold.
-            'ai_paypal_plan_price' => ''];
+            'ai_paypal_plan_price' => '',
+            // HMAC secret for subscription custom_ids: generated on first use, a secret like search_key (never printed).
+            'sub_secret' => ''];
 }
 
 function palette_migrate(mysqli $conn): void

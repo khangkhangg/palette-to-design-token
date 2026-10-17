@@ -114,7 +114,7 @@ ok('revoked ai verify', palette_verify($conn, $ai['key'], '10.1.0.1') === ['vali
 const EXT = 'abcdefghijklmnopabcdefghijklmnop';
 stub_reset($conn);
 $conn->query('DELETE FROM palette_rate');
-palette_settings_put($conn, ['extension_ids' => [EXT], 'search_key' => 'SECRET-LEAK-CHECK', 'ai_paypal_plan_id' => 'P-1']);
+palette_settings_put($conn, ['extension_ids' => [EXT], 'search_key' => 'SECRET-LEAK-CHECK', 'sub_secret' => str_repeat('ab', 32), 'ai_paypal_plan_id' => 'P-1']);
 $_SESSION = [];
 $call = fn(string $m, string $a, array $p = [], array $o = []) => palette_api_handle($o + ['method' => $m, 'action' => $a, 'post' => $p,
     'origin' => 'chrome-extension://' . EXT, 'ip' => '203.0.113.9', 'session' => $_SESSION]);
@@ -128,8 +128,8 @@ $bodies = [
 $leak = false;
 foreach ($bodies as $r) {
     $j = json_encode($r);
-    if (str_contains($j, 'SECRET-LEAK-CHECK') || str_contains($j, 'search_key')) $leak = true;
+    if (str_contains($j, 'SECRET-LEAK-CHECK') || str_contains($j, 'search_key') || str_contains($j, str_repeat('ab', 32)) || str_contains($j, 'sub_secret')) $leak = true;
 }
-ok('no API action response contains search_key or its value', !$leak && count($bodies) === 11);
+ok('no API action response contains search_key, sub_secret or their values', !$leak && count($bodies) === 11);
 $conn->query("DELETE FROM admin_settings WHERE setting_key = 'palette'");
 $conn->query('DELETE FROM palette_licenses');

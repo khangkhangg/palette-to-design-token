@@ -36,7 +36,7 @@ function s_reset(mysqli $c): void
 function pp_sub(int $rowId, string $status = 'ACTIVE', ?int $next = null, array $over = []): array
 {
     $next ??= time() + 30 * 86400;
-    return array_replace_recursive(['id' => SUB, 'status' => $status, 'plan_id' => 'P-AI', 'custom_id' => 'palette-sub:' . $rowId,
+    return array_replace_recursive(['id' => SUB, 'status' => $status, 'plan_id' => 'P-AI', 'custom_id' => palette_sub_custom_id($GLOBALS['conn'], $rowId),
         'subscriber' => ['email_address' => 'payer@paypal.test'],
         'billing_info' => ['next_billing_time' => iso($next), 'last_payment' => ['amount' => ['value' => '3.99', 'currency_code' => 'USD'], 'time' => iso(time() - 60)]]], $over);
 }
@@ -49,7 +49,22 @@ function route_sub(array|callable $json, int $status = 200, string $id = SUB): v
 function start(mysqli $c, string $email = 'Buyer@Studio.vn', string $lang = 'fr'): int
 {
     $r = palette_sub_start($c, $email, $lang, true);
-    return (int)substr($r['custom_id'], strlen('palette-sub:'));
+    return row_of($r['custom_id']);
+}
+
+function row_of(string $customId): int
+{
+    return preg_match('/^palette-sub:(\d+):[0-9a-f]{16}$/', $customId, $m) ? (int)$m[1] : 0;
+}
+
+// Runs $fn with error_log going to a fresh file; returns what was logged.
+function logged(callable $fn): string
+{
+    $log = sys_get_temp_dir() . '/palette-sub-alert-test.log';
+    @unlink($log);
+    ini_set('error_log', $log);
+    try { $fn(); } finally { ini_set('error_log', sys_get_temp_dir() . '/palette-test.log'); }
+    return (string)@file_get_contents($log);
 }
 
 function sub_row(mysqli $c, int $id): array
@@ -117,9 +132,13 @@ ok('A18: a plan without a stored price (setup from before A18) -> not ready', pa
 palette_settings_put($conn, ['ai_price_usd' => '3.99', 'ai_paypal_plan_price' => '3.99'] + palette_settings($conn));
 ok('start: nothing stored on errors', (int)$conn->query('SELECT COUNT(*) FROM palette_subscriptions')->fetch_row()[0] === 0);
 $r = palette_sub_start($conn, ' Buyer@Studio.vn ', 'fr', true);
-$id = (int)substr((string)($r['custom_id'] ?? ''), strlen('palette-sub:'));
+$id = row_of((string)($r['custom_id'] ?? ''));
 $row = sub_row($conn, $id);
-ok('start ok: plan id + custom id', $r['ok'] === true && $r['plan_id'] === 'P-AI' && $r['custom_id'] === 'palette-sub:' . $id && $id > 0);
+ok('start ok: plan id + custom id palette-sub:<id>:<hmac16>', $r['ok'] === true && $r['plan_id'] === 'P-AI' && $id > 0
+    && $r['custom_id'] === 'palette-sub:' . $id . ':' . substr(hash_hmac('sha256', (string)$id, palette_settings($conn)['sub_secret']), 0, 16));
+$secret = palette_settings($conn)['sub_secret'];
+ok('sub_secret: 64 hex generated on first use and then stable', preg_match('/^[0-9a-f]{64}$/', $secret) === 1
+    && palette_sub_custom_id($conn, $id) === $r['custom_id'] && palette_settings($conn)['sub_secret'] === $secret);
 ok('start: pending row', $row['status'] === 'pending' && $row['email'] === 'buyer@studio.vn' && $row['lang'] === 'fr'
     && $row['plan_id'] === 'P-AI' && $row['subscription_id'] === null && $row['consent_at'] !== null && $row['price_usd'] === '3.99' && $GLOBALS['pp_calls'] === []);
 
@@ -131,7 +150,8 @@ ok('subscribe_start GET -> 405', call('GET', 'subscribe_start')['status'] === 40
 $tok = generateCSRFToken('palette_checkout');
 $r = call('POST', 'subscribe_start', $good + ['csrf' => $tok]);
 ok('subscribe_start ok', $r['status'] === 200 && $r['body']['ok'] === true && $r['body']['plan_id'] === 'P-AI'
-    && preg_match('/^palette-sub:(\d+)$/', $r['body']['custom_id'], $m) === 1);
+    && preg_match('/^palette-sub:(\d+):[0-9a-f]{16}$/', $r['body']['custom_id'], $m) === 1);
+ok('config never returns the subscription secret', !str_contains(json_encode(call('GET', 'config')), palette_settings($conn)['sub_secret']));
 ok('subscribe_start remembers the row in the session', ($_SESSION['palette_subs'] ?? null) === [(int)$m[1]]);
 ok('subscribe_start errors: consent 400', ($e = call('POST', 'subscribe_start', ['email' => 'a@b.co', 'csrf' => $tok]))['status'] === 400 && $e['body']['error'] === 'err_consent');
 palette_settings_put($conn, ['ai_paypal_plan_id' => ''] + palette_settings($conn));
@@ -156,6 +176,11 @@ route_sub(pp_sub($id, 'ACTIVE', null, ['custom_id' => 'palette:' . $id]));
 ok('confirm: foreign custom_id -> no key', palette_sub_confirm($conn, SUB)['ok'] === false && license_count($conn) === 0);
 route_sub(pp_sub($id + 999));
 ok('confirm: custom_id for a missing row -> no key', palette_sub_confirm($conn, SUB)['ok'] === false && license_count($conn) === 0);
+foreach (['palette-sub:' . $id => 'no hmac (guessable)', 'palette-sub:' . $id . ':0000000000000000' => 'wrong hmac',
+          'palette-sub:' . $id . ':' . substr(palette_sub_custom_id($conn, $id + 1), -16) => 'another row\'s hmac'] as $cid => $why) {
+    route_sub(pp_sub($id, 'ACTIVE', null, ['custom_id' => $cid]));
+    ok("confirm: custom_id with $why -> no key", palette_sub_confirm($conn, SUB)['ok'] === false && license_count($conn) === 0);
+}
 route_sub(pp_sub($id, 'ACTIVE', null, ['billing_info' => ['last_payment' => ['amount' => ['value' => '0.99']]]]));
 ok('confirm: paid less than the price -> no key', palette_sub_confirm($conn, SUB)['ok'] === false && license_count($conn) === 0);
 route_sub(pp_sub($id, 'ACTIVE', null, ['billing_info' => ['last_payment' => ['amount' => ['currency_code' => 'EUR']]]]));
@@ -232,8 +257,22 @@ $over = pp_sub($id, 'ACTIVE', null, ['plan_overridden' => true]);
 route_sub($over);
 ok('plan_overridden: confirm refused', palette_sub_confirm($conn, SUB)['ok'] === false && license_count($conn) === 0);
 ok('plan_overridden: ACTIVATED ignored', palette_sub_event($conn, 'BILLING.SUBSCRIPTION.ACTIVATED', $over) === 'ignored' && license_count($conn) === 0);
-ok('plan_overridden: even a full-price sale never fulfils', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-O1', time())) === 'ignored'
-    && license_count($conn) === 0 && payments($conn) === 0);
+$log = logged(fn() => ok('plan_overridden: even a full-price sale never fulfils', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-O1', time())) === 'ignored'
+    && license_count($conn) === 0 && payments($conn) === 0));
+ok('#2: plan_overridden sale on a palette checkout logs PALETTE_PAID_UNFULFILLED', str_contains($log, 'PALETTE_PAID_UNFULFILLED') && str_contains($log, 'SALE-O1'));
+foreach (['wrong plan' => pp_sub($id, 'ACTIVE', null, ['plan_id' => 'P-CHEAP']), 'forged hmac' => pp_sub($id, 'ACTIVE', null, ['custom_id' => 'palette-sub:' . $id . ':ffffffffffffffff']),
+          'missing row' => pp_sub($id + 500)] as $why => $s) {
+    route_sub($s);
+    $log = logged(fn() => $GLOBALS['ev'] = palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-M' . strlen($why), time())));
+    ok("#2: sale whose subscription carries palette-sub: but $why -> ignored + PALETTE_PAID_UNFULFILLED", $GLOBALS['ev'] === 'ignored'
+        && str_contains($log, 'PALETTE_PAID_UNFULFILLED') && license_count($conn) === 0);
+}
+route_sub(['name' => 'RESOURCE_NOT_FOUND'], 404);
+$log = logged(fn() => $GLOBALS['ev'] = palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-404', time())));
+ok('#2: sale whose subscription lookup fails for good -> ignored + PALETTE_PAID_UNFULFILLED', $GLOBALS['ev'] === 'ignored' && str_contains($log, 'PALETTE_PAID_UNFULFILLED'));
+route_sub(pp_sub(0, 'ACTIVE', null, ['custom_id' => 'company:7']));
+$log = logged(fn() => palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-CO', time(), '9.00')));
+ok('#2: a companies subscription sale stays silent', !str_contains($log, 'PALETTE_PAID_UNFULFILLED'));
 // a paid first sale reaching us after the buyer already stopped autopay still issues the key (re-review Important)
 foreach (['CANCELLED' => 'cancelled', 'SUSPENDED' => 'suspended'] as $ppSt => $local) {
     s_reset($conn);
@@ -285,7 +324,7 @@ ok('A18: the row price is the stored plan price', sub_row($conn, start($conn))['
 s_reset($conn);
 $tok = generateCSRFToken('palette_checkout');
 $r = call('POST', 'subscribe_start', ['email' => 'buyer@studio.vn', 'consent' => '1', 'csrf' => $tok]);
-$id = (int)substr($r['body']['custom_id'], strlen('palette-sub:'));
+$id = row_of($r['body']['custom_id']);
 route_sub(pp_sub($id, 'APPROVED'));
 $r = call('POST', 'subscribe_confirm', ['subscription_id' => SUB, 'csrf' => $tok]);
 ok('API confirm pending -> 202 pending', $r['status'] === 202 && $r['body']['ok'] === true && $r['body']['pending'] === true && !isset($r['body']['key']));
@@ -348,6 +387,14 @@ $settings = palette_settings($conn);
 palette_usage_reserve($conn, $lic, $settings);
 palette_usage_reserve($conn, $lic, $settings);
 ok('before renewal: 2 used', palette_usage_get($conn, ai_lic($conn), $settings)['used'] === 2);
+// the first sale delivered just after confirm fulfilled: paid_through may move, the usage period must not (MIN_GAP)
+$ps0 = ai_lic($conn)['period_start'];
+route_sub(pp_sub($id, 'ACTIVE', time() + 31 * 86400));
+ok('MIN_GAP: a sale within a day of the period start -> renewed, period_start unchanged, usage kept', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-F', time() + 60)) === 'renewed'
+    && ai_lic($conn)['period_start'] === $ps0 && palette_usage_get($conn, ai_lic($conn), $settings)['used'] === 2 && ai_lic($conn)['paid_through'] === local(time() + 31 * 86400));
+// a month on, the real renewal
+$conn->query("UPDATE palette_licenses SET period_start = '" . local(time() - 31 * 86400) . "' WHERE id = " . (int)$lic['id']);
+$conn->query("UPDATE palette_ai_usage SET period_start = '" . local(time() - 31 * 86400) . "' WHERE license_id = " . (int)$lic['id']);
 $paidAt = time() + 5;
 $next2 = time() + 61 * 86400;
 route_sub(pp_sub($id, 'ACTIVE', $next2));
@@ -358,20 +405,20 @@ ok('renewal: period_start = sale time, usage resets to 0', $l2['period_start'] =
 ok('renewal: GET subscription called', count(calls_to('GET', '/v1/billing/subscriptions/' . SUB)) >= 1);
 // an older sale delivered late: never moves paid_through or the period backwards
 route_sub(pp_sub($id, 'ACTIVE', time() + 10 * 86400));
-ok('late older sale -> renewed (recorded)', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-OLD', time() - 86400)) === 'renewed' && payments($conn) === 2);
+ok('late older sale -> renewed (recorded)', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-OLD', time() - 86400)) === 'renewed' && payments($conn) === 3);
 $l3 = ai_lic($conn);
 ok('paid_through never moves backwards', $l3['paid_through'] === local($next2) && $l3['period_start'] === local($paidAt));
 // amount below the price
-ok('sale below the price -> ignored, not recorded', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-LOW', time() + 9, '1.00')) === 'ignored' && payments($conn) === 2);
-ok('sale in another currency -> ignored', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', ['amount' => ['total' => '3.99', 'currency' => 'EUR']] + sale('SALE-EUR', time() + 9)) === 'ignored' && payments($conn) === 2);
+ok('sale below the price -> ignored, not recorded', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-LOW', time() + 9, '1.00')) === 'ignored' && payments($conn) === 3);
+ok('sale in another currency -> ignored', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', ['amount' => ['total' => '3.99', 'currency' => 'EUR']] + sale('SALE-EUR', time() + 9)) === 'ignored' && payments($conn) === 3);
 // transient GET -> retry, nothing recorded (redelivery will work)
 route_sub([], 503);
-ok('renewal with PayPal down -> retry', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-3', time() + 10)) === 'retry' && payments($conn) === 2);
+ok('renewal with PayPal down -> retry', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-3', time() + 10)) === 'retry' && payments($conn) === 3);
 ok('webhook maps retry to 503', palette_webhook_response($conn, HDRS, json_encode(['id' => 'WH-1', 'event_type' => 'PAYMENT.SALE.COMPLETED',
     'resource' => sale('SALE-3', time() + 10)])) === [503, 'retry']);
 route_sub(pp_sub($id, 'ACTIVE', time() + 92 * 86400));
 ok('redelivery after the outage renews', palette_webhook_response($conn, HDRS, json_encode(['id' => 'WH-1', 'event_type' => 'PAYMENT.SALE.COMPLETED',
-    'resource' => sale('SALE-3', time() + 10)])) === [200, 'renewed'] && payments($conn) === 3);
+    'resource' => sale('SALE-3', time() + 10)])) === [200, 'renewed'] && payments($conn) === 4);
 
 // ---- status events
 s_reset($conn);
@@ -429,8 +476,21 @@ palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-9', time() - 30));
 ok('reversal by sale id (resource id) -> revoked', palette_webhook_response($conn, HDRS, json_encode(['id' => 'WH-2', 'event_type' => 'PAYMENT.SALE.REVERSED',
     'resource' => ['id' => 'SALE-9', 'state' => 'reversed']])) === [200, 'revoked'] && ai_lic($conn)['revoked_at'] !== null
     && $conn->query("SELECT status FROM palette_sub_payments WHERE sale_id = 'SALE-9'")->fetch_row()[0] === 'reversed');
-ok('a revoked licence stays revoked after a later renewal', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-10', time() + 5)) === 'renewed'
-    && ai_lic($conn)['revoked_at'] !== null);
+$ptBefore = ai_lic($conn)['paid_through'];
+route_sub(pp_sub($id, 'ACTIVE', time() + 62 * 86400));
+$log = logged(fn() => $GLOBALS['ev'] = palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-10', time() + 5)));
+ok('#1: a renewal on a revoked licence (refund cancel failed) -> unfulfilled, not extended, still revoked', $GLOBALS['ev'] === 'unfulfilled'
+    && ai_lic($conn)['revoked_at'] !== null && ai_lic($conn)['paid_through'] === $ptBefore);
+ok('#1: it alerts (PALETTE_PAID_UNFULFILLED) and retries the PayPal cancel (PALETTE_CANCEL_FAILED when it fails again)',
+    str_contains($log, 'PALETTE_PAID_UNFULFILLED') && str_contains($log, 'SALE-10') && str_contains($log, 'PALETTE_CANCEL_FAILED subscription=' . SUB)
+    && count(calls_to('POST', '/v1/billing/subscriptions/' . SUB . '/cancel')) >= 1);
+ok('#1: the payment is recorded, so a redelivery answers already', payments($conn) === 2
+    && palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-10', time() + 5)) === 'already');
+$GLOBALS['pp_routes']['POST /v1/billing/subscriptions/' . SUB . '/cancel'] = ['status' => 204, 'json' => null];
+$GLOBALS['pp_calls'] = [];
+$log = logged(fn() => $GLOBALS['ev'] = palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-11', time() + 6)));
+ok('#1: when the retried cancel works the row is cancelled', $GLOBALS['ev'] === 'unfulfilled' && sub_row($conn, $id)['status'] === 'cancelled'
+    && count(calls_to('POST', '/v1/billing/subscriptions/' . SUB . '/cancel')) === 1 && !str_contains($log, 'PALETTE_CANCEL_FAILED'));
 // a refund also cancels the PayPal subscription (ruling A10), and a sale we never recorded is resolved by GET
 s_reset($conn);
 [$id, $lic] = active_sub($conn);
@@ -471,6 +531,18 @@ ok('then ACTIVATED / confirm -> no key', palette_sub_event($conn, 'BILLING.SUBSC
     && palette_sub_confirm($conn, SUB)['ok'] === false && license_count($conn) === 0 && $GLOBALS['mails'] === []);
 ok('webhook still ignores companies order events', palette_webhook($conn, HDRS, json_encode(['event_type' => 'PAYMENT.CAPTURE.COMPLETED',
     'resource' => ['id' => 'C1', 'custom_id' => 'company:1']])) === 'ignored');
+// refund before the sale whose PayPal cancel failed: the next month's sale must alert and retry the cancel, not "renew" (#1)
+s_reset($conn);
+$id = start($conn);
+route_sub(pp_sub($id));
+$GLOBALS['pp_routes']['POST /v1/billing/subscriptions/' . SUB . '/cancel'] = ['status' => 500, 'json' => []];
+logged(fn() => palette_sub_event($conn, 'PAYMENT.SALE.REFUNDED', ['id' => 'REF-RC', 'sale_id' => 'SALE-RC', 'billing_agreement_id' => SUB, 'amount' => ['total' => '3.99', 'currency' => 'USD']]));
+ok('#1 setup: closed row without a licence', sub_row($conn, $id)['status'] === 'cancelled' && sub_row($conn, $id)['license_id'] === null);
+$GLOBALS['pp_calls'] = [];
+$log = logged(fn() => $GLOBALS['ev'] = palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-RC2', time() + 30 * 86400)));
+ok('#1: renewal on a closed row with no licence -> unfulfilled, no key, alert + cancel retried', $GLOBALS['ev'] === 'unfulfilled' && license_count($conn) === 0
+    && str_contains($log, 'PALETTE_PAID_UNFULFILLED') && str_contains($log, 'PALETTE_CANCEL_FAILED subscription=' . SUB)
+    && count(calls_to('POST', '/v1/billing/subscriptions/' . SUB . '/cancel')) === 1);
 
 // ---- customer cancel
 s_reset($conn);
@@ -504,8 +576,21 @@ $GLOBALS['pp_routes']['POST /v1/billing/subscriptions/' . SUB . '/cancel'] = ['s
 ok('cancel: PayPal failure -> err_paypal, status unchanged', palette_sub_cancel($conn, $lic['license_key'], null, 'buyer@studio.vn') === ['ok' => false, 'error' => 'err_paypal']
     && ai_lic($conn)['sub_status'] === 'active');
 ok('cancel: a pro key -> invalid', palette_sub_cancel($conn, palette_issue_license($conn, 'buyer@studio.vn', 'ORD-1', 'en')['key'], null, 'buyer@studio.vn')['error'] === 'err_invalid_key');
+// a refunded (revoked) key whose PayPal cancel failed can still stop the billing (#1)
+s_reset($conn);
+[$id, $lic] = active_sub($conn);
+logged(fn() => palette_sub_event($conn, 'PAYMENT.SALE.REVERSED', ['id' => 'SALE-RV', 'billing_agreement_id' => SUB]));   // cancel unrouted -> fails
+ok('#1 setup: revoked, row still active', ai_lic($conn)['revoked_at'] !== null && sub_row($conn, $id)['status'] === 'active');
+$GLOBALS['pp_routes']['POST /v1/billing/subscriptions/' . SUB . '/cancel'] = ['status' => 204, 'json' => null];
+$GLOBALS['pp_calls'] = [];
+ok('#1: revoked key, stranger -> not owner, no PayPal call', palette_sub_cancel($conn, $lic['license_key'], null, 'x@y.co')['error'] === 'err_not_owner' && $GLOBALS['pp_calls'] === []);
+$r = palette_sub_cancel($conn, $lic['license_key'], null, 'buyer@studio.vn');
+ok('#1: revoked key, owner -> cancelled in PayPal and here', $r['ok'] === true && count(calls_to('POST', '/v1/billing/subscriptions/' . SUB . '/cancel')) === 1
+    && sub_row($conn, $id)['status'] === 'cancelled' && ai_lic($conn)['revoked_at'] !== null);
 
 // API sub_cancel: palette_account CSRF, 403 for strangers
+s_reset($conn);
+[$id, $lic] = active_sub($conn);
 $GLOBALS['pp_routes']['POST /v1/billing/subscriptions/' . SUB . '/cancel'] = ['status' => 204, 'json' => null];
 $_SESSION = [];
 $ck = generateCSRFToken('palette_checkout');
@@ -572,7 +657,27 @@ s_reset($conn);
 $conn->query("UPDATE palette_licenses SET revoked_at = NOW()");
 start($conn);   // pending rows are not reconciled either
 $GLOBALS['pp_calls'] = [];
-ok('reconcile skips revoked licences and pending rows', palette_sub_reconcile($conn)['checked'] === 0 && $GLOBALS['pp_calls'] === []);
+$conn->query("UPDATE palette_subscriptions SET status = 'cancelled' WHERE id = $id");
+ok('reconcile skips revoked licences already cancelled, and pending rows', palette_sub_reconcile($conn)['checked'] === 0 && $GLOBALS['pp_calls'] === []);
+// revoked but still billing (the refund's cancel failed): reconcile retries the cancel, never extends (#1)
+$conn->query("UPDATE palette_subscriptions SET status = 'active' WHERE id = $id");
+$ptRev = ai_lic($conn)['paid_through'];
+route_sub(pp_sub($id, 'ACTIVE', time() + 90 * 86400, ['billing_info' => ['last_payment' => ['time' => iso(time() + 3 * 86400)]]]));
+$GLOBALS['pp_routes']['POST /v1/billing/subscriptions/' . SUB . '/cancel'] = ['status' => 500, 'json' => []];
+$log = logged(fn() => $GLOBALS['rc'] = palette_sub_reconcile($conn));
+ok('#1: reconcile checks a revoked row still ACTIVE in PayPal and retries the cancel (logs PALETTE_CANCEL_FAILED)', $GLOBALS['rc']['checked'] === 1
+    && count(calls_to('POST', '/v1/billing/subscriptions/' . SUB . '/cancel')) === 1 && str_contains($log, 'PALETTE_CANCEL_FAILED subscription=' . SUB)
+    && ai_lic($conn)['paid_through'] === $ptRev && sub_row($conn, $id)['status'] === 'active');
+$GLOBALS['pp_routes']['POST /v1/billing/subscriptions/' . SUB . '/cancel'] = ['status' => 204, 'json' => null];
+palette_sub_reconcile($conn);
+ok('#1: once the cancel works the row is cancelled and leaves the reconcile set', sub_row($conn, $id)['status'] === 'cancelled'
+    && ai_lic($conn)['paid_through'] === $ptRev && palette_sub_reconcile($conn)['checked'] === 0);
+$conn->query("UPDATE palette_subscriptions SET status = 'active' WHERE id = $id");
+route_sub(pp_sub($id, 'CANCELLED'));
+$GLOBALS['pp_calls'] = [];
+palette_sub_reconcile($conn);
+ok('#1: a revoked row PayPal already cancelled is synced without a cancel call', sub_row($conn, $id)['status'] === 'cancelled'
+    && calls_to('POST', '/v1/billing/subscriptions/') === []);
 // batch of 200, oldest updated first
 s_reset($conn);
 $t0 = local(time() - 86400);

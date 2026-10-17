@@ -539,7 +539,7 @@ test('Pro + AI: subscribing shows the key and hands it to the extension', async 
   expect((await confirm).status()).toBe(200);
   const created = await page.evaluate(() => (window as unknown as { __subCreate: { plan_id: string; custom_id: string } }).__subCreate);
   expect(created.plan_id).toBe('P-DEVPLAN001');
-  expect(created.custom_id).toMatch(/^palette-sub:\d+$/);
+  expect(created.custom_id).toMatch(/^palette-sub:\d+:[0-9a-f]{16}$/);
 
   await expect(page.locator('#done')).toBeVisible();
   await expect(page.locator('#buy')).toBeHidden();
