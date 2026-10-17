@@ -44,7 +44,7 @@ Confidentialité
 
 L’analyse se fait sur votre appareil. L’extension lit les couleurs et les styles de la page que vous choisissez, uniquement lorsque vous cliquez sur son icône, et n’envoie nulle part d’information sur les pages analysées, sauf si vous utilisez Pro + AI et appuyez sur Analyser (voir ci-dessous). En dehors de cela, la seule requête réseau est la vérification facultative de la licence Pro, qui envoie votre clé de licence.
 
-Les analyses IA (Pro + AI) ne s’exécutent que lorsque vous appuyez sur Analyser. L’extension envoie alors à vietnamcos.com l’adresse de la page (sans la chaîne de requête), son titre, sa description et un résumé du design. Les informations personnelles, comme les adresses e-mail et les numéros de téléphone, sont d’abord supprimées du titre et de la description. Nous effectuons une recherche web avec Brave Search et demandons à DeepSeek, un fournisseur d’IA, de rédiger l’analyse. Politique complète : https://vietnamcos.com/palette/privacy
+Les analyses IA (Pro + AI) ne s’exécutent que lorsque vous appuyez sur Analyser. L’extension envoie alors à vietnamcos.com l’adresse de la page (sans la chaîne de requête), son titre, sa description et un résumé du design. Les adresses e-mail, les adresses web, les @pseudos et les longues suites de chiffres, comme les numéros de téléphone, sont d’abord supprimés du titre et de la description ; les autres mots du titre sont envoyés tels quels. Nous effectuons une recherche web avec Brave Search et demandons à DeepSeek, un fournisseur d’IA, de rédiger l’analyse. Politique complète : https://vietnamcos.com/palette/privacy
 
 Remboursements
 

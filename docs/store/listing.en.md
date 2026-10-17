@@ -44,7 +44,7 @@ Privacy
 
 Scanning happens on your device. The extension reads the colours and styles of the page you choose, only when you click its icon, and sends nothing about the pages you scan anywhere, unless you use Pro + AI and press Analyse (see below). Apart from that, the only network request is the optional Pro licence check, which sends your licence key.
 
-AI insights (Pro + AI) run only when you press Analyse. The extension then sends vietnamcos.com the address of the page (without its query string), its title, its description and a summary of the design. Personal details such as email addresses and phone numbers are removed from the title and description first. We run a web search with Brave Search and ask DeepSeek, an AI provider, to write the analysis. Read the full policy: https://vietnamcos.com/palette/privacy
+AI insights (Pro + AI) run only when you press Analyse. The extension then sends vietnamcos.com the address of the page (without its query string), its title, its description and a summary of the design. Email addresses, web addresses, @handles and long digit runs such as phone numbers are removed from the title and description first; other words in the title are sent as they are. We run a web search with Brave Search and ask DeepSeek, an AI provider, to write the analysis. Read the full policy: https://vietnamcos.com/palette/privacy
 
 Refunds
 
@@ -72,7 +72,7 @@ Free to install and use. Pro is a one-time $1.49 unlock and Pro + AI is a subscr
 
 For the Privacy practices tab. Declare these data types as collected. The first two exist only for the optional Pro + AI feature and are sent only when the user presses Analyse.
 
-- Website content: the page title and description, and a summary of the design (colours, fonts, sizes, spacing). Used to write the AI analysis. Personal details such as email addresses and phone numbers are removed from the title and description on our server before anything else happens.
+- Website content: the page title and description, and a summary of the design (colours, fonts, sizes, spacing). Used to write the AI analysis. On our server, before anything else happens, email addresses, web addresses, @handles and long digit runs such as phone numbers are removed from the title and description. Other words in the title are sent as they are.
 - Web history: the address of the analysed page, without its query string. Used to look up similar and competitor sites and to cache the result for 7 days. It is user-initiated: nothing is sent unless the user presses Analyse.
 - Authentication information: the licence key, to check that Pro or Pro + AI is active.
 

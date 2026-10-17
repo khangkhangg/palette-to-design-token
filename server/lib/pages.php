@@ -398,7 +398,7 @@ function palette_render_landing(array $ctx): string
         [$t('lp_faq_key_q'), $t('pp_key_1') . ' ' . $t('pp_key_2')],
         [$t('lp_faq_data_q'), $t('lp_faq_data_a') . ' ' . $privacy],
         [$t('lp_faq_refund_q'), $t('co_refund')],
-        [$t('lp_faq_ai_q'), palette_h(palette_t($lang, 'lp_faq_ai_a', ['price' => palette_ai_price_label($lang), 'n' => palette_usage_limit(palette_settings($GLOBALS['conn']))]))],
+        [$t('lp_faq_ai_q'), ($aiOn ? '' : $t('co_plan_soon') . '. ') . palette_h(palette_t($lang, 'lp_faq_ai_a', ['price' => palette_ai_price_label($lang), 'n' => palette_usage_limit(palette_settings($GLOBALS['conn']))]))],
         [$t('lp_faq_cancel_q'), $t('lp_faq_cancel_a')],
     ];
     $items = '';

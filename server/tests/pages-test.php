@@ -524,7 +524,7 @@ ok('privacy en: AI insights only on Analyse, with the address minus its query st
     && str_contains(palette_t('en', 'priv_ai'), 'without anything after the ?') && str_contains(palette_t('en', 'priv_ai'), 'title') && str_contains(palette_t('en', 'priv_ai'), 'description')
     && str_contains(palette_t('en', 'priv_ai'), 'summary of the design') && str_contains($pen, h(palette_t('en', 'priv_ai'))));
 ok('privacy en: scrubbing, Brave Search, DeepSeek, 7-day shared cache, aggregate list, PayPal and what we keep',
-    str_contains(palette_t('en', 'priv_ai'), 'email addresses and phone numbers') && str_contains(palette_t('en', 'priv_ai'), 'Brave Search')
+    str_contains(palette_t('en', 'priv_ai'), 'email addresses, web addresses, @handles and long digit runs such as phone numbers') && str_contains(palette_t('en', 'priv_ai'), 'other words in the title are sent as they are') && !str_contains(palette_t('en', 'priv_ai'), 'personal details') && str_contains(palette_t('en', 'priv_ai'), 'Brave Search')
     && str_contains(palette_t('en', 'priv_ai'), 'DeepSeek, an AI provider') && str_contains(palette_t('en', 'priv_ai'), 'cached for 7 days')
     && str_contains(palette_t('en', 'priv_ai'), 'other people who analyse the same site') && str_contains(palette_t('en', 'priv_ai'), 'without any user identifiers')
     && str_contains(palette_t('en', 'priv_ai'), 'billed monthly by PayPal') && str_contains(palette_t('en', 'priv_ai'), 'email, subscription id and payment dates'));
@@ -538,7 +538,7 @@ foreach (LANGS as $l) {
     $ai = palette_t($l, 'priv_ai');
     ok("privacy $l: AI section names Brave Search and DeepSeek, 7 days, What it sends mentions the feature, no emoji",
         str_contains($p, h(palette_t($l, 'priv_ai_h'))) && str_contains($p, h($ai)) && str_contains($p, h(palette_t($l, 'priv_sends')))
-        && str_contains($ai, 'Brave Search') && str_contains($ai, 'DeepSeek') && str_contains($ai, '7') && str_contains($ai, 'PayPal') && str_contains($ai, 'vietnamcos.com')
+        && str_contains($ai, 'Brave Search') && str_contains($ai, 'DeepSeek') && str_contains($ai, (string)(PALETTE_ANALYSE_CACHE_TTL / 86400)) && str_contains($ai, '@') && str_contains($ai, 'PayPal') && str_contains($ai, 'vietnamcos.com')
         && str_contains(palette_t($l, 'priv_sends'), 'Pro + AI') && preg_match(EMOJI_RE, $p) === 0);
 }
 
@@ -639,3 +639,20 @@ ok('README: the AI/subscription contract lists the gateway helpers, user -1, ai_
     str_contains($readme, '### AI insights and subscription contract (Pro + AI)') && str_contains($readme, 'ai_key_for($conn, 0)') && str_contains($readme, 'ai_provider_request')
     && str_contains($readme, 'ai_http_call') && str_contains($readme, 'ai_provider_parse') && str_contains($readme, 'PALETTE_AI_LOG_USER') && str_contains($readme, '`hiring_settings.ai_enabled = 0`')
     && str_contains($readme, 'search_unavailable') && str_contains($readme, 'spacing_base') && str_contains($readme, 'err_quota') && str_contains($readme, 'err_ended') && str_contains($readme, 'err_not_ai'));
+
+// ---- Task 11 fix 1: the scrubbing claim matches palette_scrub_text; the data FAQ answer is gated like the other AI elements
+foreach (LANGS as $l) {
+    $ai = palette_t($l, 'priv_ai');
+    ok("priv_ai $l: names what is removed (@handles, long digit runs), no broad 'personal details' claim, no bare 'nothing is sent'",
+        str_contains($ai, '@') && str_contains($ai, 'Brave Search') && str_contains($ai, 'DeepSeek') && str_contains($ai, (string)(PALETTE_ANALYSE_CACHE_TTL / 86400))
+        && ($l !== 'en' || !str_contains($ai, 'nothing is sent')));
+}
+$scrubSample = palette_scrub_text('Jane Smith, 12 Oak St - dentist jane@x.com @jane https://x.com/a 0912345678', 200);
+ok('the scrubber leaves other words of a title alone (what the policy now says)', str_contains($scrubSample, 'Jane Smith, 12 Oak St') && !str_contains($scrubSample, '@') && !str_contains($scrubSample, '0912345678') && !str_contains($scrubSample, 'x.com'));
+$listingEn = (string)file_get_contents(PALETTE_DIR . '/../docs/store/listing.en.md');
+ok('en listing and disclosure use the narrow wording', substr_count($listingEn, 'web addresses, @handles and long digit runs such as phone numbers') === 2 && !str_contains($listingEn, 'Personal details such as'));
+cfg($conn, ['ai_paypal_plan_id' => '']);
+preg_match('#id="faq".*?</section>#s', landing(['lang' => 'en']), $fq);
+ok('FAQ: what Pro + AI is says Coming soon while AI is off', str_contains($fq[0], h(palette_t('en', 'co_plan_soon')) . '. ' . h(palette_t('en', 'lp_faq_ai_a', ['price' => '$3.99', 'n' => 100]))));
+cfg($conn, ['ai_paypal_plan_id' => 'P-TESTPLAN1']);
+ok('FAQ: no Coming soon prefix while AI is on', !str_contains(landing(['lang' => 'en']), h(palette_t('en', 'co_plan_soon')) . '. ' . h(palette_t('en', 'lp_faq_ai_a'))));
