@@ -43,9 +43,10 @@ const FOCUS_SELECTORS: Record<FocusTarget, string[]> = {
 type Plan =
   | { kind: 'loading' }
   | { kind: 'locked' }
-  | { kind: 'ended'; endedOn: string | null }
-  /** cancelled: the subscription will not renew, so its date is when the plan ends, not when usage resets. */
-  | { kind: 'active'; usage: AiUsage | null; cancelled: boolean };
+  /** pending: the subscription is still active, so a late renewal is on its way; never offer Renew (ruling A19). */
+  | { kind: 'ended'; endedOn: string | null; pending: boolean }
+  /** cancelled: the subscription will not renew, so endsOn (when access ends) is shown, not when usage resets. */
+  | { kind: 'active'; usage: AiUsage | null; cancelled: boolean; endsOn: string | null };
 
 async function readNoteHidden(): Promise<boolean> {
   try {
@@ -58,8 +59,8 @@ async function readNoteHidden(): Promise<boolean> {
 async function loadPlan(): Promise<Plan> {
   const [lic, state] = await Promise.all([currentAiLicense(), aiState()]);
   if (!lic) return { kind: 'locked' };
-  if (!state.active) return { kind: 'ended', endedOn: lic.paidThrough };
-  return { kind: 'active', usage: state.usage, cancelled: lic.subStatus === 'cancelled' };
+  if (!state.active) return { kind: 'ended', endedOn: lic.paidThrough, pending: state.renewalPending };
+  return { kind: 'active', usage: state.usage, cancelled: lic.subStatus === 'cancelled', endsOn: state.endsOn };
 }
 
 /** Fills {name} in a translated string with markup, keeping the translation's word order. */
@@ -92,16 +93,15 @@ function Head({ sub, children }: { sub: ComponentChildren; children?: ComponentC
   );
 }
 
-function UsageBar({ usage, cancelled }: { usage: AiUsage; cancelled: boolean }) {
+function UsageBar({ usage, cancelled, endsOn }: { usage: AiUsage; cancelled: boolean; endsOn: string | null }) {
+  const date = cancelled ? formatDate(endsOn ?? '', false) : formatDate(usage.resetsOn, false);
   const left = Math.max(0, usage.limit - usage.used);
   const pct = usage.limit > 0 ? Math.round((left / usage.limit) * 100) : 0;
   return (
     <div class="ai-usage">
       <div class="ai-usage-text">
         <span class="ai-usage-left">{ltr('ai.left', { left, limit: usage.limit })}</span>
-        {formatDate(usage.resetsOn, false) && (
-          <span class="ai-usage-reset">{ltr(cancelled ? 'ai.ends' : 'ai.resets', { date: formatDate(usage.resetsOn, false) })}</span>
-        )}
+        {date && <span class="ai-usage-reset">{ltr(cancelled ? 'ai.ends' : 'ai.resets', { date })}</span>}
       </div>
       <div class="ai-bar" aria-hidden="true"><div class="ai-bar-fill" style={{ inlineSize: `${pct}%` }} /></div>
     </div>
@@ -120,11 +120,17 @@ function ErrorNote({ reason, onRetry }: { reason: AnalyseReason; onRetry?(): voi
   );
 }
 
-function Locked({ endedOn, ended, onSee }: { ended: boolean; endedOn: string | null; onSee(): void }) {
+function Locked({ endedOn, ended, pending, onSee }: { ended: boolean; endedOn: string | null; pending: boolean; onSee(): void }) {
   return (
     <section class="ai-card" aria-labelledby="ai-title">
       <Head sub={t('ai.lockedSub')} />
-      {ended && (
+      {ended && pending && (
+        <p class="ai-ended ai-pending" role="status">
+          <Icon name="info" size={14} />
+          <span>{t('ai.renewalPending')}</span>
+        </p>
+      )}
+      {ended && !pending && (
         <p class="ai-ended" role="status">
           <Icon name="alert" size={14} />
           <span>{endedOn ? ltr('ai.ended', { date: formatDate(endedOn) }) : t('ai.endedNoDate')}</span>
@@ -143,9 +149,11 @@ function Locked({ endedOn, ended, onSee }: { ended: boolean; endedOn: string | n
         <span class="ai-price-amount">{t('plans.ai.price')}<span class="ai-price-per">{t('plans.ai.per')}</span></span>
       </div>
       {ended ? (
-        <button type="button" class="ai-cta" onClick={() => { void chrome.tabs.create({ url: checkoutUrl(renderedLang(), 'ai') }); }}>
-          {t('ai.renew')}
-        </button>
+        !pending && (
+          <button type="button" class="ai-cta" onClick={() => { void chrome.tabs.create({ url: checkoutUrl(renderedLang(), 'ai') }); }}>
+            {t('ai.renew')}
+          </button>
+        )
       ) : (
         <button type="button" class="ai-cta" onClick={onSee}>{t('ai.seePlan')}</button>
       )}
@@ -385,14 +393,18 @@ export function AiSection({ tokens }: AiSectionProps) {
     setAnnounce('');
     if (r.ok) {
       setEntry({ result: r.result, usage: r.usage, analysedAt: new Date().toISOString(), lang: renderedLang(), cached: r.cached });
-      showPlan({ kind: 'active', usage: r.usage, cancelled: plan.kind === 'active' && plan.cancelled });
+      showPlan(plan.kind === 'active' ? { ...plan, usage: r.usage } : { kind: 'active', usage: r.usage, cancelled: false, endsOn: null });
       setAnnounce(t('ai.resultsReady'));
       setFocus('results');
       return;
     }
     if (r.reason === 'cancelled') return setFocus('analyse');
     if (r.reason === 'not_ai') return showPlan({ kind: 'locked' });
-    if (r.reason === 'ended') return showPlan({ kind: 'ended', endedOn: r.endedOn ?? null });
+    if (r.reason === 'ended') {
+      // A19: a stored subscription that is still active means a late renewal, not a lapsed plan.
+      const pending = await currentAiLicense().then((l) => l?.subStatus === 'active', () => false);
+      return showPlan({ kind: 'ended', endedOn: r.endedOn ?? null, pending });
+    }
     if (r.reason === 'quota' || r.reason === 'token_cap') {
       setQuotaReset(r.resetsOn ?? usage?.resetsOn ?? '');
       setTokenCap(r.reason === 'token_cap');
@@ -425,7 +437,12 @@ export function AiSection({ tokens }: AiSectionProps) {
 
   function body() {
   if (plan.kind !== 'active') {
-    return <Locked ended={plan.kind === 'ended'} endedOn={plan.kind === 'ended' ? plan.endedOn : null} onSee={() => setSheet(true)} />;
+    return (
+      <Locked
+        ended={plan.kind === 'ended'} endedOn={plan.kind === 'ended' ? plan.endedOn : null}
+        pending={plan.kind === 'ended' && plan.pending} onSee={() => setSheet(true)}
+      />
+    );
   }
 
   if (running !== null) {
@@ -466,7 +483,7 @@ export function AiSection({ tokens }: AiSectionProps) {
   return (
     <section class="ai-card" aria-labelledby="ai-title">
       <Head sub={t('ai.readySub')} />
-      {usage && <UsageBar usage={usage} cancelled={plan.cancelled} />}
+      {usage && <UsageBar usage={usage} cancelled={plan.cancelled} endsOn={plan.endsOn} />}
       {!noteHidden && (
         <>
           <div class="ai-sent">

@@ -222,14 +222,16 @@ describe('Pro + AI licences', () => {
     expect(aiRec().usage).toEqual({ used: 4, limit: 100, resetsOn: '2026-11-01' });
     expect(data.license).toEqual(lic('2026-10-01T00:00:00.000Z'));
     expect((await getSettings()).pro).toBe(true);
-    expect(await aiState()).toEqual({ active: true, paidThrough: iso(20 * DAY), usage: { used: 4, limit: 100, resetsOn: '2026-11-01' } });
+    expect(await aiState()).toEqual({
+      active: true, paidThrough: iso(20 * DAY), usage: { used: 4, limit: 100, resetsOn: '2026-11-01' }, endsOn: iso(20 * DAY), renewalPending: false,
+    });
   });
   it('a pro key still lands in license, not licenseAi', async () => {
     fetchMock.mockReturnValue(reply(200, { ok: true, valid: true, revoked: false, email_masked: null }));
     await activate(KEY);
     expect(data.license).toBeDefined();
     expect(data.licenseAi).toBeUndefined();
-    expect(await aiState()).toEqual({ active: false, paidThrough: null, usage: null });
+    expect(await aiState()).toEqual({ active: false, paidThrough: null, usage: null, endsOn: null, renewalPending: false });
   });
   it('an ai key that verifies as lapsed on activation is "ended" and stores nothing', async () => {
     fetchMock.mockReturnValue(lapsed());
@@ -263,7 +265,7 @@ describe('Pro + AI licences', () => {
       expect((await aiState()).active).toBe(false);
     });
     it('is inactive with no licence', async () => {
-      expect(await aiState()).toEqual({ active: false, paidThrough: null, usage: null });
+      expect(await aiState()).toEqual({ active: false, paidThrough: null, usage: null, endsOn: null, renewalPending: false });
     });
   });
 
@@ -424,6 +426,78 @@ describe('Pro + AI licences', () => {
       await setSettings({ pro: true });
       await recheckIfDue(now);
       expect((await getSettings()).pro).toBe(true);
+    });
+  });
+
+  // Ruling A19: the extension follows the server's 48 h renewal grace through verify's access_until.
+  describe('renewal grace (access_until)', () => {
+    const grace = (over: object = {}) =>
+      aiLic({ verifiedAt: iso(-3600_000), lastAttemptAt: iso(-3600_000), paidThrough: iso(-DAY), accessUntil: iso(DAY), subStatus: 'active', ...over });
+
+    it('activation stores accessUntil from verify', async () => {
+      fetchMock.mockReturnValue(aiOk(iso(20 * DAY), { sub_status: 'active', access_until: iso(22 * DAY) }));
+      await activate(AI_KEY);
+      expect(aiRec().accessUntil).toBe(iso(22 * DAY));
+    });
+    it('inside the grace the plan stays active, Pro stays on and the state says renewal pending', async () => {
+      data.licenseAi = grace();
+      await setSettings({ pro: true });
+      await recheckIfDue(now);
+      expect(fetchMock).not.toHaveBeenCalled();   // aiDue follows accessUntil: not past it, checked within 24 h
+      expect((await getSettings()).pro).toBe(true);
+      const s = await aiState();
+      expect(s.active).toBe(true);
+      expect(s.renewalPending).toBe(true);
+    });
+    it('a recheck inside the grace (server: ai_active, old paid_through, later access_until) keeps the plan and Pro on', async () => {
+      data.licenseAi = grace({ verifiedAt: iso(-2 * DAY), accessUntil: undefined });
+      await setSettings({ pro: true });
+      fetchMock.mockReturnValue(aiOk(iso(-DAY), { sub_status: 'active', access_until: iso(DAY) }));
+      await recheckIfDue(now);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(aiRec().accessUntil).toBe(iso(DAY));
+      expect(aiRec().lastCheck).toBe('ok');
+      expect((await aiState()).active).toBe(true);
+      expect((await getSettings()).pro).toBe(true);
+    });
+    it('after the grace the plan ends and Pro goes off, but an active subscription is still renewal pending (no Renew)', async () => {
+      // past accessUntil + the 1 h skew; the last attempt was 10 minutes ago, so no recheck yet
+      data.licenseAi = grace({ paidThrough: iso(-3 * DAY), accessUntil: iso(-2 * 3600_000), lastAttemptAt: iso(-10 * 60_000) });
+      await setSettings({ pro: true });
+      await recheckIfDue(now);
+      expect(fetchMock).not.toHaveBeenCalled();
+      const s = await aiState();
+      expect(s.active).toBe(false);
+      expect(s.renewalPending).toBe(true);
+      expect((await getSettings()).pro).toBe(false);
+    });
+    it('a cancelled subscription has no grace and is never renewal pending', async () => {
+      data.licenseAi = grace({ subStatus: 'cancelled', accessUntil: iso(-DAY) });
+      const s = await aiState();
+      expect(s.active).toBe(false);
+      expect(s.renewalPending).toBe(false);
+    });
+    it('is not renewal pending before paidThrough', async () => {
+      data.licenseAi = aiLic({ subStatus: 'active', accessUntil: iso(7 * DAY) });
+      expect((await aiState()).renewalPending).toBe(false);
+    });
+    it('without accessUntil (an older server) paidThrough is the end, as before', async () => {
+      data.licenseAi = grace({ accessUntil: undefined });
+      expect((await aiState()).active).toBe(false);
+    });
+    it('aiDue: past accessUntil the recheck runs (at most every 30 minutes)', async () => {
+      data.licenseAi = grace({ accessUntil: iso(-60_000), lastAttemptAt: iso(-31 * 60_000) });
+      fetchMock.mockReturnValue(aiOk(iso(29 * DAY), { sub_status: 'active', access_until: iso(31 * DAY) }));
+      await recheckIfDue(now);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(aiRec().paidThrough).toBe(iso(29 * DAY));
+      expect(aiRec().accessUntil).toBe(iso(31 * DAY));
+    });
+    it('aiState reports when a cancelled plan ends: accessUntil, else paidThrough', async () => {
+      data.licenseAi = aiLic({ subStatus: 'cancelled', paidThrough: iso(5 * DAY), accessUntil: iso(5 * DAY) });
+      expect((await aiState()).endsOn).toBe(iso(5 * DAY));
+      data.licenseAi = aiLic({ subStatus: 'cancelled', paidThrough: iso(6 * DAY) });
+      expect((await aiState()).endsOn).toBe(iso(6 * DAY));
     });
   });
 });

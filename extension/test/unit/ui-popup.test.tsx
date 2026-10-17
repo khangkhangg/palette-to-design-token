@@ -363,6 +363,28 @@ describe('popup App', () => {
       expect(mocks.tabsCreate).toHaveBeenCalledWith({ url: 'https://vietnamcos.com/palette/checkout?lang=en&plan=ai' });
     });
 
+    // Ruling A19: never offer Renew while the subscription is still active (a late renewal; Renew would bill twice).
+    it('an ended plan whose subscription is still active says renewal pending, with no Renew', async () => {
+      aiOnly({ lastCheck: 'ended', subStatus: 'active' }, false);
+      mocks.aiState.mockResolvedValue({ active: false, paidThrough: AI.paidThrough, usage: null, endsOn: AI.paidThrough, renewalPending: true });
+      render(<App />);
+      await openMenu();
+      expect(await screen.findByText('Renewal pending — this usually takes a few minutes')).toBeTruthy();
+      expect(screen.queryByText(/Pro \+ AI ended/)).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Renew' })).toBeNull();
+    });
+
+    it('inside the renewal grace the plan is on: renewal pending, Manage subscription, no Renew', async () => {
+      aiOnly({ subStatus: 'active' });
+      mocks.aiState.mockResolvedValue({ active: true, paidThrough: AI.paidThrough, usage: null, endsOn: AI.paidThrough, renewalPending: true });
+      render(<App />);
+      await openMenu();
+      expect(await screen.findByText('Renewal pending — this usually takes a few minutes')).toBeTruthy();
+      expect(screen.queryByText(/renews/)).toBeNull();
+      expect(screen.getByRole('button', { name: 'Manage subscription' })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Renew' })).toBeNull();
+    });
+
     it('with both licences the Pro line, the AI line and two remove buttons show; removing the AI key leaves Pro on', async () => {
       mocks.currentLicense.mockResolvedValue(PRO);
       aiOnly();

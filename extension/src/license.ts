@@ -17,6 +17,11 @@ export interface AiLicense extends License {
   usage: AiUsage | null;
   /** Cancelled subscriptions keep access until paidThrough; the server may say so. */
   subStatus: string | null;
+  /**
+   * When access ends, from verify's access_until (ruling A19): paidThrough + 48 h while the subscription is
+   * active (a renewal PayPal reports late), else paidThrough. Null (an older server or record) means paidThrough.
+   */
+  accessUntil: string | null;
   /** 'ended' = the server said the plan lapsed; 'network' = the last check could not reach it. */
   lastCheck: 'ok' | 'network' | 'ended';
   /** When the last check was tried (any outcome); throttles the checks that are not on the daily schedule. */
@@ -49,7 +54,7 @@ function normalise(raw: string): string {
   return `SDT-${body.slice(0, 4)}-${body.slice(4, 8)}-${body.slice(8)}`;
 }
 
-interface AiInfo { paidThrough: string | null; usage: AiUsage | null; subStatus: string | null }
+interface AiInfo { paidThrough: string | null; accessUntil: string | null; usage: AiUsage | null; subStatus: string | null }
 type Verdict =
   | { kind: 'valid'; emailMasked: string | null; ai: AiInfo | null }
   | { kind: 'ended'; ai: AiInfo }
@@ -82,7 +87,10 @@ async function verify(key: string): Promise<Verdict> {
     if (body?.ok !== true) return { kind: 'network' };
     if (body.revoked === true) return { kind: 'revoked' };
     const ai: AiInfo | null = body.plan === 'ai'
-      ? { paidThrough: str(body.paid_through), usage: parseUsage(body.usage), subStatus: str(body.sub_status) }
+      ? {
+        paidThrough: str(body.paid_through), accessUntil: str(body.access_until), usage: parseUsage(body.usage),
+        subStatus: str(body.sub_status),
+      }
       : null;
     // A lapsed AI plan answers valid:false, revoked:false, plan:'ai': ended, not an invalid key.
     if (ai && (body.valid === false || (body.valid === true && body.ai_active === false))) return { kind: 'ended', ai };
@@ -111,26 +119,45 @@ async function readAiLicense(): Promise<AiLicense | null> {
     ? {
       key: l.key, verifiedAt: l.verifiedAt, emailMasked: l.emailMasked ?? null, plan: 'ai',
       paidThrough: l.paidThrough ?? null, usage: l.usage ?? null, subStatus: l.subStatus ?? null,
-      lastCheck: l.lastCheck ?? 'ok', lastAttemptAt: l.lastAttemptAt ?? null,
+      accessUntil: l.accessUntil ?? null, lastCheck: l.lastCheck ?? 'ok', lastAttemptAt: l.lastAttemptAt ?? null,
     }
     : null;
 }
 
 const time = (iso: string | null): number => (iso ? new Date(iso).getTime() : NaN);
 
+/** When access ends: the server's access_until (A19 renewal grace included), else paidThrough. */
+const accessEnd = (l: AiLicense): string | null => l.accessUntil ?? l.paidThrough;
+
 function aiActive(l: AiLicense | null, now: number): boolean {
   if (!l || l.lastCheck === 'ended') return false;
-  const through = time(l.paidThrough);
+  const through = time(accessEnd(l));
   if (Number.isNaN(through)) return false;
   // 'ok' gets a short grace so clock skew or a renewal that is a few minutes behind does not read as ended;
   // a check that could not reach the server gets the full 3 days.
   return now < through + (l.lastCheck === 'network' ? AI_GRACE_MS : AI_SKEW_MS);
 }
 
+export interface AiState {
+  active: boolean;
+  paidThrough: string | null;
+  usage: AiUsage | null;
+  /** When access ends (accessUntil, else paidThrough): the date a cancelled plan "ends". */
+  endsOn: string | null;
+  /**
+   * The subscription is still active but its paid period ran out (or the plan already reads as ended): the
+   * renewal has not reached us yet. Never offer Renew then; it would bill twice (ruling A19).
+   */
+  renewalPending: boolean;
+}
+
 /** Whether the Pro + AI plan is currently active, worked out from what the last check stored. */
-export async function aiState(now: Date = new Date()): Promise<{ active: boolean; paidThrough: string | null; usage: AiUsage | null }> {
+export async function aiState(now: Date = new Date()): Promise<AiState> {
   const l = await readAiLicense();
-  return { active: aiActive(l, now.getTime()), paidThrough: l?.paidThrough ?? null, usage: l?.usage ?? null };
+  const active = aiActive(l, now.getTime());
+  const through = time(l?.paidThrough ?? null);
+  const renewalPending = l?.subStatus === 'active' && (!active || Number.isNaN(through) || now.getTime() >= through);
+  return { active, paidThrough: l?.paidThrough ?? null, usage: l?.usage ?? null, endsOn: l ? accessEnd(l) : null, renewalPending };
 }
 
 /**
@@ -153,7 +180,7 @@ export async function activate(rawKey: string): Promise<ActivateResult> {
   const verifiedAt = new Date().toISOString();
   if (v.ai) {
     const lic: AiLicense = {
-      key, verifiedAt, emailMasked: v.emailMasked, plan: 'ai', paidThrough: v.ai.paidThrough,
+      key, verifiedAt, emailMasked: v.emailMasked, plan: 'ai', paidThrough: v.ai.paidThrough, accessUntil: v.ai.accessUntil,
       usage: v.ai.usage, subStatus: v.ai.subStatus, lastCheck: 'ok', lastAttemptAt: verifiedAt,
     };
     await chrome.storage.local.set({ [AI_KEY]: lic });
@@ -185,11 +212,14 @@ async function recheckPro(now: Date): Promise<boolean> {
   return false;
 }
 
-/** Due daily; also once the paid period has run out and for a recently ended plan (a renewal can lag), at most every 30 minutes. */
+/**
+ * Due daily; also once access has run out (accessUntil, else paidThrough) and for a recently ended plan (a renewal
+ * can lag), at most every 30 minutes.
+ */
 function aiDue(lic: AiLicense, now: number): boolean {
   const verified = time(lic.verifiedAt);
   if (Number.isNaN(verified) || now - verified > AI_RECHECK_MS) return true;
-  const through = time(lic.paidThrough);
+  const through = time(accessEnd(lic));
   const pastEnd = lic.lastCheck !== 'ended' && !Number.isNaN(through) && now >= through;
   const recentlyEnded = lic.lastCheck === 'ended' && (Number.isNaN(through) || now < through + AI_GRACE_MS);
   if (!pastEnd && !recentlyEnded) return false;
@@ -209,7 +239,7 @@ async function recheckAi(now: Date): Promise<boolean> {
       [AI_KEY]: {
         ...lic, verifiedAt: stamp, lastAttemptAt: stamp, emailMasked: v.emailMasked ?? lic.emailMasked,
         paidThrough: v.ai.paidThrough ?? lic.paidThrough, usage: v.ai.usage ?? lic.usage,
-        subStatus: v.ai.subStatus ?? lic.subStatus, lastCheck: 'ok',
+        subStatus: v.ai.subStatus ?? lic.subStatus, accessUntil: v.ai.accessUntil, lastCheck: 'ok',
       } satisfies AiLicense,
     });
   } else if (v.kind === 'ended') {
@@ -217,7 +247,7 @@ async function recheckAi(now: Date): Promise<boolean> {
     await chrome.storage.local.set({
       [AI_KEY]: {
         ...lic, verifiedAt: stamp, lastAttemptAt: stamp, paidThrough: v.ai.paidThrough ?? lic.paidThrough,
-        usage: v.ai.usage ?? lic.usage, subStatus: v.ai.subStatus ?? lic.subStatus, lastCheck: 'ended',
+        usage: v.ai.usage ?? lic.usage, subStatus: v.ai.subStatus ?? lic.subStatus, accessUntil: v.ai.accessUntil, lastCheck: 'ended',
       } satisfies AiLicense,
     });
   } else if (v.kind === 'revoked' || v.kind === 'invalid') {

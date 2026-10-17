@@ -40,7 +40,9 @@ export function App({ onExport }: AppProps) {
   const loadLicense = () => {
     void currentLicense().then((l) => setLicenseKey(l?.key ?? null)).catch(() => {});
     void Promise.all([currentAiLicense(), aiState()])
-      .then(([l, s]) => setAiInfo(l ? { active: s.active, paidThrough: l.paidThrough, cancelled: /^cancel/i.test(l.subStatus ?? '') } : null))
+      .then(([l, s]) => setAiInfo(l ? {
+        active: s.active, paidThrough: l.paidThrough, cancelled: /^cancel/i.test(l.subStatus ?? ''), renewalPending: s.renewalPending === true,
+      } : null))
       .catch(() => {});
   };
   const { copied, failed, copy } = useCopy();

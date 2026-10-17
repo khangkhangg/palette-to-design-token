@@ -587,7 +587,7 @@ body.sidepanel, body.sidepanel #app { block-size: 100vh; }
 }
 .ai-ended > svg, .ai-quota > svg, .ai-error > svg, .ai-search-down > svg { flex-shrink: 0; margin-block-start: 2px; }
 .ai-ended, .ai-error { background: var(--fail-bg); color: var(--fail-ink); }
-.ai-quota { background: var(--warn-bg); color: var(--warn-ink); }
+.ai-quota, .ai-ended.ai-pending { background: var(--warn-bg); color: var(--warn-ink); }
 .ai-search-down { background: var(--note-bg); color: var(--note-ink); }
 .ai-error > span { flex: 1; }
 .ai-error .link-btn { color: inherit; font-weight: 600; padding-block: 0; }

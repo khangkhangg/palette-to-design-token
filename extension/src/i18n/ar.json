@@ -267,6 +267,7 @@
     "ended": "انتهت خطة Pro + AI الخاصة بك في {date}.",
     "endedNoDate": "انتهت خطة Pro + AI الخاصة بك.",
     "renew": "جدّد Pro + AI",
+    "renewalPending": "التجديد قيد المعالجة — يستغرق ذلك عادةً بضع دقائق",
     "left": "متبقٍّ {left} من {limit} تحليل",
     "resets": "يُعاد الضبط في {date}",
     "ends": "ينتهي في {date}",

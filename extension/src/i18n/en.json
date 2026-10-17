@@ -255,6 +255,7 @@
     "ended": "Your Pro + AI plan ended on {date}.",
     "endedNoDate": "Your Pro + AI plan has ended.",
     "renew": "Renew Pro + AI",
+    "renewalPending": "Renewal pending — this usually takes a few minutes",
     "left": "{left} of {limit} analyses left",
     "resets": "resets {date}",
     "ends": "ends {date}",

@@ -252,6 +252,7 @@
     "ended": "你的 Pro + AI 套餐已于 {date} 结束。",
     "endedNoDate": "你的 Pro + AI 套餐已结束。",
     "renew": "续订 Pro + AI",
+    "renewalPending": "续订处理中，通常只需几分钟",
     "left": "剩余 {left} / {limit} 次分析",
     "resets": "{date} 重置",
     "ends": "{date} 结束",

@@ -258,6 +258,7 @@
     "ended": "Tu plan Pro + AI terminó el {date}.",
     "endedNoDate": "Tu plan Pro + AI ha terminado.",
     "renew": "Renovar Pro + AI",
+    "renewalPending": "Renovación pendiente: suele tardar unos minutos",
     "left": "Quedan {left} de {limit} análisis",
     "resets": "se renueva el {date}",
     "ends": "termina el {date}",

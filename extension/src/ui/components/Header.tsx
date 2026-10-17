@@ -44,6 +44,8 @@ export interface AiMenuInfo {
   paidThrough: string | null;
   /** The subscription is cancelled: access runs until paidThrough. */
   cancelled: boolean;
+  /** Still active, but the renewal has not reached us yet: say so and never offer Renew (ruling A19). */
+  renewalPending?: boolean;
 }
 
 /** "SDT-…-6789": enough to tell keys apart without showing the key. */
@@ -61,6 +63,7 @@ function ProActiveKey({ keyText }: { keyText: string }) {
 
 /** The Pro + AI status line, with its date isolated left-to-right. */
 function AiStatus({ ai }: { ai: AiMenuInfo }) {
+  if (ai.renewalPending) return <>{t('ai.renewalPending')}</>;
   const id = !ai.active ? 'settings.aiEnded' : ai.cancelled ? 'settings.aiEnds' : 'settings.aiRenews';
   const [before, after = ''] = t(id, { date: MARK }).split(MARK);
   return <>{before}<bdi dir="ltr">{ai.paidThrough ? formatDateTime(ai.paidThrough) : ''}</bdi>{after}</>;
@@ -185,7 +188,7 @@ export function Header({
                 )}
                 {ai && (
                   <p class={ai.active ? 'menu-pro' : 'menu-pro menu-pro-ended'}>
-                    <Icon name={ai.active ? 'check' : 'alert'} size={14} />
+                    <Icon name={ai.renewalPending ? 'info' : ai.active ? 'check' : 'alert'} size={14} />
                     <span><AiStatus ai={ai} /></span>
                   </p>
                 )}
@@ -194,7 +197,7 @@ export function Header({
                     {t('settings.manageSubscription')}
                   </button>
                 )}
-                {ai && !ai.active && onRenew && (
+                {ai && !ai.active && !ai.renewalPending && onRenew && (
                   <button type="button" class="menu-action" onClick={() => { setOpen(false); onRenew(); }}>
                     {t('settings.renew')}
                   </button>

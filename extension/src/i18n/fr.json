@@ -258,6 +258,7 @@
     "ended": "Votre formule Pro + AI a pris fin le {date}.",
     "endedNoDate": "Votre formule Pro + AI a pris fin.",
     "renew": "Renouveler Pro + AI",
+    "renewalPending": "Renouvellement en attente — cela prend généralement quelques minutes",
     "left": "{left} analyses restantes sur {limit}",
     "resets": "remise à zéro le {date}",
     "ends": "prend fin le {date}",

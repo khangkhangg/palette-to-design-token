@@ -378,7 +378,7 @@ curl -s -o /dev/null -w '%{http_code}\n' https://vietnamcos.com/palette/checkout
 
 Accepted in review; none block launch.
 
-- **Renewal grace is server-side only (ruling A16).** The server keeps an active subscription's Pro and AI on for 48 h past `paid_through`, but the extension (left unchanged by the ruling) still treats a verified plan as ended 1 h past its stored `paidThrough`: during a late renewal it shows the ended state (and turns Pro off) until a re-check, every 30 minutes past the end, sees the renewed `paid_through`.
+- **Renewal grace (rulings A16, A19).** The server keeps an active subscription's Pro and AI on for 48 h past `paid_through`, and `verify` tells the extension through `access_until`, so Pro stays on there too. While the subscription is still active the extension never offers Renew; it says "Renewal pending". If PayPal reports nothing within the 48 h, the plan ends (Pro off) but still shows "Renewal pending" without Renew until the server's `sub_status` changes (reconcile or a webhook): watch `PALETTE_*` alerts and the reconcile cron. Extensions built before A19 ignore `access_until` and end the plan 1 h past `paidThrough` during a late renewal.
 
 - **Timing protection needs PHP-FPM.** `resend` answers first and does its work after `fastcgi_finish_request()` (ruling S4). Without it (CLI, `php -S`, mod_php) the work stays synchronous and response time can reveal whether an address bought. Confirm in step 1b.
 - **CSRF token per session.** `api.php?action=config` creates the checkout CSRF token once per session and returns the same token afterwards (no rotation), so several checkout or account tabs share it. A new session (cookie expired) needs a page reload (419 otherwise).

@@ -95,11 +95,38 @@ describe('AI section: not subscribed (G)', () => {
   });
 
   it('shows the ended date and Renew when the plan lapsed (G variant)', async () => {
-    data.licenseAi = aiLicense({ lastCheck: 'ended', paidThrough: '2026-10-01T00:00:00.000Z' });
+    data.licenseAi = aiLicense({ lastCheck: 'ended', paidThrough: '2026-10-01T00:00:00.000Z', subStatus: 'expired' });
     render(<AiSection tokens={brewline()} />);
     expect(await screen.findByText(text(`Your Pro + AI plan ended on ${formatDate('2026-10-01T00:00:00.000Z')}.`))).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Renew Pro + AI' }));
     expect(create).toHaveBeenCalledWith({ url: expect.stringMatching(/\/checkout\?lang=en&ext=.*&plan=ai$/) });
+  });
+
+  // Ruling A19: while the subscription is still active, a late renewal is pending; Renew would bill twice.
+  it('an ended plan whose subscription is still active says renewal pending and offers no Renew', async () => {
+    data.licenseAi = aiLicense({ lastCheck: 'ended', paidThrough: iso(-3 * DAY), accessUntil: iso(-DAY), subStatus: 'active' });
+    render(<AiSection tokens={brewline()} />);
+    expect(await screen.findByText('Renewal pending — this usually takes a few minutes')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Renew Pro + AI' })).toBeNull();
+    expect(screen.queryByText(/plan ended/)).toBeNull();
+  });
+});
+
+describe('AI section: renewal grace (A19)', () => {
+  it('inside the 48 h grace (paidThrough passed, accessUntil ahead) the plan stays ready, with no Renew', async () => {
+    data.licenseAi = aiLicense({ paidThrough: iso(-DAY), accessUntil: iso(DAY), subStatus: 'active' });
+    render(<AiSection tokens={brewline()} />);
+    await ready();
+    expect(screen.queryByRole('button', { name: 'Renew Pro + AI' })).toBeNull();
+  });
+
+  it('an analyse answer "ended" while the stored subscription is active shows renewal pending, not Renew', async () => {
+    data.licenseAi = aiLicense();
+    mocks.analyse.mockResolvedValue({ ok: false, reason: 'ended', endedOn: '2026-10-15' });
+    render(<AiSection tokens={brewline()} />);
+    fireEvent.click(await ready());
+    expect(await screen.findByText('Renewal pending — this usually takes a few minutes')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Renew Pro + AI' })).toBeNull();
   });
 });
 
@@ -120,11 +147,13 @@ describe('AI section: ready (H)', () => {
     expect(screen.getByText('Uses 1 analysis. Takes about 15 seconds.')).toBeTruthy();
   });
 
-  it('a cancelled subscription says the plan ends on the date, not that usage resets', async () => {
-    data.licenseAi = aiLicense({ subStatus: 'cancelled' });
+  it('a cancelled subscription says the plan ends on the date access ends (not when usage resets)', async () => {
+    const end = '2026-12-05T10:00:00.000Z';
+    data.licenseAi = aiLicense({ subStatus: 'cancelled', paidThrough: end, accessUntil: end });
     render(<AiSection tokens={brewline()} />);
     await ready();
-    expect(screen.getByText(text(`ends ${formatDate('2026-11-01', false)}`))).toBeTruthy();
+    expect(screen.getByText(text(`ends ${formatDate(end, false)}`))).toBeTruthy();
+    expect(screen.queryByText(text(`ends ${formatDate('2026-11-01', false)}`))).toBeNull();
     expect(screen.queryByText(text(/^resets /))).toBeNull();
   });
 
@@ -279,7 +308,8 @@ describe('AI section: running', () => {
     expect(screen.queryByText(text(/You've used all/))).toBeNull();
   });
 
-  it('an ended answer returns the card to G with the date', async () => {
+  it('an ended answer returns the card to G with the date (subscription no longer active)', async () => {
+    data.licenseAi = aiLicense({ subStatus: 'cancelled' });
     mocks.analyse.mockResolvedValue({ ok: false, reason: 'ended', endedOn: '2026-10-15' });
     render(<AiSection tokens={brewline()} />);
     fireEvent.click(await ready());
