@@ -32,8 +32,9 @@ if ('host_permissions' in manifest) {
 }
 console.log('Production dist: no dev Pro toggle, no host_permissions.');
 
-// 2. Test-only build into dist-e2e, then Playwright.
-run('npx', ['vite', 'build'], { SDT_E2E: '1' });
+// 2. Test-only build into dist-e2e, then Playwright. fernleaf.example is a public-looking host the AI e2e maps to
+// the fixture server (--host-resolver-rules), since AI insights refuse 127.0.0.1.
+run('npx', ['vite', 'build'], { SDT_E2E: '1', SDT_E2E_HOSTS: 'fernleaf.example' });
 run('npx', ['vite', 'build', '-c', 'vite.extract.config.ts'], { SDT_E2E: '1' });
 if (!existsSync(join(root, 'dist-e2e', 'extract.js'))) {
   console.error('dist-e2e/extract.js missing');

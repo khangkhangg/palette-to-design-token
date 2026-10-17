@@ -16,7 +16,10 @@ export interface Tokens {
   radius: number[];
   shadows: string[];
   contrast: ContrastPair[];
+  /** The scanned page (origin + path, title, meta description), capped; only AI insights send it, exporters ignore it. */
+  page?: PageInfo;
 }
+export interface PageInfo { url: string; title: string; description: string }
 
 export const EMPTY_TOKENS = (site: string): Tokens => ({
   site,

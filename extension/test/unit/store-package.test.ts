@@ -39,9 +39,10 @@ describe('icons', () => {
 
 describe('screenshots', () => {
   const dir = resolve(import.meta.dirname, '../../../docs/store/screenshots');
-  it('has five 1280x800 PNGs', () => {
+  it('has six 1280x800 PNGs, the sixth being the AI insights shot (the store takes five: see listing.en.md)', () => {
     const files = readdirSync(dir).filter((f) => f.endsWith('.png'));
-    expect(files).toHaveLength(5);
+    expect(files).toHaveLength(6);
+    expect(files).toContain('6-ai-insights.png');
     for (const f of files) {
       const b = readFileSync(resolve(dir, f));
       expect([b.readUInt32BE(16), b.readUInt32BE(20)], f).toEqual([1280, 800]);
@@ -64,6 +65,39 @@ describe('store listings', () => {
       expect(md).toContain('1.49'.replace('.', loc === 'es' || loc === 'fr' ? ',' : '.'));
     });
   }
+  for (const loc of CHROME_LOCALES) {
+    it(`listing.${loc}.md: mentions the Pro + AI subscription, its monthly price, Brave Search and DeepSeek`, () => {
+      const md = readFileSync(resolve(docs, `listing.${loc}.md`), 'utf8');
+      expect(md).toContain('Pro + AI');
+      expect(md).toMatch(loc === 'es' || loc === 'fr' ? /3,99/ : /3\.99/);
+      expect(md).toContain('Brave Search');
+      expect(md).toContain('DeepSeek');
+      expect(md).toContain('100');
+      // the short description is the manifest's appDesc: no price there
+      const short = md.split(/^## .*\r?\n/m)[2].trim();
+      expect(short).not.toMatch(/3[.,]99/);
+    });
+  }
+  it('English listing declares Website content and Web history as collected only when the user presses Analyse', () => {
+    const md = readFileSync(resolve(docs, 'listing.en.md'), 'utf8');
+    expect(md).toContain('## Data disclosure');
+    const disclosure = md.split('## Data disclosure')[1].split(/^## /m)[0];
+    expect(disclosure).toMatch(/- Website content: the page title and description/);
+    expect(disclosure).toMatch(/- Web history: the address of the analysed page, without its query string/);
+    expect(disclosure).toContain('user-initiated');
+    expect(disclosure).toContain('presses Analyse');
+    expect(disclosure).toContain('Brave Search');
+    expect(disclosure).toContain('DeepSeek');
+    expect(disclosure).toContain('- Authentication information');
+    expect(md).toContain('## Pricing note');
+    expect(md.split('## Pricing note')[1].split(/^## /m)[0]).toContain('Pro + AI is a subscription at $3.99 a month');
+  });
+  it('English listing keeps the permissions unchanged and names the five screenshots to upload', () => {
+    const md = readFileSync(resolve(docs, 'listing.en.md'), 'utf8');
+    const perms = md.split('## Permissions justification')[1].split(/^## /m)[0];
+    expect(perms.match(/^- /gm)).toHaveLength(5);
+    expect(md.split('## Screenshots')[1].split(/^## /m)[0]).toContain('6-ai-insights');
+  });
   it('English listing has the exact refund line and the permissions justification', () => {
     const md = readFileSync(resolve(docs, 'listing.en.md'), 'utf8');
     expect(md).toContain('All sales are final. Because Pro unlocks instantly and costs $1.49, we do not offer refunds after purchase.');

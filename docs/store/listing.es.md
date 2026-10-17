@@ -35,13 +35,22 @@ Pro, un desbloqueo único de 1,49 USD
 - Correcciones de contraste sugeridas.
 - Sitios guardados: sin límite.
 
+Pro + AI, 3,99 USD al mes
+- Todo lo de Pro.
+- Análisis con IA: pulsa Analizar en un sitio para obtener un veredicto, el significado de sus colores y sitios parecidos y competidores encontrados con una búsqueda web. Hasta 100 análisis al mes.
+- Se cobra cada mes a través de PayPal. Cancela cuando quieras; Pro y AI siguen activos hasta el final del mes que pagaste.
+
 Privacidad
 
-El análisis se hace en tu dispositivo. La extensión lee los colores y estilos de la página que eliges, solo cuando haces clic en su icono, y no envía a ningún sitio información sobre las páginas que analizas. La única solicitud de red es la verificación opcional de la licencia Pro, que envía tu clave de licencia. Política completa: https://vietnamcos.com/palette/privacy
+El análisis se hace en tu dispositivo. La extensión lee los colores y estilos de la página que eliges, solo cuando haces clic en su icono, y no envía a ningún sitio información sobre las páginas que analizas, salvo que uses Pro + AI y pulses Analizar (ver más abajo). Aparte de eso, la única solicitud de red es la verificación opcional de la licencia Pro, que envía tu clave de licencia.
+
+El análisis con IA (Pro + AI) solo se ejecuta cuando pulsas Analizar. Entonces la extensión envía a vietnamcos.com la dirección de la página (sin la cadena de consulta), su título, su descripción y un resumen del diseño. Antes se eliminan del título y la descripción las direcciones de correo, los enlaces (todo lo que empiece por http, https o www, o contenga una ruta), los @usuarios y las series largas de dígitos, como los números de teléfono; el resto de las palabras del título se envía tal cual. Hacemos una búsqueda web con Brave Search y pedimos a DeepSeek, un proveedor de IA, que redacte el análisis. Política completa: https://vietnamcos.com/palette/privacy
 
 Reembolsos
 
 Todas las ventas son definitivas. Como Pro se desbloquea al instante y cuesta 1,49 USD, no ofrecemos reembolsos después de la compra.
+
+Pro + AI también es definitivo: no hay reembolsos del mes en curso ni de los anteriores. Cancela cuando quieras y seguirá activo hasta el final del mes que pagaste.
 
 ## Links
 

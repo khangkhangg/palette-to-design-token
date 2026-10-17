@@ -195,9 +195,28 @@ hook_reset($conn);
 palette_settings_put($conn, ['webhook_id' => '', 'webhook_mode' => '']);
 $GLOBALS['pp_routes']['GET /v1/notifications/webhooks'] = ['status' => 200, 'json' => ['webhooks' => [
     ['id' => 'WH-COMPANIES', 'url' => 'https://www.vietnamcos.com/companies/api/paypal-webhook.php'],
-    ['id' => 'WH-EXISTING', 'url' => PALETTE_WEBHOOK_URL]]]];
+    ['id' => 'WH-EXISTING', 'url' => PALETTE_WEBHOOK_URL, 'event_types' => [['name' => 'PAYMENT.CAPTURE.COMPLETED'], ['name' => 'CUSTOM.OLD.EVENT']]]]]];
+$GLOBALS['pp_routes']['PATCH /v1/notifications/webhooks/WH-EXISTING'] = ['status' => 200, 'json' => []];
 $s = palette_setup_webhook($conn);
 ok('setup reuses existing webhook', ($s['ok'] ?? false) === true && ($s['webhook_id'] ?? '') === 'WH-EXISTING' && calls_to('POST', '/v1/notifications/webhooks') === []);
+$pb = calls_to('PATCH', '/v1/notifications/webhooks/WH-EXISTING');
+$names = array_column($pb[0]['body'][0]['value'] ?? [], 'name');
+$newEvents = ['BILLING.SUBSCRIPTION.ACTIVATED', 'BILLING.SUBSCRIPTION.CANCELLED', 'BILLING.SUBSCRIPTION.SUSPENDED', 'BILLING.SUBSCRIPTION.EXPIRED',
+              'BILLING.SUBSCRIPTION.PAYMENT.FAILED', 'PAYMENT.SALE.COMPLETED', 'PAYMENT.SALE.REFUNDED', 'PAYMENT.SALE.REVERSED'];
+ok('reuse PATCHes event_types (replace) to union of old + new events', count($pb) === 1 && ($pb[0]['body'][0]['op'] ?? '') === 'replace'
+    && ($pb[0]['body'][0]['path'] ?? '') === '/event_types' && count($pb[0]['body']) === 1
+    && in_array('CUSTOM.OLD.EVENT', $names, true) && in_array('PAYMENT.CAPTURE.COMPLETED', $names, true)
+    && array_diff($newEvents, $names) === [] && array_diff(PALETTE_WEBHOOK_EVENTS, $names) === [] && count($names) === count(array_unique($names)));
+$GLOBALS['pp_routes']['GET /v1/notifications/webhooks'] = ['status' => 200, 'json' => ['webhooks' => [
+    ['id' => 'WH-EXISTING', 'url' => PALETTE_WEBHOOK_URL, 'event_types' => array_map(fn($e) => ['name' => $e], PALETTE_WEBHOOK_EVENTS)]]]];
+$GLOBALS['pp_calls'] = [];
+ok('webhook already complete -> no PATCH', palette_setup_webhook($conn)['ok'] === true && calls_to('PATCH', '/v1/notifications') === []);
+$GLOBALS['pp_routes']['GET /v1/notifications/webhooks'] = ['status' => 200, 'json' => ['webhooks' => [['id' => 'WH-EXISTING', 'url' => PALETTE_WEBHOOK_URL, 'event_types' => []]]]];
+$GLOBALS['pp_routes']['PATCH /v1/notifications/webhooks/WH-EXISTING'] = ['status' => 400, 'json' => []];
+palette_settings_put($conn, ['webhook_id' => '', 'webhook_mode' => '']);
+ok('PATCH failure -> err_paypal, id not stored', palette_setup_webhook($conn) === ['ok' => false, 'error' => 'err_paypal'] && palette_settings($conn)['webhook_id'] === '');
+$GLOBALS['pp_routes']['PATCH /v1/notifications/webhooks/WH-EXISTING'] = ['status' => 200, 'json' => []];
+palette_setup_webhook($conn);
 $ps = palette_settings($conn);
 ok('setup stores id + mode', $ps['webhook_id'] === 'WH-EXISTING' && $ps['webhook_mode'] === 'sandbox');
 
@@ -207,8 +226,10 @@ $GLOBALS['pp_routes']['POST /v1/notifications/webhooks'] = ['status' => 201, 'js
 $s = palette_setup_webhook($conn);
 $cb = calls_to('POST', '/v1/notifications/webhooks')[0]['body'] ?? [];
 ok('setup creates webhook', ($s['ok'] ?? false) === true && ($s['webhook_id'] ?? '') === 'WH-NEW' && palette_settings($conn)['webhook_id'] === 'WH-NEW');
-ok('setup create body', ($cb['url'] ?? '') === 'https://www.vietnamcos.com/palette/webhook.php' && ($cb['event_types'] ?? null) === [
-    ['name' => 'CHECKOUT.ORDER.APPROVED'], ['name' => 'PAYMENT.CAPTURE.COMPLETED'], ['name' => 'PAYMENT.CAPTURE.REFUNDED'], ['name' => 'PAYMENT.CAPTURE.REVERSED']]);
+ok('setup create body', ($cb['url'] ?? '') === 'https://www.vietnamcos.com/palette/webhook.php' && ($cb['event_types'] ?? null) ===
+    array_map(fn($e) => ['name' => $e], ['CHECKOUT.ORDER.APPROVED', 'PAYMENT.CAPTURE.COMPLETED', 'PAYMENT.CAPTURE.REFUNDED', 'PAYMENT.CAPTURE.REVERSED',
+        'BILLING.SUBSCRIPTION.ACTIVATED', 'BILLING.SUBSCRIPTION.CANCELLED', 'BILLING.SUBSCRIPTION.SUSPENDED', 'BILLING.SUBSCRIPTION.EXPIRED',
+        'BILLING.SUBSCRIPTION.PAYMENT.FAILED', 'PAYMENT.SALE.COMPLETED', 'PAYMENT.SALE.REFUNDED', 'PAYMENT.SALE.REVERSED']));
 
 hook_reset($conn);
 palette_settings_put($conn, ['webhook_id' => 'OLD']);

@@ -24,6 +24,9 @@ interface Expected {
 
 const DIST = resolve(import.meta.dirname, '../../dist-e2e');
 const BASE = `http://127.0.0.1:${FIXTURE_PORT}`;
+/** The fixture server under a public-looking host (AI insights refuse 127.0.0.1); see scripts/e2e.mjs. */
+const PUBLIC_HOST = 'fernleaf.example';
+const PUBLIC = `http://${PUBLIC_HOST}:${FIXTURE_PORT}`;
 const EXPECTED: Record<string, Expected> = JSON.parse(
   readFileSync(resolve(import.meta.dirname, '../fixtures/expected.json'), 'utf8'),
 );
@@ -39,7 +42,7 @@ let openedTabIds: number[] = [];
 test.beforeAll(async () => {
   context = await chromium.launchPersistentContext('', {
     channel: 'chromium',
-    args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`],
+    args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`, `--host-resolver-rules=MAP ${PUBLIC_HOST} 127.0.0.1`],
   });
   sw = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
   extId = new URL(sw.url()).host;
@@ -302,5 +305,138 @@ test.describe('export with Pro', () => {
       const path = await download.path();
       expect(readFileSync(path).length, `${value} size`).toBeGreaterThan(0);
     }
+  });
+});
+
+test.describe('AI insights', () => {
+  /** The canned answer the dev router's AI stub gives (server/tests/dev-router.php, PALETTE_DEV_AI_STUB=1). */
+  const RESULT = {
+    sector: 'Specialty coffee', tags: ['Online shop', 'Premium, craft'], verdict: 'on_par',
+    summary: 'A clean, warm storefront that reads as a craft roaster. The palette is restrained and the type is legible.',
+    colours: [{ hex: '#1f5e4b', title: 'Deep tone: grounded, trustworthy', meaning: 'Sets the tone for the brand.' },
+      { hex: '#e0763a', title: 'Light tone: calm, open', meaning: 'Sets the tone for the brand.' }],
+    fit: { level: 'strong', reason: 'The colours match what buyers expect from a craft coffee brand.' },
+    works: ['Consistent palette', 'Readable body text'], improve: ['Raise contrast on muted labels'],
+    sites: [
+      { name: 'Northwind Roasters', domain: 'northwind.example', url: 'https://northwind.example/', why: 'Same market, similar tone', relation: 'competitor', source: 'web' },
+      { name: 'Harbor Coffee Co.', domain: 'harbor-coffee.example', url: 'https://harbor-coffee.example/', why: 'Direct competitor online', relation: 'competitor', source: 'web' },
+      { name: 'Brew Lab', domain: 'brewlab.example', url: 'https://brewlab.example/', why: 'Similar visual style', relation: 'similar', source: 'ai' },
+    ],
+    search_unavailable: false,
+  };
+  const ANALYSE = 'https://vietnamcos.com/palette/api.php?action=analyse';
+  const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Allow-Methods': 'POST' };
+
+  async function seedAi(lang: string, extra: Record<string, unknown> = {}) {
+    const now = new Date().toISOString();
+    await setStorage({
+      settings: { theme: 'light', lang, pro: true }, scans: [], aiResults: [], aiNoteHidden: false,
+      licenseAi: {
+        key: 'SDT-ABCD-2345-6789', verifiedAt: now, emailMasked: null, plan: 'ai',
+        paidThrough: new Date(Date.now() + 20 * 86_400_000).toISOString(), usage: { used: 37, limit: 100, resetsOn: '2026-11-01' },
+        subStatus: 'active', lastCheck: 'ok', lastAttemptAt: now,
+      },
+      ...extra,
+    });
+  }
+
+  /** Elements inside the AI section or plan sheet whose content is wider than their box. */
+  async function aiOverflow(panel: Page): Promise<string[]> {
+    return panel.evaluate(() => {
+      const out: string[] = [];
+      const body = document.body;
+      if (body.scrollWidth > body.clientWidth + 1) out.push(`body ${body.scrollWidth}>${body.clientWidth}`);
+      for (const root of document.querySelectorAll<HTMLElement>('.ai-results, .ai-card, .plan-sheet')) {
+        for (const el of [root, ...root.querySelectorAll('*')]) {
+          if (!(el instanceof HTMLElement) || el.classList.contains('sr-only')) continue;
+          if (el.scrollWidth > el.clientWidth + 1) out.push(`${el.tagName.toLowerCase()}.${el.className} "${el.textContent?.trim().slice(0, 40)}" ${el.scrollWidth}>${el.clientWidth}`);
+        }
+      }
+      return out;
+    });
+  }
+
+  test('Analyse sends the page without its query or fragment and renders the results; the result is kept', async () => {
+    const sent: Record<string, unknown>[] = [];
+    await context.route(ANALYSE, async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+      sent.push(route.request().postDataJSON());
+      return route.fulfill({
+        status: 200, contentType: 'application/json', headers: CORS,
+        body: JSON.stringify({ ok: true, result: RESULT, cached: false, usage: { used: 38, limit: 100, resets_on: '2026-11-01' } }),
+      });
+    });
+    try {
+      await seedAi('en');
+      await openTab(`${PUBLIC}/light-marketing.html?utm_source=mail&id=42#pricing`);
+      const panel = await openExtensionPage('sidepanel.html');
+      await panel.setViewportSize({ width: 380, height: 900 });
+      const analyse = panel.getByRole('button', { name: `Analyse ${PUBLIC_HOST}` });
+      await expect(analyse).toBeVisible();
+      await expect(panel.getByText('What gets sent')).toBeVisible();
+      await expect(panel.getByText('63 of 100 analyses left')).toBeVisible();
+      await analyse.scrollIntoViewIfNeeded();
+      await panel.locator('.ai-card').screenshot({ path: test.info().outputPath('ai-ready.png') });
+      await analyse.click();
+
+      await expect(panel.locator('.ai-verdict')).toHaveText('On par');
+      // The clicked button is gone: focus lands on the results heading, and the live region says so.
+      await expect(panel.locator('.ai-results .ai-title')).toBeFocused();
+      await expect(panel.locator('[aria-live="polite"]')).toHaveText('Results ready');
+      expect(sent).toHaveLength(1);
+      expect(Object.keys(sent[0]).sort()).toEqual(['description', 'design', 'key', 'lang', 'title', 'url']);
+      expect(sent[0].url).toBe(`${PUBLIC}/light-marketing.html`);
+      expect(sent[0].title).toBe('Fernleaf - Plan your garden');
+      expect(sent[0].lang).toBe('en');
+      expect(JSON.stringify(sent[0].design)).not.toContain('Fernleaf');
+
+      await expect(panel.getByText('Deep tone: grounded, trustworthy')).toBeVisible();
+      await expect(panel.locator('.ai-fit')).toContainText('Strong fit for Specialty coffee');
+      // Only web-found sites are links; the model-only suggestion is plain text (ruling A13).
+      await expect(panel.locator('.ai-site')).toHaveCount(3);
+      const links = panel.locator('a.ai-site');
+      await expect(links).toHaveCount(2);
+      for (const a of await links.all()) {
+        await expect(a).toHaveAttribute('target', '_blank');
+        await expect(a).toHaveAttribute('rel', 'noopener noreferrer');
+      }
+      await expect(panel.locator('.ai-site').nth(2).locator('.ai-badge')).toHaveText('AI · check it');
+      await expect(panel.locator('.ai-site').nth(2)).not.toHaveAttribute('href', /.*/);
+      await expect(panel.locator('.ai-footer').first()).toContainText('used 38 of 100');
+      expect(await aiOverflow(panel)).toEqual([]);
+      await panel.locator('.ai-results').screenshot({ path: test.info().outputPath('ai-results.png') });
+
+      // Opened again, the kept result shows without a request; Run again spends one.
+      await panel.reload();
+      await expect(panel.locator('.ai-verdict')).toHaveText('On par');
+      expect(sent).toHaveLength(1);
+      await panel.getByRole('button', { name: 'Run again' }).click();
+      await expect.poll(() => sent.length).toBe(2);
+    } finally {
+      await context.unroute(ANALYSE);
+    }
+  });
+
+  test('Arabic: results and the plan chooser are right-to-left and do not overflow 340 px', async () => {
+    await seedAi('ar', {
+      aiResults: [{ host: PUBLIC_HOST, result: RESULT, usage: { used: 38, limit: 100, resetsOn: '2026-11-01' }, analysedAt: new Date().toISOString(), lang: 'ar', cached: true }],
+    });
+    await openTab(`${PUBLIC}/light-marketing.html`);
+    const panel = await openExtensionPage('sidepanel.html');
+    await panel.setViewportSize({ width: 340, height: 900 });
+    await expect(panel.locator('html')).toHaveAttribute('dir', 'rtl');
+    await expect(panel.locator('.ai-results')).toBeVisible();
+    // The verdict is text, in Arabic.
+    await expect(panel.locator('.ai-verdict')).toHaveText(/[؀-ۿ]/);
+    expect(await aiOverflow(panel)).toEqual([]);
+    expect(await readsLeftToRight(panel, '.ai-site-domain', 'n'), 'domain').toBe(true);
+    await panel.locator('.ai-results').screenshot({ path: test.info().outputPath('ar-ai-results.png') });
+
+    await sw.evaluate(async () => { await chrome.storage.local.remove(['licenseAi', 'aiResults']); });
+    await panel.reload();
+    await panel.locator('.ai-card .ai-cta').click();
+    await expect(panel.getByRole('dialog')).toBeVisible();
+    expect(await aiOverflow(panel)).toEqual([]);
+    await panel.getByRole('dialog').screenshot({ path: test.info().outputPath('ar-plans.png') });
   });
 });

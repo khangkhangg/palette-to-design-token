@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
-import { UnlockSheet } from '../../src/ui/components/UnlockSheet';
+import { PlanSheet } from '../../src/ui/components/PlanSheet';
 
 const mocks = vi.hoisted(() => ({ activate: vi.fn() }));
 vi.mock('../../src/license', async (importOriginal) => ({
@@ -21,25 +21,25 @@ afterEach(() => { cleanup(); vi.useRealTimers(); delete (globalThis as any).chro
 const type = (value: string) => fireEvent.input(screen.getByLabelText('License key'), { target: { value } });
 const activate = () => fireEvent.click(screen.getByRole('button', { name: 'Activate' }));
 
-describe('UnlockSheet licensing', () => {
-  it('Pay with PayPal is enabled and opens the checkout page in a new tab', () => {
-    render(<UnlockSheet variant="overlay" onClose={() => {}} />);
-    const pay = screen.getByRole('button', { name: /Pay with PayPal/ }) as HTMLButtonElement;
+describe('PlanSheet licensing', () => {
+  it('Pay with PayPal is enabled and opens the checkout page for the chosen plan in a new tab', () => {
+    render(<PlanSheet variant="overlay" onClose={() => {}} />);
+    const pay = screen.getByRole('button', { name: /Pay \$1\.49 with PayPal/ }) as HTMLButtonElement;
     expect(pay.disabled).toBe(false);
     fireEvent.click(pay);
     expect(create).toHaveBeenCalledWith({
-      url: 'https://vietnamcos.com/palette/checkout?lang=en&ext=abcdefghijklmnopabcdefghijklmnop',
+      url: 'https://vietnamcos.com/palette/checkout?lang=en&ext=abcdefghijklmnopabcdefghijklmnop&plan=pro',
     });
   });
 
   it('links to the lost-key form on the checkout page', () => {
-    render(<UnlockSheet variant="overlay" onClose={() => {}} />);
+    render(<PlanSheet variant="overlay" start="key" onClose={() => {}} />);
     const a = screen.getByRole('link', { name: 'Lost your key?' }) as HTMLAnchorElement;
     expect(a.href).toBe('https://vietnamcos.com/palette/checkout?lang=en#resend');
   });
 
   it('Activate is disabled until a key is typed', () => {
-    render(<UnlockSheet variant="overlay" onClose={() => {}} />);
+    render(<PlanSheet variant="overlay" start="key" onClose={() => {}} />);
     expect((screen.getByRole('button', { name: 'Activate' }) as HTMLButtonElement).disabled).toBe(true);
     type('SDT-ABCD-2345-6789');
     expect((screen.getByRole('button', { name: 'Activate' }) as HTMLButtonElement).disabled).toBe(false);
@@ -53,7 +53,7 @@ describe('UnlockSheet licensing', () => {
   ])('shows the %s message and keeps the sheet open', async (reason, message) => {
     mocks.activate.mockResolvedValue({ ok: false, reason });
     const onClose = vi.fn();
-    render(<UnlockSheet variant="overlay" onClose={onClose} />);
+    render(<PlanSheet variant="overlay" start="key" onClose={onClose} />);
     type('SDT-ABCD-2345-6789');
     activate();
     const status = await screen.findByText(message);
@@ -65,7 +65,7 @@ describe('UnlockSheet licensing', () => {
   it('is busy while the request is in flight', async () => {
     let resolve!: (v: unknown) => void;
     mocks.activate.mockReturnValue(new Promise((r) => { resolve = r; }));
-    render(<UnlockSheet variant="overlay" onClose={() => {}} />);
+    render(<PlanSheet variant="overlay" start="key" onClose={() => {}} />);
     type('SDT-ABCD-2345-6789');
     activate();
     const busy = await screen.findByRole('button', { name: 'Activating…' });
@@ -78,7 +78,7 @@ describe('UnlockSheet licensing', () => {
   it('on success says Pro unlocked, then closes the overlay', async () => {
     mocks.activate.mockResolvedValue({ ok: true });
     const onClose = vi.fn();
-    render(<UnlockSheet variant="overlay" onClose={onClose} />);
+    render(<PlanSheet variant="overlay" start="key" onClose={onClose} />);
     type(' sdt-abcd-2345-6789 ');
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     activate();
@@ -94,7 +94,7 @@ describe('UnlockSheet licensing', () => {
     mocks.activate.mockResolvedValue({ ok: true });
     const onClose = vi.fn();
     const onUnlocked = vi.fn();
-    render(<UnlockSheet variant="page" onClose={onClose} onUnlocked={onUnlocked} />);
+    render(<PlanSheet variant="page" start="key" onClose={onClose} onUnlocked={onUnlocked} />);
     type('SDT-ABCD-2345-6789');
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     activate();
@@ -105,9 +105,9 @@ describe('UnlockSheet licensing', () => {
   });
 
   it('keeps dialog semantics', () => {
-    render(<UnlockSheet variant="overlay" onClose={() => {}} />);
+    render(<PlanSheet variant="overlay" start="key" onClose={() => {}} />);
     const d = screen.getByRole('dialog');
     expect(d.getAttribute('aria-modal')).toBe('true');
-    expect(d.getAttribute('aria-labelledby')).toBe('unlock-title');
+    expect(d.getAttribute('aria-labelledby')).toBe('plan-title');
   });
 });

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { Tokens } from '../../model/tokens';
 import { scanActiveTab, shownReason, type ShownScanError } from '../../scan';
-import { currentLicense, recheckIfDue, removeLicense } from '../../license';
+import { accountUrl, aiState, checkoutUrl, currentAiLicense, currentLicense, recheckIfDue, removeLicense } from '../../license';
 import { getSettings, onSettingsChange, saveScan, setSettings, type Settings } from '../../store';
 import { EmptyState } from '../components/EmptyState';
-import { Header } from '../components/Header';
+import { Header, type AiMenuInfo, type LicensePlan } from '../components/Header';
 import { Icon } from '../components/Icon';
 import { Tabs } from '../components/Tabs';
 import { plural, renderedLang, resolveLang, setLang, t } from '../i18n';
@@ -36,7 +36,15 @@ export function App({ onExport }: AppProps) {
   const [panelError, setPanelError] = useState(false);
   const [licenseKey, setLicenseKey] = useState<string | null>(null);
   const [removeError, setRemoveError] = useState(false);
-  const loadLicense = () => { void currentLicense().then((l) => setLicenseKey(l?.key ?? null)).catch(() => {}); };
+  const [aiInfo, setAiInfo] = useState<AiMenuInfo | null>(null);
+  const loadLicense = () => {
+    void currentLicense().then((l) => setLicenseKey(l?.key ?? null)).catch(() => {});
+    void Promise.all([currentAiLicense(), aiState()])
+      .then(([l, s]) => setAiInfo(l ? {
+        active: s.active, paidThrough: l.paidThrough, cancelled: /^cancel/i.test(l.subStatus ?? ''), renewalPending: s.renewalPending === true,
+      } : null))
+      .catch(() => {});
+  };
   const { copied, failed, copy } = useCopy();
 
   const scan = async () => {
@@ -74,7 +82,7 @@ export function App({ onExport }: AppProps) {
       setLangState(renderedLang());
       setLocal(s);
       loadLicense();
-      void recheckIfDue().catch(() => {});
+      void recheckIfDue().then(loadLicense).catch(() => {});
       await scan();
     })();
     const stop = onSettingsChange((s) => {
@@ -127,16 +135,22 @@ export function App({ onExport }: AppProps) {
         }}
         pro={settings.pro}
         licenseKey={licenseKey}
-        onEnterKey={() => openPanel('unlock')}
-        onRemoveKey={() => {
-          const before = { settings, licenseKey };
+        onEnterKey={() => openPanel('key')}
+        ai={aiInfo}
+        onManage={() => { void chrome.tabs.create({ url: accountUrl() }); }}
+        onRenew={() => { void chrome.tabs.create({ url: checkoutUrl(renderedLang(), 'ai') }); }}
+        onRemoveKey={(plan: LicensePlan) => {
+          const before = { settings, licenseKey, aiInfo };
           setRemoveError(false);
-          setLocal({ ...settings, pro: false });
-          setLicenseKey(null);
-          removeLicense().catch((e) => {
+          // Pro stays on while the other licence still grants it.
+          const stillPro = plan === 'ai' ? licenseKey !== null : !!aiInfo?.active;
+          setLocal({ ...settings, pro: stillPro });
+          if (plan === 'ai') setAiInfo(null); else setLicenseKey(null);
+          removeLicense(plan).catch((e) => {
             console.error('Could not remove the license key', e);
             setLocal(before.settings);
             setLicenseKey(before.licenseKey);
+            setAiInfo(before.aiInfo);
             setRemoveError(true);
           });
         }}

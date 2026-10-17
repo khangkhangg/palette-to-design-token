@@ -266,3 +266,28 @@ ok('api.php takes the IP from palette_client_ip($_SERVER)', str_contains($adapte
 $all = '';
 foreach (array_merge(glob(PALETTE_DIR . '/*.php'), glob(PALETTE_DIR . '/lib/*.php')) as $f) if (basename($f) !== 'rate.php') $all .= file_get_contents($f);
 ok('no other file reads REMOTE_ADDR', !str_contains($all, 'REMOTE_ADDR'));
+
+// ---- config: AI plan availability
+// palette_settings_put replaces everything with defaults + the given keys: merge over the stored settings.
+function cfg(mysqli $c, array $a): void
+{
+    palette_settings_put($c, $a + palette_settings($c));
+}
+// (Task 8)
+api_reset($conn);
+$b = call('GET', 'config')['body'];
+ok('config ai off by default', $b['ai_enabled'] === false && $b['ai_price'] === '3.99');
+cfg($conn, ['ai_paypal_plan_id' => 'P-TESTPLAN1', 'ai_paypal_plan_mode' => 'sandbox', 'ai_price_usd' => '4.25', 'ai_paypal_plan_price' => '4.25']);
+$b = call('GET', 'config')['body'];
+ok('config ai on when the plan exists for this PayPal mode, with its price', $b['ai_enabled'] === true && $b['ai_price'] === '4.25');
+cfg($conn, ['ai_price_usd' => '4.99']);
+$b = call('GET', 'config')['body'];
+ok('A18: config ai off after a price change until setup runs again, still showing the plan price', $b['ai_enabled'] === false && $b['ai_price'] === '4.25');
+cfg($conn, ['ai_price_usd' => '4.25']);
+cfg($conn, ['ai_paypal_plan_mode' => 'live']);
+ok('config ai off when the plan was made in the other mode', call('GET', 'config')['body']['ai_enabled'] === false);
+cfg($conn, ['ai_paypal_plan_mode' => 'sandbox']);
+stub_paypal($conn, false);
+ok('config ai off while PayPal is paused', call('GET', 'config')['body']['ai_enabled'] === false);
+stub_paypal($conn, true);
+ok('config never leaks the plan id', !str_contains(json_encode(call('GET', 'config')), 'P-TESTPLAN1'));

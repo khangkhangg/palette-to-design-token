@@ -88,6 +88,20 @@ export function formatDateTime(iso: string): string {
   return new Intl.DateTimeFormat(rendered, { dateStyle: 'medium', timeStyle: 'short', numberingSystem: 'latn' }).format(d);
 }
 
+/**
+ * Formats a date ("1 Nov", or "17 Oct 2026" with the year) in the rendered language, Western digits.
+ * A plain "YYYY-MM-DD" (a server reset or end date) is a calendar date: shown as is, whatever the time zone.
+ */
+export function formatDate(iso: string, withYear = true): string {
+  const plain = /^\d{4}-\d{2}-\d{2}$/.test(iso);
+  const d = new Date(plain ? `${iso}T00:00:00Z` : iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat(rendered, {
+    day: 'numeric', month: 'short', ...(withYear ? { year: 'numeric' } : {}), numberingSystem: 'latn',
+    ...(plain ? { timeZone: 'UTC' } : {}),
+  }).format(d);
+}
+
 /** Renders `lang` if its dictionary is loaded, else English; sets <html lang/dir> to match. */
 export function setLang(lang: string): void {
   rendered = AVAILABLE_LANGS.includes(lang) ? lang : 'en';

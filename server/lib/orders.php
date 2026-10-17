@@ -4,7 +4,9 @@
 // with companies, so its events also arrive here and are ignored by custom_id).
 
 const PALETTE_WEBHOOK_URL = 'https://www.vietnamcos.com/palette/webhook.php';
-const PALETTE_WEBHOOK_EVENTS = ['CHECKOUT.ORDER.APPROVED', 'PAYMENT.CAPTURE.COMPLETED', 'PAYMENT.CAPTURE.REFUNDED', 'PAYMENT.CAPTURE.REVERSED'];
+const PALETTE_WEBHOOK_EVENTS = ['CHECKOUT.ORDER.APPROVED', 'PAYMENT.CAPTURE.COMPLETED', 'PAYMENT.CAPTURE.REFUNDED', 'PAYMENT.CAPTURE.REVERSED',
+    'BILLING.SUBSCRIPTION.ACTIVATED', 'BILLING.SUBSCRIPTION.CANCELLED', 'BILLING.SUBSCRIPTION.SUSPENDED', 'BILLING.SUBSCRIPTION.EXPIRED',
+    'BILLING.SUBSCRIPTION.PAYMENT.FAILED', 'PAYMENT.SALE.COMPLETED', 'PAYMENT.SALE.REFUNDED', 'PAYMENT.SALE.REVERSED'];
 const PALETTE_PAYPAL_ID_RE = '/^[A-Za-z0-9-]{1,40}$/';
 
 const PALETTE_WEBHOOK_MAX_BYTES = 65536;
@@ -267,6 +269,8 @@ function palette_webhook(mysqli $c, array $headersLower, string $body): string
     $type = (string)($event['event_type'] ?? '');
     $res = is_array($event['resource'] ?? null) ? $event['resource'] : [];
     if (!in_array($type, PALETTE_WEBHOOK_EVENTS, true)) return 'ignored';
+    // Subscriptions carry custom_id "palette-sub:<id>:<hmac16>" (sales carry none): lib/subscriptions.php sorts them out.
+    if (str_starts_with($type, 'BILLING.SUBSCRIPTION.') || str_starts_with($type, 'PAYMENT.SALE.')) return palette_sub_event($c, $type, $res);
     $rowId = palette_custom_row($res);
     if ($rowId === false) return 'ignored';   // a companies order on the shared PayPal app
     $related = (array)($res['supplementary_data']['related_ids'] ?? []);
@@ -318,9 +322,15 @@ function palette_setup_webhook(mysqli $c): array
     $pp = pp_settings($c);
     if ($pp['client_id'] === '' || $pp['secret'] === '') return ['ok' => false, 'error' => 'err_paused'];
     $hook = '';
+    $have = [];
     $list = pp_api($pp, 'GET', '/v1/notifications/webhooks');
     foreach ((array)($list['json']['webhooks'] ?? []) as $w) {
-        if (($w['url'] ?? '') === PALETTE_WEBHOOK_URL) $hook = (string)($w['id'] ?? '');
+        if (($w['url'] ?? '') === PALETTE_WEBHOOK_URL) {
+            $hook = (string)($w['id'] ?? '');
+            foreach ((array)($w['event_types'] ?? []) as $e) {
+                if (is_array($e) && is_string($e['name'] ?? null)) $have[] = $e['name'];
+            }
+        }
     }
     $reused = $hook !== '';
     if (!$reused) {
@@ -330,6 +340,18 @@ function palette_setup_webhook(mysqli $c): array
         if ($hook === '') {
             error_log('palette: webhook registration failed (HTTP ' . (int)$r['status'] . ')');
             return ['ok' => false, 'error' => 'err_paypal'];
+        }
+    } else {
+        // Keep whatever the webhook already listens to and add the missing events.
+        $have = array_values(array_unique($have));
+        $all = array_values(array_unique(array_merge($have, PALETTE_WEBHOOK_EVENTS)));
+        if (count($all) > count($have)) {
+            $r = pp_api($pp, 'PATCH', '/v1/notifications/webhooks/' . rawurlencode($hook),
+                [['op' => 'replace', 'path' => '/event_types', 'value' => array_map(fn($e) => ['name' => $e], $all)]]);
+            if ($r['status'] < 200 || $r['status'] >= 300) {
+                error_log('palette: webhook event update failed (HTTP ' . (int)$r['status'] . ')');
+                return ['ok' => false, 'error' => 'err_paypal'];
+            }
         }
     }
     palette_settings_put($c, ['webhook_id' => $hook, 'webhook_mode' => $pp['mode']] + palette_settings($c));

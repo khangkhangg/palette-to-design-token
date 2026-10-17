@@ -15,7 +15,8 @@ const router = resolve(import.meta.dirname, '../server/tests/dev-router.php');
 
 export default defineConfig({
   testDir: 'test/e2e',
-  testMatch: 'checkout.spec.ts',
+  // ai-router.spec.ts drives the built test extension (dist-e2e: scripts/e2e-checkout.mjs builds it first) against action=analyse.
+  testMatch: ['checkout.spec.ts', 'ai-router.spec.ts'],
   timeout: 30_000,
   workers: 1,
   reporter: 'list',
@@ -23,7 +24,7 @@ export default defineConfig({
   webServer: {
     command: `"${php}" -q -S 127.0.0.1:${CHECKOUT_PORT} "${router}"`,
     url: `http://127.0.0.1:${CHECKOUT_PORT}/`,
-    env: { PALETTE_DEV_PP_STUB: '1' },
+    env: { PALETTE_DEV_PP_STUB: '1', PALETTE_DEV_AI_STUB: '1' },
     reuseExistingServer: false,
     timeout: 15_000,
   },

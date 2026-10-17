@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
   recheckIfDue: vi.fn(),
   currentLicense: vi.fn(),
   removeLicense: vi.fn(),
+  currentAiLicense: vi.fn(),
+  aiState: vi.fn(),
+  tabsCreate: vi.fn(),
   setSettings: vi.fn(),
   saveScan: vi.fn(),
   settings: { theme: 'system', lang: '', pro: false } as Settings,
@@ -26,6 +29,10 @@ vi.mock('../../src/license', () => ({
   recheckIfDue: mocks.recheckIfDue,
   currentLicense: mocks.currentLicense,
   removeLicense: mocks.removeLicense,
+  currentAiLicense: mocks.currentAiLicense,
+  aiState: mocks.aiState,
+  accountUrl: () => 'https://vietnamcos.com/palette/account',
+  checkoutUrl: (lang: string, plan?: string) => `https://vietnamcos.com/palette/checkout?lang=${lang}&plan=${plan}`,
 }));
 
 vi.mock('../../src/store', () => ({
@@ -60,12 +67,16 @@ beforeEach(() => {
   mocks.recheckIfDue.mockReset().mockResolvedValue(undefined);
   mocks.currentLicense.mockReset().mockResolvedValue(null);
   mocks.removeLicense.mockReset().mockResolvedValue(undefined);
+  mocks.currentAiLicense.mockReset().mockResolvedValue(null);
+  mocks.aiState.mockReset().mockResolvedValue({ active: false, paidThrough: null, usage: null });
+  mocks.tabsCreate.mockReset().mockResolvedValue({});
+  (globalThis as any).chrome = { tabs: { create: mocks.tabsCreate } };
   mocks.setSettings.mockReset().mockResolvedValue(undefined);
   mocks.saveScan.mockReset().mockResolvedValue(undefined);
   writeText.mockClear();
   Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
 });
-afterEach(cleanup);
+afterEach(() => { cleanup(); delete (globalThis as any).chrome; });
 
 describe('popup App', () => {
   it('starts the 30-day licence re-check on open without waiting for the scan', async () => {
@@ -307,6 +318,110 @@ describe('popup App', () => {
       expect(await screen.findByText(/Pro active/)).toBeTruthy();
       expect(screen.queryByRole('button', { name: 'Enter license key' })).toBeNull();
       err.mockRestore();
+    });
+  });
+
+  describe('Pro + AI licence in the settings menu', () => {
+    const openMenu = async () => fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+    const PRO = { key: 'SDT-ABCD-2345-6789', verifiedAt: '2026-10-01T00:00:00.000Z', emailMasked: null, plan: 'pro', paidThrough: null };
+    const AI = { key: 'SDT-WXYZ-2345-1234', verifiedAt: '2026-10-16T00:00:00.000Z', emailMasked: null, plan: 'ai', paidThrough: '2026-11-17T12:00:00.000Z', usage: null, subStatus: null, lastCheck: 'ok' };
+    const aiOnly = (over: object = {}, active = true) => {
+      mocks.settings = { ...mocks.settings, pro: active };
+      mocks.currentAiLicense.mockResolvedValue({ ...AI, ...over });
+      mocks.aiState.mockResolvedValue({ active, paidThrough: AI.paidThrough, usage: null });
+      mocks.scanActiveTab.mockResolvedValue(brewline());
+    };
+
+    it('shows "Pro + AI · renews <date>" with the date isolated left-to-right, and Manage subscription opens the account page', async () => {
+      aiOnly();
+      render(<App />);
+      await openMenu();
+      const status = await screen.findByText(/Pro \+ AI · renews/);
+      expect(status.textContent).toMatch(/^Pro \+ AI · renews .*2026/);
+      expect(status.querySelector('bdi')?.getAttribute('dir')).toBe('ltr');
+      expect(screen.queryByText(/Pro active/)).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Manage subscription' }));
+      expect(mocks.tabsCreate).toHaveBeenCalledWith({ url: 'https://vietnamcos.com/palette/account' });
+    });
+
+    it('says "ends" when the server reports the subscription cancelled', async () => {
+      aiOnly({ subStatus: 'cancelled' });
+      render(<App />);
+      await openMenu();
+      expect((await screen.findByText(/Pro \+ AI · ends/)).textContent).toMatch(/2026/);
+      expect(screen.queryByText(/renews/)).toBeNull();
+    });
+
+    it('an ended plan shows "Pro + AI ended <date>" with Renew (checkout plan=ai) and still offers Enter license key', async () => {
+      aiOnly({ lastCheck: 'ended' }, false);
+      render(<App />);
+      await openMenu();
+      expect((await screen.findByText(/Pro \+ AI ended/)).textContent).toMatch(/2026/);
+      expect(screen.queryByRole('button', { name: 'Manage subscription' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Enter license key' })).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Renew' }));
+      expect(mocks.tabsCreate).toHaveBeenCalledWith({ url: 'https://vietnamcos.com/palette/checkout?lang=en&plan=ai' });
+    });
+
+    // Ruling A19: never offer Renew while the subscription is still active (a late renewal; Renew would bill twice).
+    it('an ended plan whose subscription is still active says renewal pending, with no Renew', async () => {
+      aiOnly({ lastCheck: 'ended', subStatus: 'active' }, false);
+      mocks.aiState.mockResolvedValue({ active: false, paidThrough: AI.paidThrough, usage: null, endsOn: AI.paidThrough, renewalPending: true });
+      render(<App />);
+      await openMenu();
+      expect(await screen.findByText('Renewal pending — this usually takes a few minutes')).toBeTruthy();
+      expect(screen.queryByText(/Pro \+ AI ended/)).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Renew' })).toBeNull();
+    });
+
+    it('inside the renewal grace the plan is on: renewal pending, Manage subscription, no Renew', async () => {
+      aiOnly({ subStatus: 'active' });
+      mocks.aiState.mockResolvedValue({ active: true, paidThrough: AI.paidThrough, usage: null, endsOn: AI.paidThrough, renewalPending: true });
+      render(<App />);
+      await openMenu();
+      expect(await screen.findByText('Renewal pending — this usually takes a few minutes')).toBeTruthy();
+      expect(screen.queryByText(/renews/)).toBeNull();
+      expect(screen.getByRole('button', { name: 'Manage subscription' })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Renew' })).toBeNull();
+    });
+
+    it('with both licences the Pro line, the AI line and two remove buttons show; removing the AI key leaves Pro on', async () => {
+      mocks.currentLicense.mockResolvedValue(PRO);
+      aiOnly();
+      render(<App />);
+      await openMenu();
+      expect(await screen.findByText(/Pro active/)).toBeTruthy();
+      expect(await screen.findByText(/Pro \+ AI · renews/)).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Remove key from this browser' })).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Remove Pro + AI key' }));
+      expect(screen.getByText(/Pro \+ AI turns off in this browser/)).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Remove key' }));
+      await waitFor(() => expect(mocks.removeLicense).toHaveBeenCalledWith('ai'));
+      await waitFor(() => expect(screen.queryByText(/Pro \+ AI · renews/)).toBeNull());
+      expect(screen.getByText(/Pro active/)).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Enter license key' })).toBeNull();
+    });
+
+    it('removing the Pro key when both exist removes only the Pro licence', async () => {
+      mocks.currentLicense.mockResolvedValue(PRO);
+      aiOnly();
+      render(<App />);
+      await openMenu();
+      fireEvent.click(await screen.findByRole('button', { name: 'Remove Pro key' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Remove key' }));
+      await waitFor(() => expect(mocks.removeLicense).toHaveBeenCalledWith('pro'));
+      expect(await screen.findByText(/Pro \+ AI · renews/)).toBeTruthy();
+      expect(screen.queryByText(/Pro active/)).toBeNull();
+    });
+
+    it('with only an AI licence the single remove button removes the AI key', async () => {
+      aiOnly();
+      render(<App />);
+      await openMenu();
+      fireEvent.click(await screen.findByRole('button', { name: 'Remove key from this browser' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Remove key' }));
+      await waitFor(() => expect(mocks.removeLicense).toHaveBeenCalledWith('ai'));
+      expect(await screen.findByRole('button', { name: 'Enter license key' })).toBeTruthy();
     });
   });
 });

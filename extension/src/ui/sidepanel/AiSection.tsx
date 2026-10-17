@@ -1,0 +1,521 @@
+import type { ComponentChildren } from 'preact';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { analyse, publicPage, siteHost, storedResult, type AiResult, type AnalyseReason, type StoredResult } from '../../ai';
+import { API_BASE } from '../../config';
+import { aiState, checkoutUrl, currentAiLicense, type AiUsage } from '../../license';
+import type { Tokens } from '../../model/tokens';
+import { Icon, type IconName } from '../components/Icon';
+import { PlanSheet } from '../components/PlanSheet';
+import { LANG_NAMES, formatDate, plural, renderedLang, t } from '../i18n';
+
+const NOTE_KEY = 'aiNoteHidden';
+const LICENSE_KEY = 'licenseAi';
+/** The second progress line ("Asking the AI…") shows after this; the server does not stream its steps. */
+const STEP_MS = 5000;
+const FEATURES: { id: string; icon: IconName }[] = [
+  { id: 'sites', icon: 'search' },
+  { id: 'verdict', icon: 'trend' },
+  { id: 'colours', icon: 'palette' },
+];
+const VERDICTS = ['behind', 'on_par', 'competitive'] as const;
+const FIT_ICON: Record<AiResult['fit']['level'], IconName> = { strong: 'check', ok: 'info', weak: 'alert' };
+/** Site initials sit on one of these, picked by domain: white text passes AA on each, in both themes. */
+const LOGO = ['#2E4A3B', '#1D3557', '#6B4E2E', '#B5532A', '#55606E', '#5B3F8C', '#1F6F78'];
+const ERROR_KEY: Partial<Record<AnalyseReason, string>> = {
+  network: 'ai.errors.network',
+  timeout: 'ai.errors.timeout',
+  unavailable: 'ai.errors.unavailable',
+  rate_limited: 'ai.errors.rateLimited',
+  unsupported: 'ai.unsupported',
+  bad_request: 'ai.errors.badRequest',
+  invalid: 'ai.errors.invalid',
+};
+/** Where focus goes after the section changes state (the control that had it is gone). */
+type FocusTarget = 'results' | 'analyse' | 'alert' | 'cancel';
+/** Tried in order; the first that exists gets focus (a disabled Analyse falls back to the heading). */
+const FOCUS_SELECTORS: Record<FocusTarget, string[]> = {
+  results: ['.ai-results .ai-title'],
+  analyse: ['.ai-cta:not([disabled])', '.ai-run:not([disabled])', '.ai-title'],
+  alert: ['.ai-error'],
+  cancel: ['.ai-cancel'],
+};
+
+type Plan =
+  | { kind: 'loading' }
+  | { kind: 'locked' }
+  /** pending: the subscription is still active, so a late renewal is on its way; never offer Renew (ruling A19). */
+  | { kind: 'ended'; endedOn: string | null; pending: boolean }
+  /** cancelled: the subscription will not renew, so endsOn (when access ends) is shown, not when usage resets. */
+  | { kind: 'active'; usage: AiUsage | null; cancelled: boolean; endsOn: string | null };
+
+async function readNoteHidden(): Promise<boolean> {
+  try {
+    return (await chrome.storage.local.get(NOTE_KEY))[NOTE_KEY] === true;
+  } catch {
+    return false;
+  }
+}
+
+async function loadPlan(): Promise<Plan> {
+  const [lic, state] = await Promise.all([currentAiLicense(), aiState()]);
+  if (!lic) return { kind: 'locked' };
+  if (!state.active) return { kind: 'ended', endedOn: lic.paidThrough, pending: state.renewalPending };
+  return { kind: 'active', usage: state.usage, cancelled: lic.subStatus === 'cancelled', endsOn: state.endsOn };
+}
+
+/** Fills {name} in a translated string with markup, keeping the translation's word order. */
+function Rich({ text, parts }: { text: string; parts: Record<string, ComponentChildren> }) {
+  const out: ComponentChildren[] = [];
+  let last = 0;
+  for (const m of text.matchAll(/\{(\w+)\}/g)) {
+    out.push(text.slice(last, m.index), m[1] in parts ? parts[m[1]] : m[0]);
+    last = m.index! + m[0].length;
+  }
+  out.push(text.slice(last));
+  return <>{out}</>;
+}
+
+/** A translated string whose {vars} are isolated left-to-right (hosts, dates, numbers). */
+const ltr = (key: string, vars: Record<string, string | number>) => (
+  <Rich text={t(key)} parts={Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, <bdi dir="ltr">{v}</bdi>]))} />
+);
+
+function Head({ sub, children }: { sub: ComponentChildren; children?: ComponentChildren }) {
+  return (
+    <div class="ai-head">
+      <span class="ai-icon" aria-hidden="true"><Icon name="sparkles" size={18} /></span>
+      <div class="ai-head-text">
+        <h2 class="ai-title" id="ai-title" tabIndex={-1}>{t('ai.title')}</h2>
+        <span class="ai-sub">{sub}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function UsageBar({ usage, cancelled, endsOn }: { usage: AiUsage; cancelled: boolean; endsOn: string | null }) {
+  const date = cancelled ? formatDate(endsOn ?? '', false) : formatDate(usage.resetsOn, false);
+  const left = Math.max(0, usage.limit - usage.used);
+  const pct = usage.limit > 0 ? Math.round((left / usage.limit) * 100) : 0;
+  return (
+    <div class="ai-usage">
+      <div class="ai-usage-text">
+        <span class="ai-usage-left">{ltr('ai.left', { left, limit: usage.limit })}</span>
+        {date && <span class="ai-usage-reset">{ltr(cancelled ? 'ai.ends' : 'ai.resets', { date })}</span>}
+      </div>
+      <div class="ai-bar" aria-hidden="true"><div class="ai-bar-fill" style={{ inlineSize: `${pct}%` }} /></div>
+    </div>
+  );
+}
+
+function ErrorNote({ reason, onRetry }: { reason: AnalyseReason; onRetry?(): void }) {
+  const key = ERROR_KEY[reason];
+  if (!key) return null;
+  return (
+    <div class="ai-error" role="alert" tabIndex={-1}>
+      <Icon name="alert" size={14} />
+      <span>{t(key)}</span>
+      {onRetry && <button type="button" class="link-btn" onClick={onRetry}>{t('ai.retry')}</button>}
+    </div>
+  );
+}
+
+function Locked({ endedOn, ended, pending, onSee }: { ended: boolean; endedOn: string | null; pending: boolean; onSee(): void }) {
+  return (
+    <section class="ai-card" aria-labelledby="ai-title">
+      <Head sub={t('ai.lockedSub')} />
+      {ended && pending && (
+        <p class="ai-ended ai-pending" role="status">
+          <Icon name="info" size={14} />
+          <span>{t('ai.renewalPending')}</span>
+        </p>
+      )}
+      {ended && !pending && (
+        <p class="ai-ended" role="status">
+          <Icon name="alert" size={14} />
+          <span>{endedOn ? ltr('ai.ended', { date: formatDate(endedOn) }) : t('ai.endedNoDate')}</span>
+        </p>
+      )}
+      <ul class="ai-features">
+        {FEATURES.map((f) => (
+          <li key={f.id}>
+            <Icon name={f.icon} size={16} />
+            <span><strong>{t(`ai.features.${f.id}.title`)}</strong> <span class="ai-muted">{t(`ai.features.${f.id}.text`)}</span></span>
+          </li>
+        ))}
+      </ul>
+      <div class="ai-price">
+        <span>{t('ai.planLine')}</span>
+        <span class="ai-price-amount">{t('plans.ai.price')}<span class="ai-price-per">{t('plans.ai.per')}</span></span>
+      </div>
+      {ended ? (
+        !pending && (
+          <button type="button" class="ai-cta" onClick={() => { void chrome.tabs.create({ url: checkoutUrl(renderedLang(), 'ai') }); }}>
+            {t('ai.renew')}
+          </button>
+        )
+      ) : (
+        <button type="button" class="ai-cta" onClick={onSee}>{t('ai.seePlan')}</button>
+      )}
+      <span class="ai-caption">{t('ai.includes')}</span>
+    </section>
+  );
+}
+
+function Verdict({ result }: { result: AiResult }) {
+  const at = VERDICTS.indexOf(result.verdict);
+  const label = t(`ai.verdicts.${result.verdict}`);
+  return (
+    <section class="ai-box" aria-labelledby="ai-verdict">
+      <h3 class="ai-h" id="ai-verdict">{t('ai.verdict')}</h3>
+      <div class="ai-verdict-line">
+        <span class={`ai-verdict ai-v-${result.verdict}`}>{label}</span>
+        <span class="ai-muted">{t('ai.forSector')}</span>
+      </div>
+      <div class="ai-scale" role="img" aria-label={t('ai.scale', { verdict: label })}>
+        {VERDICTS.map((v, i) => <span key={v} class={i === at ? `ai-seg is-on ai-v-${v}` : 'ai-seg'} />)}
+      </div>
+      <div class="ai-scale-labels" aria-hidden="true">
+        {VERDICTS.map((v, i) => <span key={v} class={i === at ? 'is-on' : undefined}>{t(`ai.verdicts.${v}`)}</span>)}
+      </div>
+      {result.summary && <p class="ai-summary" dir="auto">{result.summary}</p>}
+    </section>
+  );
+}
+
+function Results({ host, entry, usage, quota, onRun }: {
+  host: string; entry: StoredResult; usage: AiUsage | null; quota: boolean; onRun(): void;
+}) {
+  const { result } = entry;
+  const left = usage ? Math.max(0, usage.limit - usage.used) : null;
+  const shown = entry.usage ?? usage;
+  const tags = [result.sector, ...result.tags].filter((x) => x !== '');
+  return (
+    <section class="ai-results" aria-labelledby="ai-title">
+      <Head sub={<><bdi dir="ltr">{host}</bdi>{left !== null && <> · {plural('ai.leftShort', left)}</>}</>}>
+        <button type="button" class="icon-btn ai-run" aria-label={t('ai.runAgain')} title={t('ai.runAgain')} disabled={quota} onClick={onRun}>
+          <Icon name="rescan" />
+        </button>
+      </Head>
+      {tags.length > 0 && (
+        <ul class="ai-tags" aria-label={t('ai.tags')}>
+          {tags.map((tag, i) => <li key={i} dir="auto">{tag}</li>)}
+        </ul>
+      )}
+      {entry.lang !== renderedLang() && (
+        <p class="ai-lang-hint">
+          <Icon name="info" size={14} />
+          {quota ? (
+            <span>{t('ai.runInLang', { language: LANG_NAMES[renderedLang()] ?? renderedLang() })}</span>
+          ) : (
+            <button type="button" class="link-btn" onClick={onRun}>
+              {t('ai.runInLang', { language: LANG_NAMES[renderedLang()] ?? renderedLang() })}
+            </button>
+          )}
+        </p>
+      )}
+      <Verdict result={result} />
+      {(result.colours.length > 0 || result.fit.reason) && (
+        <section class="ai-box" aria-labelledby="ai-colours">
+          <h3 class="ai-h" id="ai-colours">{t('ai.coloursSay')}</h3>
+          {result.colours.map((c) => (
+            <div class="ai-meaning" key={c.hex}>
+              <span class="ai-chip" style={{ backgroundColor: c.hex }} title={c.hex} aria-hidden="true" />
+              <div class="ai-meaning-text">
+                <span class="ai-meaning-title" dir="auto">{c.title}</span>
+                <span class="ai-meaning-body" dir="auto">{c.meaning}</span>
+              </div>
+            </div>
+          ))}
+          <div class={`ai-fit ai-fit-${result.fit.level}`}>
+            <Icon name={FIT_ICON[result.fit.level]} size={15} />
+            <span>
+              <Rich text={t('ai.fitFor')} parts={{ fit: <strong>{t(`ai.fit.${result.fit.level}`)}</strong>, sector: <bdi>{result.sector}</bdi> }} />
+              {result.fit.reason && <span class="ai-fit-reason" dir="auto">{result.fit.reason}</span>}
+            </span>
+          </div>
+        </section>
+      )}
+      {(result.works.length > 0 || result.improve.length > 0) && (
+        <section class="ai-box ai-two" aria-label={`${t('ai.works')} · ${t('ai.improve')}`}>
+          <div class="ai-col">
+            <h3 class="ai-h ai-h-good">{t('ai.works')}</h3>
+            <ul class="ai-list">{result.works.map((w, i) => <li key={i} dir="auto">{w}</li>)}</ul>
+          </div>
+          <div class="ai-col">
+            <h3 class="ai-h ai-h-bad">{t('ai.improve')}</h3>
+            <ul class="ai-list">{result.improve.map((w, i) => <li key={i} dir="auto">{w}</li>)}</ul>
+          </div>
+        </section>
+      )}
+      <section class="ai-box ai-sites" aria-labelledby="ai-sites">
+        <h3 class="ai-h" id="ai-sites">{t('ai.sites')}</h3>
+        {result.search_unavailable && (
+          <p class="ai-search-down"><Icon name="info" size={14} /><span>{t('ai.searchDown')}</span></p>
+        )}
+        {result.sites.length === 0 && <p class="ai-muted ai-small">{t('ai.noSites')}</p>}
+        <ul class="ai-site-list">
+          {result.sites.map((s) => {
+            const inner = (
+              <>
+                <span class="ai-logo" style={{ backgroundColor: LOGO[[...s.domain].reduce((n, ch) => n + ch.charCodeAt(0), 0) % LOGO.length] }} aria-hidden="true">
+                  {(s.name.trim()[0] ?? s.domain[0]).toUpperCase()}
+                </span>
+                <span class="ai-site-text">
+                  <span class="ai-site-name"><bdi>{s.name}</bdi> <bdi class="ai-site-domain" dir="ltr">{s.domain}</bdi></span>
+                  {s.why && <span class="ai-site-why" dir="auto">{s.why}</span>}
+                </span>
+                <span class={s.source === 'web' ? 'ai-badge ai-badge-web' : 'ai-badge ai-badge-ai'}>
+                  {t(s.source === 'web' ? 'ai.sourceWeb' : 'ai.sourceAi')}
+                </span>
+              </>
+            );
+            // Only a domain the web search returned is a link; a model suggestion may not exist (or be anyone's), so it is text.
+            return (
+              <li key={s.domain}>
+                {s.source === 'web' ? (
+                  <a class="ai-site" href={s.url} target="_blank" rel="noopener noreferrer">
+                    {inner}
+                    <span class="sr-only">{t('ai.newTab')}</span>
+                  </a>
+                ) : (
+                  <div class="ai-site ai-site-plain">{inner}</div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+        {result.sites.length > 0 && <p class="ai-muted ai-small">{t('ai.sourcesNote')}</p>}
+      </section>
+      <p class="ai-footer">
+        {shown
+          ? ltr('ai.footer', { date: formatDate(entry.analysedAt), used: shown.used, limit: shown.limit })
+          : ltr('ai.footerNoUsage', { date: formatDate(entry.analysedAt) })}
+      </p>
+      {entry.cached && <p class="ai-footer">{t('ai.cached')}</p>}
+    </section>
+  );
+}
+
+export interface AiSectionProps {
+  tokens: Tokens;
+}
+
+/** The AI insights card at the bottom of the side panel (mockups G, H, running, I, out of analyses, ended). */
+export function AiSection({ tokens }: AiSectionProps) {
+  const host = siteHost(tokens.site);
+  const page = {
+    url: tokens.page?.url || `https://${tokens.site}/`,
+    title: tokens.page?.title ?? '',
+    description: tokens.page?.description ?? '',
+  };
+  const supported = publicPage(page.url) !== null;
+  const [plan, setPlan] = useState<Plan>({ kind: 'loading' });
+  const [entry, setEntry] = useState<StoredResult | null>(null);
+  const [noteHidden, setNoteHidden] = useState<boolean | null>(null);
+  const [hideNext, setHideNext] = useState(false);
+  const [running, setRunning] = useState<0 | 1 | null>(null);
+  const [error, setError] = useState<AnalyseReason | null>(null);
+  const [quotaReset, setQuotaReset] = useState<string | null>(null);
+  /** The refusal was the hidden token cap, not the analyses limit: same lock, its own message. */
+  const [tokenCap, setTokenCap] = useState(false);
+  const [sheet, setSheet] = useState(false);
+  /** Read out by the section's live region: the progress step, then "Results ready". */
+  const [announce, setAnnounce] = useState('');
+  const [focus, setFocus] = useState<FocusTarget | null>(null);
+  const ctrl = useRef<AbortController | null>(null);
+  const wrap = useRef<HTMLDivElement>(null);
+
+  const showPlan = (p: Plan) => { setPlan(p); setQuotaReset(null); setTokenCap(false); };
+  const refresh = () => { void loadPlan().then(showPlan).catch(() => showPlan({ kind: 'locked' })); };
+
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      const [p, stored, note] = await Promise.all([
+        loadPlan().catch((): Plan => ({ kind: 'locked' })),
+        storedResult(host).catch(() => null),
+        readNoteHidden(),
+      ]);
+      if (!live) return;
+      setPlan(p);
+      setEntry(stored);
+      setNoteHidden(note);
+    })();
+    const onChange = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+      if (area === 'local' && changes[LICENSE_KEY]) refresh();
+    };
+    globalThis.chrome?.storage?.onChanged?.addListener(onChange);
+    return () => {
+      live = false;
+      // globalThis: a test (or teardown) may already have removed the chrome global when this cleanup runs.
+      globalThis.chrome?.storage?.onChanged?.removeListener(onChange);
+      ctrl.current?.abort();
+      ctrl.current = null;
+    };
+  }, [host]);
+
+  useEffect(() => {
+    if (running !== 0) return;
+    const id = setTimeout(() => {
+      setRunning((s) => (s === 0 ? 1 : s));
+      setAnnounce(t('ai.asking'));
+    }, STEP_MS);
+    return () => clearTimeout(id);
+  }, [running]);
+
+  // Runs after the render that removed the focused control: put focus where the user's next step is.
+  useEffect(() => {
+    if (!focus) return;
+    for (const sel of FOCUS_SELECTORS[focus]) {
+      const el = wrap.current?.querySelector<HTMLElement>(sel);
+      if (el) { el.focus(); break; }
+    }
+    setFocus(null);
+  });
+
+  const usage = plan.kind === 'active' ? plan.usage : null;
+  const quota = quotaReset !== null || (usage !== null && usage.used >= usage.limit);
+  const resetsOn = formatDate(quotaReset ?? usage?.resetsOn ?? '', false);
+
+  const run = async () => {
+    if (running !== null) return;
+    const c = new AbortController();
+    ctrl.current = c;
+    setError(null);
+    setRunning(0);
+    setAnnounce(t('ai.searching'));
+    setFocus('cancel');
+    const r = await analyse(tokens, page, renderedLang(), c.signal);
+    if (ctrl.current !== c) return;
+    ctrl.current = null;
+    setRunning(null);
+    setAnnounce('');
+    if (r.ok) {
+      setEntry({ result: r.result, usage: r.usage, analysedAt: new Date().toISOString(), lang: renderedLang(), cached: r.cached });
+      showPlan(plan.kind === 'active' ? { ...plan, usage: r.usage } : { kind: 'active', usage: r.usage, cancelled: false, endsOn: null });
+      setAnnounce(t('ai.resultsReady'));
+      setFocus('results');
+      return;
+    }
+    if (r.reason === 'cancelled') return setFocus('analyse');
+    if (r.reason === 'not_ai') return showPlan({ kind: 'locked' });
+    if (r.reason === 'ended') {
+      // A19: a stored subscription that is still active means a late renewal, not a lapsed plan.
+      const pending = await currentAiLicense().then((l) => l?.subStatus === 'active', () => false);
+      return showPlan({ kind: 'ended', endedOn: r.endedOn ?? null, pending });
+    }
+    if (r.reason === 'quota' || r.reason === 'token_cap') {
+      setQuotaReset(r.resetsOn ?? usage?.resetsOn ?? '');
+      setTokenCap(r.reason === 'token_cap');
+      return setFocus('analyse');
+    }
+    setError(r.reason);
+    setFocus('alert');
+  };
+  const cancel = () => {
+    ctrl.current?.abort();
+    ctrl.current = null;
+    setRunning(null);
+    setAnnounce('');
+    setFocus('analyse');
+  };
+
+  if (plan.kind === 'loading' || noteHidden === null) return null;
+
+  const sheetEl = sheet && (
+    <PlanSheet variant="overlay" plan="ai" onClose={() => { setSheet(false); refresh(); }} />
+  );
+
+  return (
+    <div class="ai-wrap" ref={wrap}>
+      <div class="sr-only" aria-live="polite" aria-atomic="true">{announce}</div>
+      {body()}
+      {sheetEl}
+    </div>
+  );
+
+  function body() {
+  if (plan.kind !== 'active') {
+    return (
+      <Locked
+        ended={plan.kind === 'ended'} endedOn={plan.kind === 'ended' ? plan.endedOn : null}
+        pending={plan.kind === 'ended' && plan.pending} onSee={() => setSheet(true)}
+      />
+    );
+  }
+
+  if (running !== null) {
+    return (
+      <section class="ai-card" aria-labelledby="ai-title" aria-busy="true">
+        <Head sub={<bdi dir="ltr">{host}</bdi>} />
+        <div class="ai-running">
+          <span class="spinner" aria-hidden="true" />
+          <span class="ai-step">{t(running === 0 ? 'ai.searching' : 'ai.asking')}</span>
+          <span class="ai-caption">{t('ai.runningNote')}</span>
+        </div>
+        <button type="button" class="btn ai-cancel" onClick={cancel}>{t('ai.cancel')}</button>
+      </section>
+    );
+  }
+
+  const quotaNote = quota && (
+    <p class="ai-quota" role="status">
+      <Icon name="info" size={14} />
+      <span>
+        {tokenCap
+          ? (resetsOn ? ltr('ai.tokenCap', { date: resetsOn }) : t('ai.tokenCapNoDate'))
+          : (resetsOn ? ltr('ai.quota', { limit: usage?.limit ?? 100, date: resetsOn }) : ltr('ai.quotaNoDate', { limit: usage?.limit ?? 100 }))}
+      </span>
+    </p>
+  );
+
+  if (entry) {
+    return (
+      <>
+        {error && <ErrorNote reason={error} onRetry={supported && !quota ? run : undefined} />}
+        {quotaNote}
+        <Results host={host} entry={entry} usage={usage} quota={quota || !supported} onRun={run} />
+      </>
+    );
+  }
+
+  return (
+    <section class="ai-card" aria-labelledby="ai-title">
+      <Head sub={t('ai.readySub')} />
+      {usage && <UsageBar usage={usage} cancelled={plan.cancelled} endsOn={plan.endsOn} />}
+      {!noteHidden && (
+        <>
+          <div class="ai-sent">
+            <span class="ai-sent-title"><Icon name="lock" size={15} />{t('ai.sentTitle')}</span>
+            <span class="ai-sent-body">{t('ai.sentBody')}</span>
+            <a class="ai-link" href={`${API_BASE}/privacy?lang=${encodeURIComponent(renderedLang())}`} target="_blank" rel="noopener noreferrer">
+              {t('ai.privacy')}
+            </a>
+          </div>
+          <label class="ai-check">
+            <input
+              type="checkbox"
+              checked={hideNext}
+              onChange={(e) => {
+                const on = (e.target as HTMLInputElement).checked;
+                setHideNext(on);
+                void chrome.storage.local.set({ [NOTE_KEY]: on }).catch(() => {});
+              }}
+            />
+            <span>{t('ai.hideNote')}</span>
+          </label>
+        </>
+      )}
+      {!supported && <p class="ai-quota" role="status"><Icon name="info" size={14} /><span>{t('ai.unsupported')}</span></p>}
+      {quotaNote}
+      {error && <ErrorNote reason={error} onRetry={supported && !quota ? run : undefined} />}
+      <button type="button" class="ai-cta" disabled={quota || !supported} onClick={run}>
+        <Icon name="sparkle" size={16} />
+        <span>{ltr('ai.analyse', { host })}</span>
+      </button>
+      <span class="ai-caption">{t('ai.usesOne')}</span>
+    </section>
+  );
+  }
+}

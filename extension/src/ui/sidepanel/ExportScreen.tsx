@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { exportAll, exportFile, slug, type Format, type Part } from '../../export';
 import type { Tokens } from '../../model/tokens';
 import { Icon } from '../components/Icon';
-import { UnlockSheet } from '../components/UnlockSheet';
+import { PlanSheet } from '../components/PlanSheet';
 import { download } from '../download';
 import { t } from '../i18n';
 import { useCopy } from '../popup/ColoursTab';
@@ -153,7 +153,7 @@ export function ExportScreen({ tokens, pro, onBack, onHaveKey }: ExportScreenPro
         </button>
       </footer>
 
-      {sheet && !pro && <UnlockSheet variant="overlay" onClose={() => setSheet(false)} />}
+      {sheet && !pro && <PlanSheet variant="overlay" plan="pro" onClose={() => setSheet(false)} />}
     </div>
   );
 }

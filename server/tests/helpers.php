@@ -8,6 +8,10 @@ foreach (['DB_HOST_LOCAL' => '127.0.0.1', 'DB_HOST_REMOTE' => '127.0.0.1', 'DB_U
     $_ENV[$k] = $v;
     putenv("$k=$v");
 }
+// companies' .env holds a REAL platform AI key; config.php defines DEEPSEEK_API_KEY from it unless $_ENV already has
+// the key, and ai_key_for() falls back to that constant. Seed it empty so no test can ever pick up the real key.
+$_ENV['DEEPSEEK_API_KEY'] = '';
+putenv('DEEPSEEK_API_KEY=');
 if (!getenv('PALETTE_COMPANIES_DIR')) putenv('PALETTE_COMPANIES_DIR=C:\\Projects\\companies');
 if (!defined('PALETTE_NO_MAIL')) define('PALETTE_NO_MAIL', true);
 
@@ -21,6 +25,8 @@ if (!str_ends_with((string)$__db, '_test')) {
 
 $conn->query("CREATE TABLE IF NOT EXISTS admin_settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)");
 palette_migrate($conn);
+
+require_once __DIR__ . '/companies-ai-tables.php';
 
 $GLOBALS['__ok'] = 0;
 $GLOBALS['__fail'] = 0;

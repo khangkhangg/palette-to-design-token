@@ -34,7 +34,7 @@ const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{25A0}-\u{25FF}\u{2B00}-\u
 /** Terms that stay in English (or are values) in every language: key -> exact value. */
 const VERBATIM = ['app.name', 'unlock.keyPlaceholder', 'export.formats.md.label', 'export.formats.css.label',
   'export.formats.tailwind.label', 'export.formats.figma.label', 'export.formats.json.label', 'contrast.grade.AAA',
-  'contrast.grade.AA', 'export.v4', 'export.v3', 'colours.lessThanOne', 'contrast.ratio', 'spacing.px'];
+  'contrast.grade.AA', 'export.v4', 'export.v3', 'colours.lessThanOne', 'contrast.ratio', 'spacing.px', 'plans.ai.name', 'plans.pro.name'];
 
 afterEach(() => setLang('en'));
 
@@ -92,7 +92,10 @@ describe.each(LANGS)('%s dictionary', (lang) => {
 
   it('keeps product, format and value terms untranslated', () => {
     for (const key of VERBATIM) expect(dict[key], `${lang} ${key}`).toBe(EN[key]);
-    expect(dict['unlock.paypal'], lang).toContain('PayPal');
+    for (const k of ['plans.subscribe', 'plans.payPro', 'plans.aiNote']) expect(dict[k], `${lang} ${k}`).toContain('PayPal');
+    expect(dict['plans.payPro'], lang).toMatch(/1[.,]49/);
+    for (const k of ['ai.planLine', 'ai.seePlan', 'ai.renew', 'ai.ended']) expect(dict[k], `${lang} ${k}`).toContain('Pro + AI');
+    expect(dict['ai.sentBody'], lang).toMatch(/vietnamcos.com.*DeepSeek/);
     expect(dict['panel.exportFormats'], lang).toMatch(/CSS.*Tailwind.*Figma.*JSON.*DESIGN\.md/);
     expect(dict['unlock.refund'], lang).toContain('Pro');
     expect(dict['unlock.refund'], lang).toContain('1');

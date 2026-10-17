@@ -1,5 +1,5 @@
 <?php
-// Admin only: registers (or finds) this add-on's PayPal webhook and stores its id + mode.
+// Admin only: registers (or finds) this add-on's PayPal webhook, and creates (or finds) the Pro + AI subscription plan.
 require __DIR__ . '/bootstrap.php';
 header('Content-Type: text/html; charset=utf-8');
 if (($_SESSION['user_role'] ?? '') !== 'admin') {
@@ -8,10 +8,15 @@ if (($_SESSION['user_role'] ?? '') !== 'admin') {
     exit;
 }
 $result = null;
+$subResult = null;
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    $sub = ($_POST['action'] ?? '') === 'plan';
     if (!verifyCSRFToken((string)($_POST['csrf_token'] ?? ''), 'palette_setup')) {
         http_response_code(400);
-        $result = ['ok' => false, 'error' => 'csrf'];
+        $bad = ['ok' => false, 'error' => 'csrf'];
+        if ($sub) $subResult = $bad; else $result = $bad;
+    } elseif ($sub) {
+        $subResult = palette_sub_setup($conn);
     } else {
         $result = palette_setup_webhook($conn);
     }
@@ -40,5 +45,15 @@ button{padding:8px 16px;font-size:15px;cursor:pointer}</style></head>
 <form method="post">
   <input type="hidden" name="csrf_token" value="<?= palette_h($token) ?>">
   <button type="submit">Register or find the webhook</button>
+</form>
+<h2>Subscription plan</h2>
+<p>Monthly Pro + AI plan, USD <code><?= palette_h((string)$s['ai_price_usd']) ?></code>.</p>
+<p>Current plan id: <code><?= palette_h($s['ai_paypal_plan_id'] !== '' ? (string)$s['ai_paypal_plan_id'] : '(none)') ?></code>
+   mode: <code><?= palette_h($s['ai_paypal_plan_mode'] !== '' ? (string)$s['ai_paypal_plan_mode'] : '(none)') ?></code></p>
+<?php if ($subResult !== null) echo palette_sub_result_html($subResult); ?>
+<form method="post">
+  <input type="hidden" name="csrf_token" value="<?= palette_h($token) ?>">
+  <input type="hidden" name="action" value="plan">
+  <button type="submit">Create or find the subscription plan</button>
 </form>
 </body></html>

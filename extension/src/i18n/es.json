@@ -26,6 +26,14 @@
     "removeKey": "Quitar la clave de este navegador",
     "removeConfirm": "¿Quitar la clave? Pro se desactiva en este navegador hasta que la vuelvas a introducir.",
     "removeConfirmYes": "Quitar clave",
+    "aiRenews": "Pro + AI · se renueva el {date}",
+    "aiEnds": "Pro + AI · termina el {date}",
+    "aiEnded": "Pro + AI terminó el {date}",
+    "manageSubscription": "Gestionar suscripción",
+    "renew": "Renovar",
+    "removeProKey": "Quitar clave Pro",
+    "removeAiKey": "Quitar clave Pro + AI",
+    "removeConfirmAi": "¿Quitar la clave? Pro + AI se desactiva en este navegador hasta que la vuelvas a introducir.",
     "cancel": "Cancelar",
     "removeFailed": "No se pudo quitar la clave. Inténtalo de nuevo"
   },
@@ -211,33 +219,6 @@
     "zipBuilding": "Creando el paquete…"
   },
   "unlock": {
-    "title": "Llévate el sistema de diseño",
-    "price": "1,49 USD",
-    "priceNote": "pago único · tuyo para siempre",
-    "perks": {
-      "export": {
-        "title": "Exporta tokens",
-        "text": "en CSS, Tailwind, Figma o JSON"
-      },
-      "designMd": {
-        "title": "DESIGN.md",
-        "text": "para que Claude, Cursor o Copilot programen fieles a la marca"
-      },
-      "system": {
-        "title": "Sistema de diseño completo",
-        "text": "tipografía, espaciado, radios y sombras"
-      },
-      "contrast": {
-        "title": "Correcciones de contraste",
-        "text": "no solo si cumple o no"
-      },
-      "scans": {
-        "title": "Sitios guardados ilimitados",
-        "text": "en lugar de los 3 últimos"
-      }
-    },
-    "paypal": "Pagar con PayPal",
-    "alreadyPaid": "¿ya pagaste?",
     "keyLabel": "Clave de licencia",
     "keyPlaceholder": "SDT-XXXX-XXXX-XXXX",
     "activate": "Activar",
@@ -247,8 +228,131 @@
     "unlocked": "Pro desbloqueado",
     "errInvalid": "Esa clave no es válida.",
     "errRevoked": "Esta clave se reembolsó y ya no funciona.",
+    "errEnded": "Este plan Pro + AI ha terminado.",
     "errNetwork": "No se pudo conectar con el servidor. Inténtalo de nuevo.",
     "errRateLimited": "Demasiados intentos. Espera un minuto y vuelve a intentarlo.",
-    "refund": "Todas las ventas son definitivas. Como Pro se desbloquea al instante y cuesta 1,49 USD, no ofrecemos reembolsos después de la compra."
+    "refund": "Todas las ventas son definitivas. Como Pro se desbloquea al instante y cuesta 1,49 USD, no ofrecemos reembolsos después de la compra.",
+    "unlockedAi": "Pro + AI desbloqueado"
+  },
+  "ai": {
+    "title": "Análisis con IA",
+    "lockedSub": "Pregunta a la IA por el diseño de este sitio",
+    "readySub": "Competidores, veredicto y significado de los colores",
+    "features": {
+      "sites": {
+        "title": "Competidores y sitios parecidos",
+        "text": "encontrados con una búsqueda web, para ver cómo se ven otros del sector"
+      },
+      "verdict": {
+        "title": "¿Es competitivo?",
+        "text": "qué funciona y qué no, comparado con su sector"
+      },
+      "colours": {
+        "title": "Qué dicen los colores",
+        "text": "y si encajan con este tipo de negocio"
+      }
+    },
+    "planLine": "Pro + AI · 100 análisis al mes",
+    "seePlan": "Ver Pro + AI",
+    "includes": "Incluye todo lo de Pro. Cancela cuando quieras.",
+    "ended": "Tu plan Pro + AI terminó el {date}.",
+    "endedNoDate": "Tu plan Pro + AI ha terminado.",
+    "renew": "Renovar Pro + AI",
+    "renewalPending": "Renovación pendiente: suele tardar unos minutos",
+    "left": "Quedan {left} de {limit} análisis",
+    "resets": "se renueva el {date}",
+    "ends": "termina el {date}",
+    "leftShort_one": "queda {n} análisis",
+    "leftShort_many": "quedan {n} de análisis",
+    "leftShort_other": "quedan {n} análisis",
+    "sentTitle": "Qué se envía",
+    "sentBody": "La dirección, el título y la descripción de esta página, y el resumen de diseño de arriba (colores, fuentes, espaciado, contraste). Nada de lo que escribes, ninguna otra pestaña. Se envía a vietnamcos.com, a una búsqueda web y a nuestro proveedor de IA (DeepSeek).",
+    "privacy": "Política de privacidad",
+    "hideNote": "No volver a mostrar esta nota",
+    "analyse": "Analizar {host}",
+    "usesOne": "Usa 1 análisis. Tarda unos 15 segundos.",
+    "unsupported": "Solo se pueden analizar sitios web públicos, no direcciones locales como localhost o una dirección IP.",
+    "quota": "Has usado los {limit} análisis de este mes. Se renuevan el {date}.",
+    "searching": "Buscando en la web…",
+    "asking": "Consultando a la IA…",
+    "runningNote": "Tarda unos 15 segundos.",
+    "cancel": "Cancelar",
+    "runAgain": "Volver a analizar",
+    "retry": "Reintentar",
+    "errors": {
+      "network": "No se pudo conectar con el servidor. Revisa tu conexión y vuelve a intentarlo.",
+      "timeout": "El análisis tardó demasiado. No se ha usado ningún análisis.",
+      "unavailable": "La IA no está disponible ahora mismo. No se ha usado ningún análisis.",
+      "rateLimited": "Demasiados análisis en poco tiempo. Espera un minuto y vuelve a intentarlo.",
+      "badRequest": "No pudimos analizar esta página.",
+      "invalid": "No se pudo leer la respuesta de la IA. Vuelve a intentarlo."
+    },
+    "tags": "Sector",
+    "verdict": "Veredicto",
+    "forSector": "para su sector",
+    "verdicts": {
+      "behind": "Por detrás",
+      "on_par": "A la par",
+      "competitive": "Competitivo"
+    },
+    "scale": "Escala: por detrás, a la par, competitivo. Este sitio: {verdict}.",
+    "coloursSay": "Qué dicen los colores",
+    "fit": {
+      "strong": "Encaja muy bien",
+      "ok": "Encaja en parte",
+      "weak": "Encaja poco"
+    },
+    "fitFor": "{fit} con: {sector}",
+    "works": "Funciona",
+    "improve": "Podría mejorar",
+    "sites": "Mira estos sitios",
+    "sourceWeb": "Web",
+    "sourceAi": "IA · compruébalo",
+    "sourcesNote": "Los sitios «Web» se encontraron con la búsqueda. Las sugerencias «IA» salen de la memoria del modelo: compruébalas.",
+    "searchDown": "Búsqueda web no disponible; las sugerencias son solo de la IA.",
+    "noSites": "No se encontraron sitios parecidos.",
+    "newTab": "(se abre en una pestaña nueva)",
+    "footer": "La IA puede equivocarse. Analizado el {date} · usados {used} de {limit}",
+    "footerNoUsage": "La IA puede equivocarse. Analizado el {date}",
+    "cached": "Resultado compartido de los últimos 7 días: no se ha usado ningún análisis.",
+    "resultsReady": "Resultados listos",
+    "quotaNoDate": "Has usado los {limit} análisis de este mes.",
+    "tokenCap": "Se ha agotado el límite de IA de este mes. Se restablece el {date}.",
+    "tokenCapNoDate": "Se ha agotado el límite de IA de este mes.",
+    "runInLang": "Volver a analizar en {language}"
+  },
+  "plans": {
+    "title": "Elige tu plan",
+    "back": "Volver a los planes",
+    "best": "El más útil",
+    "ai": {
+      "name": "Pro + AI",
+      "price": "3,99 USD",
+      "per": "/mes",
+      "items": {
+        "pro": "Todo lo de Pro",
+        "analyses": "100 análisis con IA al mes",
+        "search": "Competidores encontrados con búsqueda web",
+        "verdict": "Veredicto y significado de los colores de cualquier sitio",
+        "cancel": "Cancela cuando quieras desde tu cuenta"
+      }
+    },
+    "pro": {
+      "name": "Pro",
+      "price": "1,49 USD",
+      "per": "pago único",
+      "items": {
+        "exports": "Todas las exportaciones y DESIGN.md",
+        "contrast": "Correcciones de contraste",
+        "scans": "Sitios guardados ilimitados"
+      }
+    },
+    "subscribe": "Suscribirse con PayPal",
+    "payPro": "Pagar 1,49 USD con PayPal",
+    "aiNote": "Se cobra cada mes a través de PayPal. Cancela cuando quieras; Pro y la IA siguen activos hasta el final del mes pagado.",
+    "haveKey": "¿Ya tienes una clave?",
+    "enterIt": "Introdúcela",
+    "keyTitle": "Introduce tu clave de licencia",
+    "keyText": "Pega la clave del correo de compra. Aquí sirven tanto las claves Pro como las Pro + AI."
   }
 }

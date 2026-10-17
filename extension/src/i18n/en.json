@@ -24,6 +24,14 @@
     "removeKey": "Remove key from this browser",
     "removeConfirm": "Remove the key? Pro turns off in this browser until you enter it again.",
     "removeConfirmYes": "Remove key",
+    "aiRenews": "Pro + AI · renews {date}",
+    "aiEnds": "Pro + AI · ends {date}",
+    "aiEnded": "Pro + AI ended {date}",
+    "manageSubscription": "Manage subscription",
+    "renew": "Renew",
+    "removeProKey": "Remove Pro key",
+    "removeAiKey": "Remove Pro + AI key",
+    "removeConfirmAi": "Remove the key? Pro + AI turns off in this browser until you enter it again.",
     "cancel": "Cancel",
     "removeFailed": "Couldn't remove the key — try again"
   },
@@ -208,33 +216,6 @@
     "zipBuilding": "Building the bundle…"
   },
   "unlock": {
-    "title": "Take the design system with you",
-    "price": "$1.49",
-    "priceNote": "once · yours forever",
-    "perks": {
-      "export": {
-        "title": "Export tokens",
-        "text": "as CSS, Tailwind, Figma or JSON"
-      },
-      "designMd": {
-        "title": "DESIGN.md",
-        "text": "so Claude, Cursor or Copilot builds on-brand"
-      },
-      "system": {
-        "title": "Full design system",
-        "text": "type, spacing, radius, shadows"
-      },
-      "contrast": {
-        "title": "Contrast fixes",
-        "text": "not just pass or fail"
-      },
-      "scans": {
-        "title": "Unlimited saved sites",
-        "text": "instead of the last 3"
-      }
-    },
-    "paypal": "Pay with PayPal",
-    "alreadyPaid": "already paid?",
     "keyLabel": "License key",
     "keyPlaceholder": "SDT-XXXX-XXXX-XXXX",
     "activate": "Activate",
@@ -244,8 +225,130 @@
     "unlocked": "Pro unlocked",
     "errInvalid": "That key isn't valid.",
     "errRevoked": "This key was refunded and no longer works.",
+    "errEnded": "This Pro + AI plan has ended.",
     "errNetwork": "Couldn't reach the server — try again.",
     "errRateLimited": "Too many attempts — wait a minute and try again.",
-    "refund": "All sales are final. Because Pro unlocks instantly and costs $1.49, we do not offer refunds after purchase."
+    "refund": "All sales are final. Because Pro unlocks instantly and costs $1.49, we do not offer refunds after purchase.",
+    "unlockedAi": "Pro + AI unlocked"
+  },
+  "ai": {
+    "title": "AI insights",
+    "lockedSub": "Ask AI about this site's design",
+    "readySub": "Competitors, verdict and colour meaning",
+    "features": {
+      "sites": {
+        "title": "Competitors and look-alikes",
+        "text": "found with a web search, so you can see how others in the sector look"
+      },
+      "verdict": {
+        "title": "Is it competitive?",
+        "text": "what works, what doesn't, compared with its sector"
+      },
+      "colours": {
+        "title": "What the colours say",
+        "text": "and whether they fit this kind of business"
+      }
+    },
+    "planLine": "Pro + AI · 100 analyses a month",
+    "seePlan": "See Pro + AI",
+    "includes": "Includes everything in Pro. Cancel any time.",
+    "ended": "Your Pro + AI plan ended on {date}.",
+    "endedNoDate": "Your Pro + AI plan has ended.",
+    "renew": "Renew Pro + AI",
+    "renewalPending": "Renewal pending — this usually takes a few minutes",
+    "left": "{left} of {limit} analyses left",
+    "resets": "resets {date}",
+    "ends": "ends {date}",
+    "leftShort_one": "{n} analysis left",
+    "leftShort_other": "{n} analyses left",
+    "sentTitle": "What gets sent",
+    "sentBody": "This page's address, title and description, and the design summary above (colours, fonts, spacing, contrast). Nothing you type, no other tabs. It goes to vietnamcos.com, a web search, and our AI provider (DeepSeek).",
+    "privacy": "Privacy policy",
+    "hideNote": "Don't show this note again",
+    "analyse": "Analyse {host}",
+    "usesOne": "Uses 1 analysis. Takes about 15 seconds.",
+    "unsupported": "Only public websites can be analysed, not local addresses such as localhost or an IP address.",
+    "quota": "You've used all {limit} analyses this month. Resets {date}.",
+    "searching": "Searching the web…",
+    "asking": "Asking the AI…",
+    "runningNote": "This takes about 15 seconds.",
+    "cancel": "Cancel",
+    "runAgain": "Run again",
+    "retry": "Try again",
+    "errors": {
+      "network": "Couldn't reach the server. Check your connection and try again.",
+      "timeout": "The analysis took too long. No analysis was used.",
+      "unavailable": "The AI isn't available right now. No analysis was used.",
+      "rateLimited": "Too many analyses in a short time. Wait a minute and try again.",
+      "badRequest": "We couldn't analyse this page.",
+      "invalid": "The AI's answer couldn't be read. Try again."
+    },
+    "tags": "Sector",
+    "verdict": "Verdict",
+    "forSector": "for its sector",
+    "verdicts": {
+      "behind": "Behind",
+      "on_par": "On par",
+      "competitive": "Competitive"
+    },
+    "scale": "Scale: behind, on par, competitive. This site: {verdict}.",
+    "coloursSay": "What the colours say",
+    "fit": {
+      "strong": "Strong fit",
+      "ok": "Fair fit",
+      "weak": "Weak fit"
+    },
+    "fitFor": "{fit} for {sector}",
+    "works": "Works",
+    "improve": "Could be better",
+    "sites": "Check these sites",
+    "sourceWeb": "Web",
+    "sourceAi": "AI · check it",
+    "sourcesNote": "\"Web\" sites were found by search. \"AI\" suggestions come from the model's memory: check them.",
+    "searchDown": "Web search unavailable; suggestions are from AI only.",
+    "noSites": "No similar sites found.",
+    "newTab": "(opens in a new tab)",
+    "footer": "AI can be wrong. Analysed {date} · used {used} of {limit}",
+    "footerNoUsage": "AI can be wrong. Analysed {date}",
+    "cached": "Shared result from the last 7 days: no analysis used.",
+    "resultsReady": "Results ready",
+    "quotaNoDate": "You've used all {limit} analyses this month.",
+    "tokenCap": "This month's AI limit is used up. It resets on {date}.",
+    "tokenCapNoDate": "This month's AI limit is used up.",
+    "runInLang": "Run again in {language}"
+  },
+  "plans": {
+    "title": "Choose your plan",
+    "back": "Back to plans",
+    "best": "Most useful",
+    "ai": {
+      "name": "Pro + AI",
+      "price": "$3.99",
+      "per": "/month",
+      "items": {
+        "pro": "Everything in Pro",
+        "analyses": "100 AI analyses a month",
+        "search": "Competitors found with web search",
+        "verdict": "Verdict and colour meaning for any site",
+        "cancel": "Cancel any time from your account"
+      }
+    },
+    "pro": {
+      "name": "Pro",
+      "price": "$1.49",
+      "per": "once",
+      "items": {
+        "exports": "All exports and DESIGN.md",
+        "contrast": "Contrast fixes",
+        "scans": "Unlimited saved sites"
+      }
+    },
+    "subscribe": "Subscribe with PayPal",
+    "payPro": "Pay $1.49 with PayPal",
+    "aiNote": "Billed monthly through PayPal. Cancel any time; Pro and AI stay on until the end of the month you paid for.",
+    "haveKey": "Already have a key?",
+    "enterIt": "Enter it",
+    "keyTitle": "Enter your license key",
+    "keyText": "Paste the key from your purchase email. Pro and Pro + AI keys both work here."
   }
 }

@@ -30,14 +30,22 @@ function palette_mask_email(string $email): string
     return (mb_strlen($local) <= 1 ? '*' : mb_substr($local, 0, 1) . '***') . substr($email, $at);
 }
 
-function palette_issue_license(mysqli $c, string $email, string $orderId, string $lang): array
+// $ai = null issues a one-time Pro key. For a subscription pass ['subscription_id', 'paid_through', 'period_start']
+// (PHP-time DATETIME strings, ruling A4): the key gets plan 'ai' and sub_status 'active'.
+function palette_issue_license(mysqli $c, string $email, string $orderId, string $lang, ?array $ai = null): array
 {
     $email = strtolower(trim($email));
     $lang = palette_lang($lang);
+    $plan = $ai === null ? 'pro' : 'ai';
+    $subId = $ai === null ? null : (string)$ai['subscription_id'];
+    $status = $ai === null ? null : 'active';
+    $paid = $ai === null ? null : (string)$ai['paid_through'];
+    $start = $ai === null ? null : (string)$ai['period_start'];
     for ($try = 0; $try < 10; $try++) {
         $key = palette_new_key();
-        $st = $c->prepare('INSERT INTO palette_licenses (license_key, email, order_id, lang, created_at) VALUES (?, ?, ?, ?, NOW())');
-        $st->bind_param('ssss', $key, $email, $orderId, $lang);
+        $st = $c->prepare('INSERT INTO palette_licenses (license_key, email, order_id, lang, created_at, plan, subscription_id, sub_status, paid_through, period_start)
+                           VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?)');
+        $st->bind_param('sssssssss', $key, $email, $orderId, $lang, $plan, $subId, $status, $paid, $start);
         try {
             $st->execute();
             $id = (int)$c->insert_id;
@@ -57,7 +65,7 @@ function palette_verify(mysqli $c, string $rawKey, string $ip): array
     $none = ['valid' => false, 'revoked' => false, 'email_masked' => null];
     $key = palette_normalise_key($rawKey);
     if ($key === null) return $none;
-    $st = $c->prepare('SELECT id, email, revoked_at FROM palette_licenses WHERE license_key = ?');
+    $st = $c->prepare('SELECT id, email, revoked_at, plan, sub_status, paid_through, period_start, created_at FROM palette_licenses WHERE license_key = ?');
     $st->bind_param('s', $key);
     $st->execute();
     $row = $st->get_result()->fetch_assoc();
@@ -67,7 +75,21 @@ function palette_verify(mysqli $c, string $rawKey, string $ip): array
     if ($row['revoked_at'] !== null) return ['valid' => false, 'revoked' => true, 'email_masked' => $masked];
     $id = (int)$row['id'];
     $c->query("UPDATE palette_licenses SET last_verified_at = NOW() WHERE id = $id");
-    return ['valid' => true, 'revoked' => false, 'email_masked' => $masked];
+    $out = ['valid' => true, 'revoked' => false, 'email_masked' => $masked];
+    if ($row['plan'] === 'ai') {
+        // Pro licences keep the original three-field answer; AI licences add their plan state.
+        $acc = palette_licence_access($row);
+        $out['valid'] = $acc['pro'];
+        $out['plan'] = 'ai';
+        $out['ai_active'] = $acc['ai'];
+        $out['sub_status'] = $row['sub_status'];
+        $out['paid_through'] = $row['paid_through'] === null ? null : date('c', strtotime($row['paid_through']));
+        $until = palette_access_until($row);
+        $out['access_until'] = $until === null ? null : date('c', $until);
+        $u = palette_usage_get($c, $row, palette_settings($c));
+        $out['usage'] = ['used' => $u['used'], 'limit' => $u['limit'], 'resets_on' => $u['resets_on']];
+    }
+    return $out;
 }
 
 // Always returns normally; callers answer the same message whether or not anything was sent.
@@ -108,13 +130,14 @@ function palette_claim(mysqli $c, string $rawKey, int $userId): bool
 
 function palette_keys_for_user(mysqli $c, int $userId): array
 {
-    $st = $c->prepare('SELECT license_key, email, created_at, revoked_at FROM palette_licenses WHERE user_id = ? ORDER BY id');
+    $st = $c->prepare('SELECT license_key, email, created_at, revoked_at, plan, sub_status, paid_through FROM palette_licenses WHERE user_id = ? ORDER BY id');
     $st->bind_param('i', $userId);
     $st->execute();
     $out = [];
     foreach ($st->get_result() as $r) {
         $out[] = ['key' => $r['license_key'], 'email_masked' => palette_mask_email($r['email']),
-                  'created_at' => $r['created_at'], 'revoked' => $r['revoked_at'] !== null];
+                  'created_at' => $r['created_at'], 'revoked' => $r['revoked_at'] !== null,
+                  'plan' => $r['plan'] === 'ai' ? 'ai' : 'pro', 'sub_status' => $r['sub_status'], 'paid_through' => $r['paid_through']];
     }
     $st->close();
     return $out;

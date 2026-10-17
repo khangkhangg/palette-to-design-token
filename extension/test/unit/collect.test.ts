@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
-import { collect } from '../../src/extract/collect';
+import { collect, pageInfo } from '../../src/extract/collect';
 import { stubMeasure, type Spec } from '../helpers/stub-measure';
 
 const doc = (html: string) => {
@@ -178,5 +178,39 @@ describe('collect traversal', () => {
     const s = collect(d, stubMeasure());
     expect(s.text).toHaveLength(1);
     expect(s.text[0].chars).toBe(6);
+  });
+});
+
+describe('pageInfo (sent only by AI insights)', () => {
+  const head = (html: string) => {
+    const d = document.implementation.createHTMLDocument('');
+    d.head.innerHTML = html;
+    return d;
+  };
+
+  it('reads the title and meta description, flattened and capped at 200 / 300', () => {
+    const d = head(`<title>  Brewline\n  Coffee  </title><meta name="Description" content="${'d'.repeat(400)}">`);
+    const p = pageInfo(d);
+    expect(p.title).toBe('Brewline Coffee');
+    expect(p.description).toBe('d'.repeat(300));
+    const long = head(`<title>${'t'.repeat(250)}</title>`);
+    expect(pageInfo(long).title).toHaveLength(200);
+  });
+
+  it('falls back to og:description, and to empty strings', () => {
+    expect(pageInfo(head('<meta property="og:description" content="Roasts">')).description).toBe('Roasts');
+    expect(pageInfo(head(''))).toMatchObject({ title: '', description: '' });
+  });
+
+  it('keeps origin + path only, and nothing for a non-http page', () => {
+    expect(pageInfo(document).url).toBe(`${location.origin}${location.pathname}`);
+    const fake = { title: '', querySelector: () => null, location: { protocol: 'https:', origin: 'https://brewline.co', pathname: '/menu', search: '?a=1', hash: '#x' } };
+    expect(pageInfo(fake as unknown as Document).url).toBe('https://brewline.co/menu');
+    expect(pageInfo({ ...fake, location: { ...fake.location, protocol: 'file:' } } as unknown as Document).url).toBe('');
+  });
+
+  it('is part of the samples', () => {
+    const d = head('<title>Brewline</title>');
+    expect(collect(d, stubMeasure()).page).toMatchObject({ title: 'Brewline' });
   });
 });

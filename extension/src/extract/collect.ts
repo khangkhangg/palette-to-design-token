@@ -3,6 +3,7 @@ import { composite, parseColour, toHex, type RGBA } from '../analyse/colour-math
 import type { ColourSample } from '../analyse/colours';
 import type { PairSample } from '../analyse/contrast';
 import type { TextSample } from '../analyse/scales';
+import type { PageInfo } from '../model/tokens';
 
 export interface Samples {
   site: string;
@@ -13,6 +14,7 @@ export interface Samples {
   shadows: string[];
   pairs: PairSample[];
   truncated: boolean;
+  page?: PageInfo;
 }
 
 export type Side = 'top' | 'right' | 'bottom' | 'left';
@@ -70,10 +72,26 @@ const parentOf = (el: Element): Element | null => {
   return root instanceof ShadowRoot ? root.host : null;
 };
 
+const TITLE_MAX = 200;
+const DESCRIPTION_MAX = 300;
+const flat = (s: string | null | undefined, max: number): string => (s ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+
+/** The page's address without query or fragment, its title and meta (or og:) description, capped. */
+export function pageInfo(root: Document): PageInfo {
+  const loc = (root as { location?: Location | null }).location;
+  const meta = (sel: string) => root.querySelector?.<HTMLMetaElement>(sel)?.content;
+  return {
+    url: loc && /^https?:$/.test(loc.protocol) ? `${loc.origin}${loc.pathname}` : '',
+    title: flat(root.title, TITLE_MAX),
+    description: flat(meta('meta[name="description" i]') || meta('meta[property="og:description"]'), DESCRIPTION_MAX),
+  };
+}
+
 export function collect(root: Document, measure: Measure = defaultMeasure, limit: number = DEFAULT_LIMIT): Samples {
   const out: Samples = {
     site: (root as { location?: { hostname?: string } }).location?.hostname ?? '',
     colours: [], text: [], spacing: [], radius: [], shadows: [], pairs: [], truncated: false,
+    page: pageInfo(root),
   };
   const start = root.body ?? root.documentElement;
   if (!start) return out;
