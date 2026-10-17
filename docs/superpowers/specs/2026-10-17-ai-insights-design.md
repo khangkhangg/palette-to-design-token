@@ -85,7 +85,7 @@ No new extension permissions. The extension already calls vietnamcos.com over CO
 
 ### 5.1 What the extension sends (and nothing more)
 
-- **The page:** `url` with the query string and fragment stripped (origin plus path only), `title` (≤ 200 chars), and `meta description` (≤ 300 chars).
+- **The page:** `url` reduced to the origin plus the first path segment, and only when that segment is ≤ 24 characters with no digits and no `@` (`https://example.com/shop`); any other path becomes `/` (ruling A14; the server applies the same rule). Also `title` (≤ 200 chars) and `meta description` (≤ 300 chars).
 - **The design summary:** the role colours (hex plus role, up to 10), fonts (families, ≤ 3), type sizes, spacing base, radius, the contrast pass/fail counts and failing pairs. All of it comes from the existing Tokens model.
 - **Language and key:** `lang` (the UI language) and `key`.
 
@@ -93,9 +93,10 @@ The page HTML, the text and other tabs are never sent.
 
 ### 5.2 Server: analyse
 
-1. **Validate.** Check the licence: `plan = 'ai'`, status `active` or paid-through ≥ now. Check quota: analyses used this period < limit, and tokens used this period < the token cap. Check rate limits: 6 analyses/min and 60/hour per licence, and 20/hour per IP.
-2. **Cache.** If any user analysed the same host (lowercased, leading `www.` stripped) in the same language within 7 days, and the design summary's colour set is unchanged, return the cached result. It is marked `cached: true` and **does not use an analysis**.
-3. **Web search.** Two queries, built server-side from title, description and domain: `"<brand or title>" competitors`, and `<sector guess from title/description> <product words> brand website`. Keep the top 8 results from each (title, url, snippet). The provider is configurable (§6.2).
+1. **Validate.** Check the licence: `plan = 'ai'`, not revoked, and `paid_through ≥ now`, or `paid_through + 48 h ≥ now` while `sub_status = 'active'` (renewal grace, ruling A16). Check quota: analyses used this period < limit, and tokens used this period < the token cap (the token cap answers its own `err_token_cap` message, not the out-of-analyses one). Check rate limits: 6 analyses/min and 60/hour per licence, and 20/hour per IP.
+2. **Cache.** If any user analysed the same host (lowercased, leading `www.` stripped) in the same language within 7 days, and the design summary's colour set and the page text are unchanged (the key includes sha1 of the scrubbed title + "\n" + scrubbed description, ruling A13, so one page cannot plant the answer served for another page of the host), return the cached result. It is marked `cached: true` and **does not use an analysis**.
+3. **Web search.** Two queries, built server-side from title, description and domain: `"<brand or title>" competitors`, and `<sector guess from title/description> <product words> brand website`. Keep the top 8 results from each (title, url, snippet). The provider is configurable (§6.2). The model and the search see the page address only as reduced in §5.1.
+   - **Time budget (ruling A17):** the whole request has one 40 s budget (the extension gives up at 45 s). Each search gets at most 8 s; the model call gets the time left, never under 5 s; the "return valid JSON only" retry runs only with ≥ 15 s left; an answer that arrives after 40 s is dropped (503 `err_ai_unavailable`, the analysis released, tokens still recorded).
 4. **AI call.**
    - **Input:** one system prompt plus a user message. The page fields and search snippets are wrapped as untrusted data and must never be followed as instructions.
    - **Output:** the model must answer in `lang`, as JSON matching the schema in §5.3. `max_tokens` 1,800; temperature 0.3.
@@ -139,8 +140,9 @@ The page HTML, the text and other tabs are never sent.
 | `period_start` | DATETIME |
 
 - **Access rule:**
-  - Pro is on when a non-revoked `pro` licence exists, or an `ai` licence has `paid_through ≥ now`.
-  - AI is on when an `ai` licence has `paid_through ≥ now`.
+  - Pro is on when a non-revoked `pro` licence exists, or a non-revoked `ai` licence has `paid_through ≥ now`.
+  - AI is on when a non-revoked `ai` licence has `paid_through ≥ now`.
+  - **Renewal grace (ruling A16):** while `sub_status = 'active'` both stay on until `paid_through + 48 h`, so a renewal PayPal reports late never cuts a paying subscriber off. Cancelled, suspended, expired and revoked licences get no grace. The extension is unchanged: it still allows only 1 h of clock skew past its stored `paidThrough`, so during a late renewal it shows the plan as ended until a re-check sees the new `paid_through` (DEPLOY known limitations).
 - **Upgrading.** A Pro buyer who subscribes keeps their Pro key. The subscription issues a **new** `SDT-` key with `plan ai`, emailed and handed to the extension the same way. The extension stores the AI key and keeps the Pro key as a fallback. The email and the account page explain this.
 - **verify** returns `plan`, `ai_active`, `paid_through`, and `usage {used, limit, resets_on}` when ai.
 
@@ -148,7 +150,7 @@ The page HTML, the text and other tabs are never sent.
 
 - **Price and limits:** `ai_price_usd` "3.99", `ai_monthly_analyses` 100, `ai_monthly_token_cap` 600000.
 - **Web search:** `search_provider` is `"brave"` or `"tavily"`, and `search_key`. It is a secret: never printed, and set through a CLI command in DEPLOY.
-- **PayPal:** `ai_paypal_plan_id` and `ai_paypal_plan_mode`, filled by `setup.php` (§6.4).
+- **PayPal:** `ai_paypal_plan_id`, `ai_paypal_plan_mode` and `ai_paypal_plan_price` (the price the stored plan bills, ruling A18), filled by `setup.php` (§6.4). `sub_secret` (64 hex, generated on first use, never printed or returned) keys the subscription `custom_id` HMAC.
 - **Provider recommendation:** **Brave Search API** for independent web results at a predictable per-query price. Tavily is the alternative. Both sit behind one `palette_search(string $q): array` adapter, and the one in use is a setting. *Prices change; confirm on the provider's site before choosing.*
 
 ### 6.3 AI calls through the companies gateway
@@ -165,27 +167,29 @@ It does **not** call `ai_chat()`, because that applies the per-user monthly cap 
 - **Setup.** `setup.php` (admin) creates, once per mode:
   - a PayPal **catalog product** ("Site to Design Token Pro + AI");
   - a **billing plan**: monthly, USD 3.99, `auto_bill_outstanding=true`, `payment_failure_threshold=1`.
-  - It stores the plan id and mode, and adds the subscription events to the palette webhook (below).
+  - It stores the plan id, mode and price (`ai_paypal_plan_price`), and adds the subscription events to the palette webhook (below).
+  - **Price changes (ruling A18):** Pro + AI is sold only while `ai_paypal_plan_price` equals `ai_price_usd`. After `ai_price_usd` changes, the landing, checkout, terms and FAQ show "Coming soon" (with the stored plan price, never the new one) until `setup.php` creates the plan for the new price. New subscription rows take the plan price; existing subscribers keep the price stored on their row.
 - **Checkout** (`/palette/checkout?plan=ai`):
   - The page loads the PayPal JS SDK with `vault=true&intent=subscription`; the one-time plan keeps `intent=capture`.
   - The SDK can't mix the two in one page load, so the page loads the right one for the chosen plan, and switching plans reloads the SDK.
-  - `createSubscription` sends the server's plan id plus `custom_id = palette-sub:<pending row id>`.
+  - `createSubscription` sends the server's plan id plus `custom_id = palette-sub:<pending row id>:<hmac16>`, where `hmac16` is the first 16 hex of HMAC-SHA256(row id, `sub_secret`). A custom_id without a valid HMAC matches no checkout.
+  - Any error from `subscribe_confirm` after PayPal approved (400, 419, 429, 502, network) locks the form with "We couldn't confirm your subscription. If you were charged, your key will arrive by email — don't subscribe again."; the plan cards are locked while confirming.
   - On approval the page calls `action=subscribe_confirm`. The server GETs the subscription, checks the plan id, status ACTIVE and amount, then issues the `ai` licence (claim-first, idempotent like orders), emails the key and shows it.
 - **Webhook events** (verified as today):
 
   | Event | Effect |
   |---|---|
   | `BILLING.SUBSCRIPTION.ACTIVATED` | Fulfil if not already fulfilled. |
-  | `PAYMENT.SALE.COMPLETED` (each renewal) | Set `paid_through = next_billing_time` (from a GET on the subscription), reset the usage period, record the payment. |
+  | `PAYMENT.SALE.COMPLETED` (each renewal) | Set `paid_through = next_billing_time` (from a GET on the subscription), reset the usage period (only when the payment is more than a day after the current period start), record the payment. On a subscription whose key was revoked or never issued: record it, never extend, log `PALETTE_PAID_UNFULFILLED` and retry the PayPal cancel. |
   | `BILLING.SUBSCRIPTION.CANCELLED` | `sub_status=cancelled`; access stays until `paid_through`. |
   | `BILLING.SUBSCRIPTION.SUSPENDED` / `PAYMENT.FAILED` | `sub_status=suspended`; access stays until `paid_through`, no extension. |
   | `BILLING.SUBSCRIPTION.EXPIRED` | Expired. |
   | `PAYMENT.SALE.REFUNDED` / `REVERSED` | Revoke the `ai` licence immediately. |
 
-  Unknown or non-`palette-sub:` custom ids are ignored, as today. Transient failures answer 503.
+  Non-`palette-sub:` custom ids are ignored, as today. A sale whose subscription carries a `palette-sub:` custom_id that matches no checkout (bad HMAC, wrong plan, `plan_overridden`, missing row), or that cannot be looked up, logs `PALETTE_PAID_UNFULFILLED`. Transient failures answer 503.
 - **Cancel:**
   - The account page shows plan, status, "renews on" or "ends on", and **Cancel subscription**.
-  - That button POSTs `action=sub_cancel` (CSRF, signed-in owner of the key, or a key + email check).
+  - That button POSTs `action=sub_cancel` (CSRF, signed-in owner of the key, or a key + email check). A revoked (refunded) key is accepted too, so its owner can stop billing if the post-refund PayPal cancel failed; the account page shows such a key as "Revoked".
   - The server calls `POST /v1/billing/subscriptions/{id}/cancel` and shows "ends on \<paid_through\>".
   - The cancellation email links to PayPal's own "manage automatic payments" as a backstop.
 - **New tables:**
@@ -197,11 +201,11 @@ It does **not** call `ai_chat()`, because that applies the per-user monthly cap 
 - **Table:** `palette_ai_usage(license_id, period_start, analyses, tokens_in, tokens_out, PRIMARY KEY(license_id, period_start))`.
 - **Period:** the period starts at the subscription's last payment (`period_start`) and resets on each renewal. Before the first renewal, it is the subscription start.
 - **Counting:** a cached result counts 0 analyses and 0 tokens. A failed call counts 0 analyses, but its tokens still count toward the token cap.
-- **Running out:** hitting the analyses limit or the token cap blocks analyse with a clear message until reset.
+- **Running out:** hitting the analyses limit (`err_quota`) or the token cap (`err_token_cap`: "This month's AI limit is used up. It resets on <date>.") blocks analyse with its own message until reset.
 
 ### 6.6 Result cache
 
-`palette_ai_cache(domain, lang, colour_hash, result_json, created_at, PRIMARY KEY(domain, lang, colour_hash))`, 7-day TTL, purged opportunistically.
+`palette_ai_cache(host, lang, colour_hash, page_hash, result_json, created_at, PRIMARY KEY(host, lang, colour_hash, page_hash))`, 7-day TTL, purged opportunistically. `page_hash` = sha1(scrubbed title + "\n" + scrubbed description) (ruling A13).
 
 ## 7. Cost and margin (estimates, to confirm)
 
@@ -218,21 +222,21 @@ It does **not** call `ai_chat()`, because that applies the per-user monthly cap 
   - `palette_sites(id, domain UNIQUE, name, title, sector, tags_json, country NULL, colours_json, fonts_json, first_seen, last_seen, analyses_count, suggested_count)`;
   - `palette_site_links(site_id, related_site_id, relation competitor|similar, source web|ai, seen_count, PRIMARY KEY(site_id, related_site_id, relation))`.
 - **What is written:**
-  - every analysed site: upserted, with counters incremented;
+  - every analysed site: upserted with its domain and brand name only (the `title` column is no longer written and stays NULL, ruling A15), with counters incremented;
   - every suggested site: upserted with name and domain only, `suggested_count++`, plus a link row.
-- **Admin access:** a read-only admin view (`/palette/admin-sites.php`, admin session) lists the most-seen sites with a CSV export. This is enough to judge the data later.
+- **Admin access:** a read-only admin view (`/palette/admin-sites.php`, admin session) lists the most-seen sites with a CSV export (no title column). This is enough to judge the data later.
 - **Privacy:** no user identifiers are stored with sites; only aggregate counts.
 
 ## 9. Extension changes
 
-- **Side panel:** the AI section (G, H, running, I, out-of-quota, ended), a new `ai.ts` client (`analyse`, `getUsage`), result rendering in all 7 languages, and the last-result cache in `chrome.storage.local` (per domain, ≤ 30 entries).
+- **Side panel:** the AI section (G, H, running, I, out-of-quota, ended; a cancelled plan shows "ends <date>" under the usage bar; only `web` sites are links, `ai` suggestions show name, domain and an "AI · check it" badge as plain text, ruling A13), a new `ai.ts` client (`analyse`, `getUsage`), result rendering in all 7 languages, and the last-result cache in `chrome.storage.local` (per domain, ≤ 30 entries).
 - **Upgrade and checkout:** the UnlockSheet becomes the plan chooser (J). Checkout links carry `plan`.
 - **Licence:** stores `plan`, `paid_through` and `usage`. `recheckIfDue` for `ai` licences runs daily, not every 30 days (it needs `paid_through`). Network failure keeps the last known state until `paid_through` + 3 days.
 - **Settings menu:** shows "Pro + AI · renews \<date\>" or "ends \<date\>" with "Manage subscription", which opens `/palette/account`.
 
 ## 10. Privacy, policy and Store
 
-- **Privacy page:** the extension sends nothing unless the user presses Analyse. When they do, it sends the URL (no query string), the title, the description and the design summary to vietnamcos.com, a web-search provider and an AI provider (DeepSeek), to produce the analysis. Results are cached for 7 days. Site names and domains are kept in an aggregate list with no user identifiers.
+- **Privacy page:** the extension sends nothing unless the user presses Analyse. When they do, it sends the site's address (only the main part, like example.com/shop, ruling A14), the title, the description and the design summary to vietnamcos.com, a web-search provider and an AI provider (DeepSeek), to produce the analysis. Results are cached for 7 days. Site names and domains are kept in an aggregate list with no user identifiers, until deleted by the owner (ruling A15). Switching the search or AI provider requires updating this text.
 - **Terms:** the subscription, monthly billing through PayPal, cancelling any time with access until the end of the paid month, no refunds, and the analyses limit (it may change with notice).
 - **Store data disclosure:** add "Website content" (title, description) and "Web history" (the URL of the page analysed, on the user's action only). The "Single purpose" statement stays the same: it extracts and explains a page's design.
 - **Landing page:** the Free / Pro / Pro + AI table and an AI section with a results screenshot.
@@ -247,7 +251,8 @@ It does **not** call `ai_chat()`, because that applies the per-user monthly cap 
   - adult or gambling sites: analysed like any other (no special casing in v1);
   - very new or unknown brands: the AI is instructed to say it is unsure rather than invent, and empty site lists are fine.
 - **Billing events:**
-  - **Renewal arrives late:** access lasts until `paid_through`; the payment event moves it forward.
+  - **Renewal arrives late:** an active subscription keeps access until `paid_through + 48 h` (ruling A16); the payment event moves `paid_through` forward.
+  - **Refund whose PayPal cancel failed:** the next renewal and the daily cron retry the cancel (never extending the revoked key) and alert.
   - **Webhook missed:** a daily cron (`palette/cron-subscriptions.php`, CLI) GETs every active or suspended subscription and reconciles `paid_through` and status.
 - **California tax:** not applied to subscriptions (§3). If the owner later wants it, PayPal plans support a tax percentage per plan; that is a follow-up.
 
