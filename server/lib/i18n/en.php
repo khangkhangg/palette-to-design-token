@@ -80,6 +80,7 @@ return [
     'co_finishing' => 'Finishing your purchase',
     'co_err_network' => 'Could not reach vietnamcos.com. Check your connection and try again.',
     'co_err_confirm' => 'We couldn\'t confirm your payment. If you were charged, your key will arrive by email — or use \'Lost your key?\' below.',
+    'co_err_confirm_sub' => 'We couldn\'t confirm your subscription. If you were charged, your key will arrive by email — don\'t subscribe again.',
     'co_success_title' => 'You\'re Pro. Thank you.',
     'co_key_label' => 'Your license key',
     'co_copy' => 'Copy',

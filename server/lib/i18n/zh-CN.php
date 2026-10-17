@@ -80,6 +80,7 @@ return [
     'co_finishing' => '正在完成购买',
     'co_err_network' => '无法连接 vietnamcos.com。请检查网络连接后重试。',
     'co_err_confirm' => '我们无法确认你的付款。如果已扣款，你的密钥会通过电子邮件发送给你，或使用下方的“密钥丢失了？”。',
+    'co_err_confirm_sub' => '我们无法确认你的订阅。如果已扣款，密钥会通过电子邮件发送给你——请不要再次订阅。',
     'co_success_title' => '你已升级为 Pro。谢谢！',
     'co_key_label' => '你的许可证密钥',
     'co_copy' => '复制',

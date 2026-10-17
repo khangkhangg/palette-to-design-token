@@ -27,7 +27,7 @@ const PALETTE_US_STATES = [
 ];
 // Strings checkout.js needs at runtime.
 const PALETTE_SCRIPT_STRINGS = ['err_email', 'err_paused', 'err_consent', 'err_paypal', 'err_retry', 'err_csrf', 'co_err_region', 'co_err_network',
-    'co_err_confirm', 'co_load_failed', 'co_copy', 'co_copied', 'co_copy_failed', 'co_ext_ok', 'co_ext_paste', 'co_emailed', 'co_key_emailed', 'api_resend_ok', 'acct_added',
+    'co_err_confirm', 'co_err_confirm_sub', 'co_load_failed', 'co_copy', 'co_copied', 'co_copy_failed', 'co_ext_ok', 'co_ext_paste', 'co_emailed', 'co_key_emailed', 'api_resend_ok', 'acct_added',
     // plan chooser (swapped in by checkout.js when the plan changes) and the account subscription panel
     'co_item', 'co_item_ai', 'co_refund', 'co_refund_ai', 'co_card_note', 'co_note_ai', 'co_sub_pending', 'co_success_title', 'co_success_title_ai', 'acct_st_cancelled'];
 

@@ -569,6 +569,39 @@ test('Pro + AI: a first payment PayPal has not reported yet shows the pending me
   await expect(page.locator('.plan-card[data-plan="ai"]')).toHaveAttribute('aria-checked', 'true');
 });
 
+test('Pro + AI: any confirm error after approval locks the form (no second subscription), and the plan cards are locked while confirming', async ({ page }) => {
+  await seed(page);
+  await fakePayPal(page);
+  let release: () => void = () => {};
+  const held = new Promise<void>((r) => { release = r; });
+  // PayPal approved the subscription, then our confirm answers 419 (the session's form token expired).
+  await page.route('**/palette/api.php?action=subscribe_confirm', async (route) => {
+    await held;
+    await route.fulfill({ status: 419, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'err_csrf', message: 'The form expired.' }) });
+  });
+  await page.goto('/palette/checkout?lang=en&plan=ai');
+  await fillForm(page, 'sub@studio.vn');
+  const confirm = page.waitForResponse((r) => r.url().includes('action=subscribe_confirm'));
+  await page.getByTestId('fake-paypal').click();
+  await expect(page.locator('#busy')).toBeVisible();
+  // busy: switching to Pro now would reload PayPal and offer a second payment
+  await page.locator('.plan-card[data-plan="pro"]').click({ force: true });
+  await page.locator('.plan-card[data-plan="ai"]').focus();
+  await page.keyboard.press('ArrowLeft');   // the keyboard path too
+  await expect(page.locator('.plan-card[data-plan="ai"]')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('#plan-pick')).toHaveAttribute('aria-disabled', 'true');
+  release();
+  expect((await confirm).status()).toBe(419);
+  await expect(page.locator('#buy-error')).toHaveText("We couldn't confirm your subscription. If you were charged, your key will arrive by email — don't subscribe again.");
+  await expect(page.locator('#paypal')).toBeHidden();
+  await expect(page.getByTestId('fake-paypal')).toBeHidden();
+  await expect(page.locator('#email')).toBeDisabled();
+  await expect(page.locator('#plan-pick')).toHaveAttribute('aria-disabled', 'true');
+  await page.locator('.plan-card[data-plan="pro"]').click({ force: true });
+  await expect(page.locator('.plan-card[data-plan="ai"]')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('#done')).toBeHidden();
+});
+
 test('Pro + AI: PayPal 503 while confirming says the key is not ready yet', async ({ page }) => {
   await seed(page);
   await fakePayPal(page);

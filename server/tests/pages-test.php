@@ -199,6 +199,13 @@ foreach (LANGS as $l) foreach (['co_h1', 'co_refund', 'co_consent', 'acct_title'
 ok('page keys in every language', $missing === []);
 ok('co_err_confirm en exact', palette_t('en', 'co_err_confirm') === "We couldn't confirm your payment. If you were charged, your key will arrive by email — or use 'Lost your key?' below.");
 ok('co_err_confirm passed to the script', str_contains($en, 'co_err_confirm'));
+ok('co_err_confirm_sub (subscription confirm failed) en exact, passed to the script, in 7 languages',
+    palette_t('en', 'co_err_confirm_sub') === "We couldn't confirm your subscription. If you were charged, your key will arrive by email — don't subscribe again."
+    && str_contains($en, 'co_err_confirm_sub') && count(array_filter(LANGS, fn($l) => ($l === 'en' || palette_t($l, 'co_err_confirm_sub') !== palette_t('en', 'co_err_confirm_sub'))
+        && array_key_exists('co_err_confirm_sub', palette_strings($l)))) === count(LANGS));
+$cjs = (string)file_get_contents(PALETTE_DIR . '/assets/checkout.js');
+ok('checkout.js: every subscribe_confirm failure after approval locks (no showError fallback), plan switch blocked while busy',
+    str_contains($cjs, 'else lock(T.co_err_confirm_sub);') && str_contains($cjs, 'locked || isBusy ||'));
 $missing = [];
 foreach (LANGS as $l) {
     $v = palette_strings($l)['co_key_emailed'] ?? '';

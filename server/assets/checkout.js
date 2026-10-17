@@ -146,6 +146,7 @@
     var buttons = null;
     var plan = data.plan === 'ai' ? 'ai' : 'pro';   // 'ai' = Pro + AI monthly subscription, 'pro' = one-time
     var locked = false;                              // a payment may have gone through: the plan can no longer change
+    var isBusy = false;                              // confirming an approved payment: the plan cannot change either
     var sdkSeq = 0;                                  // which SDK load is current (a stale load must not render)
     var slotLoading = slot ? slot.innerHTML : '';
 
@@ -224,8 +225,11 @@
     });
 
     function busy(on) {
+      isBusy = on;
       show($('busy'), on);
       form.classList.toggle('is-busy', on);
+      var pick = $('plan-pick');
+      if (pick && !locked) { if (on) pick.setAttribute('aria-disabled', 'true'); else pick.removeAttribute('aria-disabled'); }
     }
 
     function success(r) {
@@ -373,10 +377,10 @@
             if (r.ok && r.pending) { pending(); return; }
             if (r.ok) { success(r); return; }
             busy(false);
-            // approved, but we could not confirm it: do not offer a second subscription; the key comes by email
-            if (r.error === 'network' || r.status === 502) lock(T.co_err_confirm);
-            else if (r.status === 503) lock(r.message);        // err_retry: paid, key not ready yet
-            else showError(r.message);
+            // approved, but we could not confirm it (any error: 400, 419, 429, 502, network ...): never offer a second
+            // subscription; the key comes by email
+            if (r.status === 503 && r.error === 'err_retry') lock(r.message);   // paid, key not ready yet
+            else lock(T.co_err_confirm_sub);
           });
         },
       });
@@ -469,7 +473,7 @@
 
     function choose(id) {
       var c = cards.filter(function (x) { return x.getAttribute('data-plan') === id; })[0];
-      if (!c || locked || c.getAttribute('aria-disabled') === 'true' || id === plan) return false;
+      if (!c || locked || isBusy || c.getAttribute('aria-disabled') === 'true' || id === plan) return false;
       plan = id;
       applyPlan();
       syncUrl();
