@@ -409,8 +409,10 @@ function palette_sub_status_event(mysqli $c, string $type, array $res): string
     $sid = $res['id'] ?? null;
     if (!is_string($sid) || !preg_match(PALETTE_SUB_ID_RE, $sid)) return 'ignored';
     $cr = palette_sub_custom_row($c, $res);
-    if ($cr === false) return 'ignored';   // a companies subscription on the shared PayPal app
     $row = palette_sub_row($c, 'subscription_id', $sid);
+    // A row bound to this subscription id needs no valid HMAC (ruling A20); otherwise a bad custom_id is a companies
+    // subscription on the shared PayPal app, or someone else's.
+    if (!$row && $cr === false) return 'ignored';
     if (!$row && is_int($cr)) {
         $row = palette_sub_row($c, 'id', $cr);
         if ($row && $row['subscription_id'] !== null) $row = null;   // bound to another subscription

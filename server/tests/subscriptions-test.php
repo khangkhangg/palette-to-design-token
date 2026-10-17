@@ -474,6 +474,8 @@ ok('A20: the binding skips only the HMAC: a bound renewal on another plan is sti
 // an unbound subscription id presenting the old custom_id is still refused (no binding, bad HMAC)
 route_sub(pp_sub($id, 'ACTIVE', null, ['id' => 'I-OTHERSUB0001', 'custom_id' => $oldCid]), 200, 'I-OTHERSUB0001');
 ok('A20: an unbound subscription with a stale HMAC matches nothing', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-A20-UNB', time() + 11, '3.99', 'I-OTHERSUB0001')) === 'ignored');
+ok('A20: a status event on the bound subscription after a secret change still applies', palette_sub_event($conn, 'BILLING.SUBSCRIPTION.SUSPENDED', pp_sub($id, 'SUSPENDED', null, ['custom_id' => $oldCid])) === 'suspended'
+    && sub_row($conn, $id)['status'] === 'suspended');
 $conn->query("UPDATE admin_settings SET setting_value = '$keptSecret' WHERE setting_key = 'palette_sub_secret'");
 
 // ---- status events
