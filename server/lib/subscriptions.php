@@ -698,14 +698,15 @@ function palette_sub_cancel(mysqli $c, string $rawKey, ?int $userId, ?string $em
     if (!$byUser && !$byEmail) return ['ok' => false, 'error' => 'err_not_owner'];
     $end = $row['revoked_at'] ?? $row['paid_through'];
     $endsOn = $end === null ? null : date('Y-m-d', strtotime($end));
-    if ($row['status'] === 'cancelled' || $row['status'] === 'expired') return ['ok' => true, 'ends_on' => $endsOn];
+    $revoked = $row['revoked_at'] !== null;
+    if ($row['status'] === 'cancelled' || $row['status'] === 'expired') return ['ok' => true, 'ends_on' => $endsOn, 'revoked' => $revoked];
 
     $sid = (string)$row['subscription_id'];
     if (!palette_sub_paypal_cancel($c, $sid, PALETTE_SUB_CANCEL_REASON)) return ['ok' => false, 'error' => 'err_paypal'];
     palette_sub_set_status($c, $row, 'cancelled', ['active', 'suspended']);
     $m = palette_sub_cancel_email((string)$endsOn, (string)$row['lang']);
     if (!palette_mail((string)$row['email'], $m['subject'], $m['html'])) error_log("PALETTE_MAIL_FAILED cancel=$sid");
-    return ['ok' => true, 'ends_on' => $endsOn];
+    return ['ok' => true, 'ends_on' => $endsOn, 'revoked' => $revoked];
 }
 
 // Daily (cron-subscriptions.php): GETs up to 200 active, suspended or still-paid cancelled subscriptions, least

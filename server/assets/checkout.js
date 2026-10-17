@@ -556,7 +556,8 @@
 
     function ended(row, endsOn) {
       var st = row.querySelector('[data-sub-status]');
-      if (st) {
+      // a refunded key stays "Revoked": its cancel only stopped PayPal billing (A19)
+      if (st && !row.classList.contains('is-revoked')) {
         fillWithLtr(st, T.acct_st_cancelled, '{date}', endsOn || '');
         st.className = 'sub-status is-cancelled';
       }

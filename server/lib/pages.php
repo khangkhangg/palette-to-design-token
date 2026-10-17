@@ -628,15 +628,26 @@ function palette_render_account(array $ctx): string
         '<main class="wrap narrow">' . $head . $body . '</main>', ['t' => $strings, 'csrf' => palette_account_csrf_token()]);
 }
 
-// What a stored subscription state means right now: revoked|active|cancelled|suspended|expired. Revoked (refunded) is
-// checked first: its sub_status may still say active when the post-refund PayPal cancel failed. A lapsed paid_through
-// is expired whatever PayPal's last word was; cancelled keeps access until paid_through.
+// What a stored subscription state means right now: revoked|active|pending|cancelled|suspended|expired. Revoked
+// (refunded) is checked first: its sub_status may still say active when the post-refund PayPal cancel failed. An active
+// subscription past paid_through but inside the A16 grace is 'pending' (renewal not reported yet, ruling A19); any
+// other lapsed paid_through is expired whatever PayPal's last word was; cancelled keeps access until paid_through.
 function palette_account_sub_state(array $k): string
 {
     if (!empty($k['revoked'])) return 'revoked';
     $pt = is_string($k['paid_through'] ?? null) ? strtotime($k['paid_through']) : false;
-    if ($pt === false || $pt < time()) return 'expired';
+    if ($pt === false) return 'expired';
+    if ($pt < time()) {
+        $until = palette_access_until(['paid_through' => $k['paid_through'], 'sub_status' => $k['sub_status'] ?? null]);
+        return $until !== null && $until >= time() ? 'pending' : 'expired';
+    }
     return in_array($k['sub_status'], ['active', 'cancelled', 'suspended'], true) ? $k['sub_status'] : 'expired';
+}
+
+// A refunded (revoked) key whose PayPal subscription may still bill: the post-refund cancel failed (ruling A19).
+function palette_account_revoked_billing(array $k): bool
+{
+    return !empty($k['revoked']) && in_array($k['sub_status'] ?? null, ['active', 'suspended'], true);
 }
 
 function palette_account_plan_line(string $lang, array $k): string
@@ -650,16 +661,20 @@ function palette_account_plan_line(string $lang, array $k): string
         . ($state === 'active' ? '<span data-sub-renews>' . palette_t_html($lang, 'acct_renews', ['date' => $date]) . '</span>' : '') . '</span>';
 }
 
-// Cancel button + in-page confirm step (no window.confirm); only for a live subscription that is not already cancelled.
+// Cancel button + in-page confirm step (no window.confirm); only for a live subscription that is not already cancelled,
+// or for a revoked key PayPal may still bill (A19: the owner must be able to stop that billing).
 function palette_account_cancel_panel(string $lang, array $k): string
 {
-    if ($k['revoked'] || $k['plan'] !== 'ai' || !in_array(palette_account_sub_state($k), ['active', 'suspended'], true)) return '';
+    if ($k['plan'] !== 'ai') return '';
+    $revokedBilling = palette_account_revoked_billing($k);
+    if (!$revokedBilling && ($k['revoked'] || !in_array(palette_account_sub_state($k), ['active', 'pending', 'suspended'], true))) return '';
     $t = fn(string $key) => palette_h(palette_t($lang, $key));
     $date = substr((string)$k['paid_through'], 0, 10);
+    $ask = $revokedBilling ? $t('acct_cancel_ask_revoked') : palette_t_html($lang, 'acct_cancel_ask', ['date' => palette_ltr($date)]);
     return '<div class="sub-panel">'
         . '<button type="button" class="btn btn-quiet btn-sm" data-cancel-open>' . $t('acct_cancel') . '</button>'
         . '<div class="cancel-confirm" role="group" aria-label="' . $t('acct_cancel') . '" hidden>'
-        . '<p>' . palette_t_html($lang, 'acct_cancel_ask', ['date' => palette_ltr($date)]) . '</p>'
+        . '<p>' . $ask . '</p>'
         . '<div class="cancel-actions"><button type="button" class="btn btn-danger btn-sm" data-cancel-yes>' . $t('acct_cancel_yes') . '</button>'
         . '<button type="button" class="btn btn-quiet btn-sm" data-cancel-keep>' . $t('acct_cancel_keep') . '</button></div></div>'
         . '<p class="sub-msg" role="status"></p></div>';

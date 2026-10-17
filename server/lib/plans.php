@@ -17,3 +17,13 @@ function palette_licence_access(array $lic, ?int $now = null): array
     $paid = $t !== false && $t + $grace >= $now;
     return ['pro' => $paid, 'ai' => $paid];
 }
+
+// Ruling A19: the moment access ends, as the extension should see it (unix time, null when never paid):
+// paid_through + 48 h while sub_status is 'active' (A16 grace), else paid_through.
+function palette_access_until(array $lic): ?int
+{
+    $pt = $lic['paid_through'] ?? null;
+    $t = is_string($pt) ? strtotime($pt) : false;
+    if ($t === false) return null;
+    return $t + (($lic['sub_status'] ?? null) === 'active' ? PALETTE_RENEWAL_GRACE : 0);
+}

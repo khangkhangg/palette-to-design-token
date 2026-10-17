@@ -98,9 +98,20 @@ $v = palette_verify($conn, $ai['key'], '10.1.0.1');
 ok('ai verify: plan, ai_active, paid_through ISO', $v['valid'] === true && $v['plan'] === 'ai' && $v['ai_active'] === true
     && $v['paid_through'] === date('c', strtotime($pt)) && $v['email_masked'] === 'a***@studio.vn');
 ok('ai verify: sub_status active', $v['sub_status'] === 'active');
+// ruling A19: access_until = paid_through + 48 h while active, else paid_through (ISO 8601 with offset)
+ok('A19: active -> access_until = paid_through + 48 h', ($v['access_until'] ?? null) === date('c', strtotime($pt) + 48 * 3600)
+    && preg_match('/[+-]\d\d:\d\d$/', (string)($v['access_until'] ?? '')) === 1);
 $conn->query("UPDATE palette_licenses SET sub_status='cancelled' WHERE id={$ai['id']}");
-ok('ai verify: sub_status cancelled', palette_verify($conn, $ai['key'], '10.1.0.1')['sub_status'] === 'cancelled');
-$conn->query("UPDATE palette_licenses SET sub_status='active' WHERE id={$ai['id']}");
+$v = palette_verify($conn, $ai['key'], '10.1.0.1');
+ok('ai verify: sub_status cancelled', $v['sub_status'] === 'cancelled');
+ok('A19: cancelled -> access_until = paid_through (no grace)', ($v['access_until'] ?? null) === date('c', strtotime($pt)));
+$conn->query("UPDATE palette_licenses SET sub_status='suspended' WHERE id={$ai['id']}");
+ok('A19: suspended -> access_until = paid_through', (palette_verify($conn, $ai['key'], '10.1.0.1')['access_until'] ?? null) === date('c', strtotime($pt)));
+$conn->query("UPDATE palette_licenses SET paid_through=NULL WHERE id={$ai['id']}");
+$v = palette_verify($conn, $ai['key'], '10.1.0.1');
+ok('A19: no paid_through -> access_until null', array_key_exists('access_until', $v) && $v['access_until'] === null);
+ok('A19: pro verify has no access_until', !array_key_exists('access_until', palette_verify($conn, $pro['key'], '10.1.0.1')));
+$conn->query("UPDATE palette_licenses SET sub_status='active', paid_through='$pt' WHERE id={$ai['id']}");
 $conn->query("UPDATE palette_licenses SET paid_through='" . $fmt($now - $day) . "' WHERE id={$ai['id']}");
 $v = palette_verify($conn, $ai['key'], '10.1.0.1');
 ok('A16: active ai a day past paid_through: still ai_active (48 h grace)', $v['ai_active'] === true && $v['valid'] === true);

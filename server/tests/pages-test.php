@@ -481,7 +481,9 @@ $futureDay = substr($future, 0, 10);
 $kAct = $mk('s1@studio.vn', 'SUBACT1', 'active', $future);
 $kCan = $mk('s2@studio.vn', 'SUBCAN1', 'cancelled', $future);
 $kSus = $mk('s3@studio.vn', 'SUBSUS1', 'suspended', $future);
-$kExp = $mk('s4@studio.vn', 'SUBEXP1', 'active', date('Y-m-d H:i:s', time() - 86400));
+$kExp = $mk('s4@studio.vn', 'SUBEXP1', 'active', date('Y-m-d H:i:s', time() - 3 * 86400));   // past the 48 h grace (A16)
+$kGrace = $mk('s7@studio.vn', 'SUBGRC1', 'active', date('Y-m-d H:i:s', time() - 86400));    // inside the 48 h grace
+$kCanLapsed = $mk('s8@studio.vn', 'SUBCNL1', 'cancelled', date('Y-m-d H:i:s', time() - 3600));
 $kPro = palette_issue_license($conn, 's5@studio.vn', 'SUBPRO1', 'en')['key'];
 palette_claim($conn, $kPro, 21);
 $acct = fn(string $l = 'en', int $uid = 21) => palette_render_account(['query' => ['lang' => $l], 'accept_language' => '', 'session' => ['user_id' => $uid]]);
@@ -502,13 +504,35 @@ $rSus = $row($out, $kSus);
 ok('account suspended key: status shown, Cancel offered', str_contains($rSus, h(palette_t('en', 'acct_st_suspended'))) && str_contains($rSus, 'data-cancel-open'));
 $rExp = $row($out, $kExp);
 ok('account lapsed key: expired, no Cancel button', str_contains($rExp, h(palette_t('en', 'acct_st_expired'))) && !str_contains($rExp, 'data-cancel-open'));
+// ruling A19: inside the A16 grace an active subscription is "Renewal pending", not Expired; cancel still offered
+$rGrace = $row($out, $kGrace);
+ok('A19 account: active key 1 day past paid_through -> Renewal pending, not Expired, Cancel offered', str_contains($rGrace, h(palette_t('en', 'acct_st_pending')))
+    && !str_contains($rGrace, h(palette_t('en', 'acct_st_expired'))) && str_contains($rGrace, 'is-pending') && !str_contains($rGrace, 'data-sub-renews')
+    && str_contains($rGrace, 'data-cancel-open'));
+$rCanLapsed = $row($out, $kCanLapsed);
+ok('A19 account: a cancelled key past paid_through gets no grace -> Expired', str_contains($rCanLapsed, h(palette_t('en', 'acct_st_expired')))
+    && !str_contains($rCanLapsed, h(palette_t('en', 'acct_st_pending'))));
+ok('A19 account sub state truth table', palette_account_sub_state(['revoked' => false, 'sub_status' => 'active', 'paid_through' => date('Y-m-d H:i:s', time() - 47 * 3600)]) === 'pending'
+    && palette_account_sub_state(['revoked' => false, 'sub_status' => 'active', 'paid_through' => date('Y-m-d H:i:s', time() - 49 * 3600)]) === 'expired'
+    && palette_account_sub_state(['revoked' => false, 'sub_status' => 'suspended', 'paid_through' => date('Y-m-d H:i:s', time() - 3600)]) === 'expired'
+    && palette_account_sub_state(['revoked' => false, 'sub_status' => 'active', 'paid_through' => date('Y-m-d H:i:s', time() + 3600)]) === 'active');
 // a refunded key whose PayPal cancel failed still has sub_status active and a future paid_through: revoked wins
 $kRev = $mk('s6@studio.vn', 'SUBREV1', 'active', $future);
 $conn->query("UPDATE palette_licenses SET revoked_at = NOW() WHERE license_key = '$kRev'");
 $rRev = $row($acct(), $kRev);
-ok('account revoked ai key: "Revoked", never "Active · Renews", no Cancel panel', str_contains($rRev, h(palette_t('en', 'acct_st_revoked')))
-    && str_contains($rRev, 'is-revoked') && !str_contains($rRev, h(palette_t('en', 'acct_st_active'))) && !str_contains($rRev, 'data-sub-renews')
-    && !str_contains($rRev, 'data-cancel-open'));
+ok('account revoked ai key: "Revoked", never "Active · Renews"', str_contains($rRev, h(palette_t('en', 'acct_st_revoked')))
+    && str_contains($rRev, 'is-revoked') && !str_contains($rRev, h(palette_t('en', 'acct_st_active'))) && !str_contains($rRev, 'data-sub-renews'));
+// A19: PayPal may still bill a revoked key whose post-refund cancel failed: its signed-in owner gets a cancel button
+ok('A19 account: revoked key still billing (active) -> Cancel offered with the revoked confirm text', str_contains($rRev, 'data-cancel-open')
+    && str_contains($rRev, h(palette_t('en', 'acct_cancel_ask_revoked'))) && !str_contains($rRev, palette_t_html('en', 'acct_cancel_ask', ['date' => palette_ltr($futureDay)])));
+$kRevSus = $mk('s9@studio.vn', 'SUBREV2', 'suspended', $future);
+$kRevCan = $mk('s10@studio.vn', 'SUBREV3', 'cancelled', $future);
+$conn->query("UPDATE palette_licenses SET revoked_at = NOW() WHERE license_key IN ('$kRevSus', '$kRevCan')");
+$outRev = $acct();
+ok('A19 account: revoked + suspended -> Cancel offered', str_contains($row($outRev, $kRevSus), 'data-cancel-open'));
+ok('A19 account: revoked + cancelled -> no Cancel', !str_contains($row($outRev, $kRevCan), 'data-cancel-open'));
+foreach (LANGS as $l) foreach (['acct_st_pending', 'acct_cancel_ask_revoked', 'sub_cancel_ok_revoked'] as $nk)
+    ok("$nk in $l, translated, no emoji", trim(palette_t($l, $nk)) !== '' && !preg_match(EMOJI_RE, palette_t($l, $nk)) && ($l === 'en' || palette_t($l, $nk) !== palette_t('en', $nk)));
 foreach (LANGS as $l) ok("acct_st_revoked in $l", trim(palette_t($l, 'acct_st_revoked')) !== '' && ($l === 'en' || palette_t($l, 'acct_st_revoked') !== palette_t('en', 'acct_st_revoked')));
 $rPro = $row($out, $kPro);
 ok('account pro key: Pro, one-time, no Cancel', str_contains($rPro, h(palette_t('en', 'acct_one_time'))) && !str_contains($rPro, 'data-cancel-open') && !str_contains($rPro, 'Pro + AI'));

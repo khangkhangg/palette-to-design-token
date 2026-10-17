@@ -14,7 +14,8 @@
 // action=analyse runs end to end: canned search results (a query containing "dev-search-down" gets HTTP 500), and a
 // canned valid answer that uses the first two sent hexes (a title containing "dev-ai-fail" gets HTTP 503). With it,
 // /__dev/seed also stores a dev platform AI key and search key, clears the AI tables and takes ?ext=<extension id>,
-// /__dev/license takes ?plan=ai (paid 30 days ahead; &ended=1 for one that lapsed yesterday) and /__dev/login takes
+// /__dev/license takes ?plan=ai (paid 30 days ahead; &ended=1 for one that lapsed 3 days ago, past the A16 grace;
+// &grace=1 for one that lapsed yesterday, inside it; &user_id=N claims it; &revoked=1 revokes it) and /__dev/login takes
 // &role=admin (for /palette/admin-sites). Combine with PALETTE_DEV_PP_STUB=1 for PayPal; without it PayPal and Resend
 // calls get a stub 500, never the network.
 foreach (['DB_HOST_LOCAL' => '127.0.0.1', 'DB_HOST_REMOTE' => '127.0.0.1', 'DB_USERNAME' => 'palette',
@@ -177,7 +178,7 @@ if ($dev && $path === '/__dev/license') {   // issue a key as if bought by ?emai
     $lic = palette_issue_license($conn, (string)($_GET['email'] ?? 'dev@studio.vn'), 'DEV-' . bin2hex(random_bytes(4)), 'en');
     if (($_GET['plan'] ?? '') === 'ai') {
         // A subscription licence with its palette_subscriptions row, so the account page can show and cancel it.
-        $paid = date('Y-m-d H:i:s', ($_GET['ended'] ?? '') === '1' ? time() - 86400 : time() + 30 * 86400);
+        $paid = date('Y-m-d H:i:s', ($_GET['ended'] ?? '') === '1' ? time() - 3 * 86400 : (($_GET['grace'] ?? '') === '1' ? time() - 86400 : time() + 30 * 86400));
         $start = date('Y-m-d H:i:s', time() - 60);
         $sid = 'I-DEVLIC' . $lic['id'];
         $st = $conn->prepare("UPDATE palette_licenses SET plan = 'ai', sub_status = 'active', paid_through = ?, period_start = ?, subscription_id = ? WHERE id = ?");
@@ -192,6 +193,8 @@ if ($dev && $path === '/__dev/license') {   // issue a key as if bought by ?emai
         $st->execute();
         $st->close();
     }
+    if (ctype_digit((string)($_GET['user_id'] ?? ''))) $conn->query('UPDATE palette_licenses SET user_id = ' . (int)$_GET['user_id'] . ' WHERE id = ' . (int)$lic['id']);
+    if (($_GET['revoked'] ?? '') === '1') $conn->query('UPDATE palette_licenses SET revoked_at = NOW() WHERE id = ' . (int)$lic['id']);
     echo $lic['key'];
     return true;
 }

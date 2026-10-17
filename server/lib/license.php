@@ -84,6 +84,8 @@ function palette_verify(mysqli $c, string $rawKey, string $ip): array
         $out['ai_active'] = $acc['ai'];
         $out['sub_status'] = $row['sub_status'];
         $out['paid_through'] = $row['paid_through'] === null ? null : date('c', strtotime($row['paid_through']));
+        $until = palette_access_until($row);
+        $out['access_until'] = $until === null ? null : date('c', $until);
         $u = palette_usage_get($c, $row, palette_settings($c));
         $out['usage'] = ['used' => $u['used'], 'limit' => $u['limit'], 'resets_on' => $u['resets_on']];
     }

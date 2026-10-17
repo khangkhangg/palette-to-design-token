@@ -162,8 +162,9 @@ function palette_api_handle(array $req): array
             $uid = (is_int($uid) || (is_string($uid) && ctype_digit($uid))) && (int)$uid > 0 ? (int)$uid : null;
             $r = palette_sub_cancel($conn, $str('key'), $uid, $str('email') !== '' ? $str('email') : null);
             if (!$r['ok']) return palette_api_error(['err_invalid_key' => 400, 'err_not_owner' => 403][$r['error']] ?? 502, $r['error'], $lang);
-            return palette_api_reply(200, ['ok' => true, 'ends_on' => $r['ends_on'],
-                'message' => palette_t($lang, 'sub_cancel_ok', ['date' => (string)$r['ends_on']])]);
+            // A19: a refunded key had no access to keep; its cancel only stops PayPal billing.
+            return palette_api_reply(200, ['ok' => true, 'ends_on' => $r['ends_on'], 'revoked' => $r['revoked'],
+                'message' => $r['revoked'] ? palette_t($lang, 'sub_cancel_ok_revoked') : palette_t($lang, 'sub_cancel_ok', ['date' => (string)$r['ends_on']])]);
         case 'resend':
             $email = $str('email');
             $res = palette_api_reply(200, ['ok' => true, 'message' => palette_t($lang, 'api_resend_ok')]);

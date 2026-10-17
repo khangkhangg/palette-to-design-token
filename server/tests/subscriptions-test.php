@@ -556,7 +556,7 @@ ok('cancel with no identity -> not owner', palette_sub_cancel($conn, $lic['licen
 ok('cancel bad key -> invalid', palette_sub_cancel($conn, 'SDT-0000-0000-0000', 42, null) === ['ok' => false, 'error' => 'err_invalid_key']);
 $r = palette_sub_cancel($conn, $lic['license_key'], 42, null);
 $cc = calls_to('POST', '/v1/billing/subscriptions/' . SUB . '/cancel');
-ok('cancel by the signed-in owner -> ok, ends_on = paid_through', $r === ['ok' => true, 'ends_on' => substr($lic['paid_through'], 0, 10)]);
+ok('cancel by the signed-in owner -> ok, ends_on = paid_through', $r === ['ok' => true, 'ends_on' => substr($lic['paid_through'], 0, 10), 'revoked' => false]);
 ok('PayPal cancel called with the reason', count($cc) === 1 && $cc[0]['body'] === ['reason' => 'Cancelled by customer']);
 ok('cancel: status cancelled, access kept', ai_lic($conn)['sub_status'] === 'cancelled' && sub_row($conn, $id)['status'] === 'cancelled'
     && ai_lic($conn)['paid_through'] === $lic['paid_through'] && ai_lic($conn)['revoked_at'] === null);
@@ -587,6 +587,17 @@ ok('#1: revoked key, stranger -> not owner, no PayPal call', palette_sub_cancel(
 $r = palette_sub_cancel($conn, $lic['license_key'], null, 'buyer@studio.vn');
 ok('#1: revoked key, owner -> cancelled in PayPal and here', $r['ok'] === true && count(calls_to('POST', '/v1/billing/subscriptions/' . SUB . '/cancel')) === 1
     && sub_row($conn, $id)['status'] === 'cancelled' && ai_lic($conn)['revoked_at'] !== null);
+ok('A19: cancel result flags a revoked key', ($r['revoked'] ?? null) === true);
+
+// A19: the API answers a revoked key's cancel with the stop-billing message, not "stay on until"
+s_reset($conn);
+[$id, $lic] = active_sub($conn);
+$conn->query("UPDATE palette_licenses SET revoked_at = NOW() WHERE id = " . (int)$lic['id']);
+$GLOBALS['pp_routes']['POST /v1/billing/subscriptions/' . SUB . '/cancel'] = ['status' => 204, 'json' => null];
+$_SESSION = [];
+$r = call('POST', 'sub_cancel', ['key' => $lic['license_key'], 'email' => 'buyer@studio.vn', 'csrf' => generateCSRFToken('palette_account'), 'lang' => 'fr']);
+ok('A19: API sub_cancel on a revoked key -> sub_cancel_ok_revoked', $r['status'] === 200 && $r['body']['message'] === palette_t('fr', 'sub_cancel_ok_revoked'));
+$conn->query('DELETE FROM palette_rate');
 
 // API sub_cancel: palette_account CSRF, 403 for strangers
 s_reset($conn);
@@ -602,6 +613,7 @@ ok('API sub_cancel by a stranger -> 403', $r['status'] === 403 && $r['body']['er
 $r = call('POST', 'sub_cancel', ['key' => $lic['license_key'], 'email' => 'buyer@studio.vn', 'csrf' => $ak, 'lang' => 'es']);
 ok('API sub_cancel by key + email -> 200 ends_on + message', $r['status'] === 200 && $r['body']['ok'] === true && $r['body']['ends_on'] === substr($lic['paid_through'], 0, 10)
     && $r['body']['message'] === palette_t('es', 'sub_cancel_ok', ['date' => substr($lic['paid_through'], 0, 10)]));
+ok('A19: cancel of a live key is not flagged revoked', palette_sub_cancel($conn, $lic['license_key'], null, 'buyer@studio.vn')['revoked'] === false);
 ok('API sub_cancel bad key -> 400', call('POST', 'sub_cancel', ['key' => 'nope', 'csrf' => $ak])['status'] === 400);
 $conn->query('DELETE FROM palette_rate');
 for ($i = 0; $i < 10; $i++) call('POST', 'sub_cancel', ['key' => 'nope', 'csrf' => $ak]);

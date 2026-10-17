@@ -741,6 +741,41 @@ test('account: a lapsed subscription is shown as expired with no Cancel button',
   await page.request.get('/__dev/login?user_id=0');
 });
 
+test('account: inside the 48 h renewal grace an active subscription shows Renewal pending, not Expired (A19)', async ({ page }) => {
+  await seed(page);
+  const key = await (await page.request.get('/__dev/license?email=late@studio.vn&plan=ai&grace=1')).text();
+  await page.request.get('/__dev/login?user_id=7');
+  await page.goto(`/palette/account?key=${key}&lang=en`);
+  await page.getByRole('button', { name: 'Add key' }).click();
+  await expect(page).toHaveURL('/palette/account?lang=en');
+  const row = page.locator(`.keyrow[data-key="${key}"]`);
+  await expect(row.locator('[data-sub-status]')).toHaveText('Renewal pending');
+  await expect(row.locator('[data-sub-renews]')).toHaveCount(0);
+  await expect(row.getByRole('button', { name: 'Cancel subscription' })).toBeVisible();
+  await page.request.get('/__dev/login?user_id=0');
+});
+
+test('account: a refunded key PayPal still bills can be cancelled by its signed-in owner and stays Revoked (A19)', async ({ page }) => {
+  await seed(page);
+  const key = await (await page.request.get('/__dev/license?email=refund@studio.vn&plan=ai&user_id=7&revoked=1')).text();
+  await page.request.get('/__dev/login?user_id=7');
+  await page.goto('/palette/account?lang=en');
+  page.on('dialog', (d) => { throw new Error('unexpected native dialog: ' + d.message()); });
+  const row = page.locator(`.keyrow[data-key="${key}"]`);
+  await expect(row.locator('[data-sub-status]')).toHaveText('Revoked');
+  await row.getByRole('button', { name: 'Cancel subscription' }).click();
+  await expect(row.locator('.cancel-confirm')).toContainText('This key was refunded and gives no access.');
+  const reply = page.waitForResponse((r) => r.url().includes('action=sub_cancel'));
+  await row.getByRole('button', { name: 'Yes, cancel subscription' }).click();
+  expect((await reply).status()).toBe(200);
+  await expect(row.locator('.sub-msg')).toHaveText('Your subscription is cancelled. PayPal will not bill you again.');
+  await expect(row.locator('[data-sub-status]')).toHaveText('Revoked');
+  await page.reload();
+  await expect(row.locator('[data-sub-status]')).toHaveText('Revoked');
+  await expect(row.getByRole('button', { name: 'Cancel subscription' })).toHaveCount(0);
+  await page.request.get('/__dev/login?user_id=0');
+});
+
 test('account: cancel by key while signed out needs the subscribing email', async ({ page }) => {
   await seed(page);
   const key = await (await page.request.get('/__dev/license?email=who@studio.vn&plan=ai')).text();
