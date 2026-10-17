@@ -25,7 +25,7 @@ If any of these change in companies, this add-on must be updated.
 `palette_rate(bucket, window_start, count)` backs `palette_rate_hit($bucket, $max, $windowSec, ?$now)` in `lib/rate.php`:
 fixed windows, an atomic `INSERT ... ON DUPLICATE KEY UPDATE count = count + 1`, and a purge of its own rows older than a
 day on about 1 in 50 calls. Buckets: `verify:ip:` 30/60 s, `resend:ip:` 10/h, `resend:email:<sha1>` 3/h, `create:ip:` 20/h,
-`claim:user:` 30/h, `ai:min:<license id>` 6/60 s, `ai:hour:<license id>` 60/h, `ai:ip:` 20/h.
+`claim:user:` 30/h, `sub:start:ip:` 10/h, `ai:min:<license id>` 6/60 s, `ai:hour:<license id>` 60/h, `ai:ip:` 20/h.
 
 AI insights tables: `palette_ai_usage` (lib/usage.php), `palette_ai_cache(host, lang, colour_hash, result_json, created_at)`
 (lib/analyse.php: 7-day TTL, expired rows purged on every store) and the private site list `palette_sites` +
@@ -51,6 +51,19 @@ AI insights tables: `palette_ai_usage` (lib/usage.php), `palette_ai_cache(host, 
 - When the stored `webhook_mode` differs from companies' current PayPal mode, every webhook
   call logs it; re-run `setup.php`.
 - A refund or reversal revokes the order's license; the order row keeps status `captured`.
+- Subscriptions (Pro + AI, `lib/subscriptions.php`): `subscribe_start` reserves a `palette_subscriptions` row (`pending`)
+  and returns the plan id + `custom_id = palette-sub:<row id>`; `palette_sub_fulfil` is claim-first like orders
+  (`UPDATE ... WHERE status='pending'` in a transaction) and issues a new `plan 'ai'` key (`order_id` = the `I-...`
+  subscription id, `paid_through` = PayPal's `next_billing_time`, `period_start` = now, PHP time per ruling A4).
+  `BILLING.SUBSCRIPTION.*` and `PAYMENT.SALE.*` events go to `palette_sub_event`: ACTIVATED fulfils a pending row;
+  SALE.COMPLETED records the sale (`sale_id` unique; a duplicate answers `already`), fulfils first if the row is still
+  pending, then moves `paid_through` forward only and `period_start` to the sale time only when later (resets usage);
+  sales below `ai_price_usd` in USD are logged and ignored. CANCELLED / SUSPENDED / PAYMENT.FAILED / EXPIRED change the
+  status only (cancelled and expired are never overridden by a late suspension); SALE.REFUNDED / REVERSED revoke the
+  licence (subscription found through `palette_sub_payments` by sale id, else `billing_agreement_id`). Subscriptions whose
+  `custom_id` is not `palette-sub:` are ignored. Licences are never deleted.
+- `cron-subscriptions.php` (CLI only, 404 over HTTP) runs `palette_sub_reconcile` daily: up to 200 active, suspended or
+  still-paid cancelled subscriptions, least recently updated first; it syncs status and catches missed renewals.
 
 ## Running tests locally
 
@@ -80,6 +93,9 @@ Errors are `{ok:false, error:<i18n key>, message:<localised>}`; 419 bad CSRF, 42
 `create` stores the PayPal order id in `$_SESSION['palette_orders']`; `capture` returns the key only for those ids, otherwise `{ok:true, key:null, email_masked, message}` (the key was emailed).
 `verify` sends CORS headers only for `chrome-extension://<id>` origins whose id is in the `extension_ids` setting; the client IP is `palette_client_ip($_SERVER)`: `CF-Connecting-IP` only when `REMOTE_ADDR` is inside Cloudflare's published ranges (`PALETTE_CLOUDFLARE_CIDRS`, refresh yearly), else `REMOTE_ADDR`; never `X-Forwarded-For`.
 `resend` answers first and runs `palette_resend` after `fastcgi_finish_request()` (ruling S4); on servers without it (CLI, `php -S`) the work stays synchronous.
+`subscribe_start` (CSRF `palette_checkout`, `sub:start:ip:` 10/h; `{email, consent, lang}` -> `{ok, plan_id, custom_id}`, 503 `err_paused` when no plan exists for the current PayPal mode) stores the row id in `$_SESSION['palette_subs']` (last 20).
+`subscribe_confirm` (`{subscription_id}` matching `I-[A-Z0-9]{6,32}`) GETs the subscription and checks custom_id, plan and last payment: 202 `{ok, pending:true}` while APPROVAL_PENDING / APPROVED, 503 `err_retry` on a PayPal outage, else the key, which only the session in `palette_subs` sees (others get `key: null` and the emailed message).
+`sub_cancel` (CSRF form `palette_account`; `{key, email?}`) needs the signed-in user who claimed the key or the subscribing email (case-insensitive), 403 `err_not_owner` otherwise; PayPal 204 or 422 (already cancelled) both count as cancelled; answers `{ok, ends_on, message}` and emails a confirmation. Access stays until `paid_through`.
 
 `analyse` (POST JSON, no CSRF, same CORS and preflight as `verify`; bodies over 16 KB answer 413) runs `palette_analyse()` in
 `lib/analyse.php`. Request: `{key, url, title, description, lang, design}` where `design` is

@@ -30,14 +30,22 @@ function palette_mask_email(string $email): string
     return (mb_strlen($local) <= 1 ? '*' : mb_substr($local, 0, 1) . '***') . substr($email, $at);
 }
 
-function palette_issue_license(mysqli $c, string $email, string $orderId, string $lang): array
+// $ai = null issues a one-time Pro key. For a subscription pass ['subscription_id', 'paid_through', 'period_start']
+// (PHP-time DATETIME strings, ruling A4): the key gets plan 'ai' and sub_status 'active'.
+function palette_issue_license(mysqli $c, string $email, string $orderId, string $lang, ?array $ai = null): array
 {
     $email = strtolower(trim($email));
     $lang = palette_lang($lang);
+    $plan = $ai === null ? 'pro' : 'ai';
+    $subId = $ai === null ? null : (string)$ai['subscription_id'];
+    $status = $ai === null ? null : 'active';
+    $paid = $ai === null ? null : (string)$ai['paid_through'];
+    $start = $ai === null ? null : (string)$ai['period_start'];
     for ($try = 0; $try < 10; $try++) {
         $key = palette_new_key();
-        $st = $c->prepare('INSERT INTO palette_licenses (license_key, email, order_id, lang, created_at) VALUES (?, ?, ?, ?, NOW())');
-        $st->bind_param('ssss', $key, $email, $orderId, $lang);
+        $st = $c->prepare('INSERT INTO palette_licenses (license_key, email, order_id, lang, created_at, plan, subscription_id, sub_status, paid_through, period_start)
+                           VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?)');
+        $st->bind_param('sssssssss', $key, $email, $orderId, $lang, $plan, $subId, $status, $paid, $start);
         try {
             $st->execute();
             $id = (int)$c->insert_id;

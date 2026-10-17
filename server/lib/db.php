@@ -79,6 +79,9 @@ function palette_migrate(mysqli $conn): void
         UNIQUE KEY sale_id (sale_id),
         KEY subscription_id (subscription_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    // Lookups by subscription id (webhooks, reconcile) and by licence (cancel, account page).
+    palette_add_index($conn, 'palette_licenses', 'subscription_id', 'subscription_id');
+    palette_add_index($conn, 'palette_subscriptions', 'license_id', 'license_id');
     $conn->query("CREATE TABLE IF NOT EXISTS palette_ai_usage (
         license_id   INT NOT NULL,
         period_start DATETIME NOT NULL,
@@ -120,6 +123,17 @@ function palette_migrate(mysqli $conn): void
         seen_count      INT NOT NULL DEFAULT 1,
         PRIMARY KEY (site_id, related_site_id, relation)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+// Idempotent: adds the index only when INFORMATION_SCHEMA says no index of that name exists.
+function palette_add_index(mysqli $conn, string $table, string $index, string $columns): void
+{
+    $st = $conn->prepare('SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?');
+    $st->bind_param('ss', $table, $index);
+    $st->execute();
+    $exists = $st->get_result()->num_rows > 0;
+    $st->close();
+    if (!$exists) $conn->query("ALTER TABLE `$table` ADD INDEX `$index` ($columns)");
 }
 
 // Idempotent ALTER: adds the column only when INFORMATION_SCHEMA says it is missing.
