@@ -386,10 +386,17 @@ palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-R', time() + 5));
 ok('payment after suspension reactivates', ai_lic($conn)['sub_status'] === 'active' && sub_row($conn, $id)['status'] === 'active');
 ok('custom_id mismatch with the bound row -> ignored', palette_sub_event($conn, 'BILLING.SUBSCRIPTION.CANCELLED', pp_sub($id + 1, 'CANCELLED')) === 'ignored'
     && ai_lic($conn)['sub_status'] === 'active');
-// lapsed: verify keeps plan ai with ai_active false (ruling A3)
+// renewal lag (ruling A16): an active subscription keeps AI for 48 h past paid_through
 $conn->query("UPDATE palette_licenses SET paid_through = '" . local(time() - 60) . "'");
 $v = palette_verify($conn, $lic['license_key'], '10.0.0.4');
-ok('after paid_through: plan ai, ai_active false, not revoked', $v['plan'] === 'ai' && $v['ai_active'] === false && $v['revoked'] === false);
+ok('A16: active, just past paid_through: verify still valid + ai_active', $v['valid'] === true && $v['ai_active'] === true && $v['sub_status'] === 'active');
+$conn->query("UPDATE palette_licenses SET sub_status = 'cancelled'");
+$v = palette_verify($conn, $lic['license_key'], '10.0.0.4');
+ok('A16: cancelled, just past paid_through: no grace', $v['valid'] === false && $v['ai_active'] === false);
+$conn->query("UPDATE palette_licenses SET sub_status = 'active', paid_through = '" . local(time() - 49 * 3600) . "'");
+// lapsed: verify keeps plan ai with ai_active false (ruling A3)
+$v = palette_verify($conn, $lic['license_key'], '10.0.0.4');
+ok('after paid_through + 48 h: plan ai, ai_active false, not revoked', $v['plan'] === 'ai' && $v['ai_active'] === false && $v['revoked'] === false);
 
 // ---- refunds and reversals
 s_reset($conn);

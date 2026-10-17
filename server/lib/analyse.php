@@ -28,7 +28,7 @@ function palette_analyse(mysqli $c, array $req): array
     $host = $u['host'];
 
     // 2. Licence, loaded once and passed to every usage call (ruling A5).
-    $st = $c->prepare('SELECT id, plan, revoked_at, paid_through, period_start, created_at FROM palette_licenses WHERE license_key = ?');
+    $st = $c->prepare('SELECT id, plan, revoked_at, sub_status, paid_through, period_start, created_at FROM palette_licenses WHERE license_key = ?');
     $st->bind_param('s', $key);
     $st->execute();
     $lic = $st->get_result()->fetch_assoc();

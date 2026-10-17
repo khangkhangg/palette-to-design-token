@@ -72,6 +72,19 @@ ok('ai revoked -> none', $acc(['plan' => 'ai', 'revoked_at' => '2026-01-01 00:00
 ok('ai null paid_through -> none', $acc(['plan' => 'ai', 'revoked_at' => null, 'paid_through' => null]) === ['pro' => false, 'ai' => false]);
 ok('ai paid_through == now -> on (>=)', $acc(['plan' => 'ai', 'revoked_at' => null, 'paid_through' => $fmt($now)]) === ['pro' => true, 'ai' => true]);
 ok('default now argument works', palette_licence_access(['plan' => 'pro', 'revoked_at' => null, 'paid_through' => null])['pro'] === true);
+// ruling A16: an active subscription keeps access for 48 h past paid_through (renewal lag); nothing else gets grace
+$h = 3600;
+$ai = fn(string $status, int $pt, ?string $rev = null) => $acc(['plan' => 'ai', 'revoked_at' => $rev, 'paid_through' => $fmt($pt), 'sub_status' => $status]);
+ok('A16: active, 47 h past paid_through -> pro+ai', $ai('active', $now - 47 * $h) === ['pro' => true, 'ai' => true]);
+ok('A16: active, exactly 48 h past -> pro+ai (>=)', $ai('active', $now - 48 * $h) === ['pro' => true, 'ai' => true]);
+ok('A16: active, 48 h + 1 s past -> none', $ai('active', $now - 48 * $h - 1) === ['pro' => false, 'ai' => false]);
+foreach (['cancelled', 'suspended', 'expired'] as $st) {
+    ok("A16: $st, 1 s past paid_through -> none (no grace)", $ai($st, $now - 1) === ['pro' => false, 'ai' => false]);
+    ok("A16: $st, before paid_through -> pro+ai", $ai($st, $now + $h) === ['pro' => true, 'ai' => true]);
+}
+ok('A16: revoked inside the grace window -> none', $ai('active', $now - $h, '2026-01-01 00:00:00') === ['pro' => false, 'ai' => false]);
+ok('A16: no sub_status -> no grace', $acc(['plan' => 'ai', 'revoked_at' => null, 'paid_through' => $fmt($now - $h)]) === ['pro' => false, 'ai' => false]);
+ok('A16: a pro licence is unaffected', $acc(['plan' => 'pro', 'revoked_at' => null, 'paid_through' => $fmt($now - 100 * $day), 'sub_status' => 'active']) === ['pro' => true, 'ai' => false]);
 
 // ---- verify
 $conn->query('DELETE FROM palette_rate');
@@ -90,7 +103,10 @@ ok('ai verify: sub_status cancelled', palette_verify($conn, $ai['key'], '10.1.0.
 $conn->query("UPDATE palette_licenses SET sub_status='active' WHERE id={$ai['id']}");
 $conn->query("UPDATE palette_licenses SET paid_through='" . $fmt($now - $day) . "' WHERE id={$ai['id']}");
 $v = palette_verify($conn, $ai['key'], '10.1.0.1');
-ok('lapsed ai: ai_active false, valid false for Pro', $v['plan'] === 'ai' && $v['ai_active'] === false && $v['valid'] === false && $v['revoked'] === false);
+ok('A16: active ai a day past paid_through: still ai_active (48 h grace)', $v['ai_active'] === true && $v['valid'] === true);
+$conn->query("UPDATE palette_licenses SET paid_through='" . $fmt($now - 3 * $day) . "' WHERE id={$ai['id']}");
+$v = palette_verify($conn, $ai['key'], '10.1.0.1');
+ok('lapsed ai (past the grace): ai_active false, valid false for Pro', $v['plan'] === 'ai' && $v['ai_active'] === false && $v['valid'] === false && $v['revoked'] === false);
 $conn->query("UPDATE palette_licenses SET paid_through='$pt', revoked_at=NOW() WHERE id={$ai['id']}");
 ok('revoked ai verify', palette_verify($conn, $ai['key'], '10.1.0.1') === ['valid' => false, 'revoked' => true, 'email_masked' => 'a***@studio.vn']);
 

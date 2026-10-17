@@ -194,6 +194,16 @@ $r = palette_analyse($conn, an_req($ended['key']));
 ok('ended ai -> 403 err_ended with date', $r['status'] === 403 && $r['body']['error'] === 'err_ended'
     && $r['body']['ended_on'] === date('Y-m-d', strtotime($ended['paid_through'])) && str_contains($r['body']['message'], $r['body']['ended_on']));
 ok('licence errors make no HTTP calls', $GLOBALS['search_calls'] === [] && $GLOBALS['ai_calls'] === []);
+// ruling A16: an active subscription in its 48 h renewal grace can still analyse; a cancelled one cannot
+$grace = an_lic($conn, 'ai', -3600);
+$conn->query("UPDATE palette_licenses SET sub_status = 'active' WHERE id = {$grace['id']}");
+ok('A16: active, 1 h past paid_through -> analyse 200', palette_analyse($conn, an_req($grace['key']))['status'] === 200);
+$conn->query("UPDATE palette_licenses SET sub_status = 'cancelled' WHERE id = {$grace['id']}");
+ok('A16: cancelled, 1 h past paid_through -> 403 err_ended', palette_analyse($conn, an_req($grace['key']))['body']['error'] === 'err_ended');
+$conn->query("UPDATE palette_licenses SET sub_status = 'active', paid_through = '" . date('Y-m-d H:i:s', time() - 49 * 3600) . "' WHERE id = {$grace['id']}");
+ok('A16: active, 49 h past paid_through -> 403 err_ended', palette_analyse($conn, an_req($grace['key']))['body']['error'] === 'err_ended');
+$GLOBALS['search_calls'] = [];
+$GLOBALS['ai_calls'] = [];
 ok('malformed key -> 400', palette_analyse($conn, an_req('nope'))['status'] === 400);
 $nodate = an_lic($conn, 'ai', null);
 $r = palette_analyse($conn, an_req($nodate['key']));

@@ -133,7 +133,7 @@ the prompt. `url` must be a public http(s) page (`palette_host`), path <= 300 ch
 `title` and `description` pass through `palette_scrub_text` (ruling A9: URLs, emails, @handles, unread counters, runs of
 6+ digits removed) before the prompt, the searches, the shared cache and the site list (which keeps only the domain
 and the brand name taken from the scrubbed title; its `title` column stays NULL, ruling A15).
-Order: per-IP limit -> input -> licence (`plan = 'ai'`, not revoked, `paid_through >= now`) -> per-licence limits -> cache (same host, lang,
+Order: per-IP limit -> input -> licence (`plan = 'ai'`, not revoked, `paid_through >= now`, or `paid_through + 48 h >= now` while `sub_status = 'active'`, ruling A16) -> per-licence limits -> cache (same host, lang,
 sorted-hex sha1 and sha1 of the scrubbed title + "\n" + description (ruling A13) within 7 days: `cached: true`, no analysis used) -> reserve one analysis -> two searches
 (`"<brand>" competitors`, `<description or title> similar websites`; both unavailable = AI only with
 `result.search_unavailable: true`) -> AI call (tokens always recorded) -> validation -> cache, site list -> 200
