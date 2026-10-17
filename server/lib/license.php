@@ -57,7 +57,7 @@ function palette_verify(mysqli $c, string $rawKey, string $ip): array
     $none = ['valid' => false, 'revoked' => false, 'email_masked' => null];
     $key = palette_normalise_key($rawKey);
     if ($key === null) return $none;
-    $st = $c->prepare('SELECT id, email, revoked_at FROM palette_licenses WHERE license_key = ?');
+    $st = $c->prepare('SELECT id, email, revoked_at, plan, paid_through FROM palette_licenses WHERE license_key = ?');
     $st->bind_param('s', $key);
     $st->execute();
     $row = $st->get_result()->fetch_assoc();
@@ -67,7 +67,16 @@ function palette_verify(mysqli $c, string $rawKey, string $ip): array
     if ($row['revoked_at'] !== null) return ['valid' => false, 'revoked' => true, 'email_masked' => $masked];
     $id = (int)$row['id'];
     $c->query("UPDATE palette_licenses SET last_verified_at = NOW() WHERE id = $id");
-    return ['valid' => true, 'revoked' => false, 'email_masked' => $masked];
+    $out = ['valid' => true, 'revoked' => false, 'email_masked' => $masked];
+    if ($row['plan'] === 'ai') {
+        // Pro licences keep the original three-field answer; AI licences add their plan state.
+        $acc = palette_licence_access($row);
+        $out['valid'] = $acc['pro'];
+        $out['plan'] = 'ai';
+        $out['ai_active'] = $acc['ai'];
+        $out['paid_through'] = $row['paid_through'] === null ? null : date('c', strtotime($row['paid_through']));
+    }
+    return $out;
 }
 
 // Always returns normally; callers answer the same message whether or not anything was sent.
