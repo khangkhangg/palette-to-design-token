@@ -132,15 +132,11 @@ function palette_sub_row(mysqli $c, string $col, string|int $val): ?array
     return $r ?: null;
 }
 
-// The server secret behind custom_id (admin_settings palette `sub_secret`): 64 hex, generated with random_bytes on first
-// use and never printed or returned. Re-read after storing so two first uses settle on the stored value.
+// The server secret behind custom_id (admin_settings `palette_sub_secret`, ruling A20): 64 hex, created once by
+// palette_migrate, never generated here, printed or returned. Missing means migrate.php has not run: fail loudly.
 function palette_sub_secret(mysqli $c): string
 {
-    $s = palette_settings($c);
-    $secret = is_string($s['sub_secret'] ?? null) ? $s['sub_secret'] : '';
-    if (preg_match('/^[0-9a-f]{64}$/D', $secret)) return $secret;
-    palette_settings_put($c, ['sub_secret' => bin2hex(random_bytes(32))] + palette_settings($c));
-    return (string)palette_settings($c)['sub_secret'];
+    return palette_sub_secret_stored($c) ?? throw new RuntimeException('palette_sub_secret missing: run migrate.php');
 }
 
 // "palette-sub:<row id>:<first 16 hex of HMAC-SHA256(row id, sub_secret)>": unguessable, so nobody can attach a
@@ -167,7 +163,8 @@ function palette_sub_custom_row(mysqli $c, array $res): int|false|null
 
 // True when PayPal's subscription object is the one this row handed out: its custom_id, its plan (not overridden
 // by the buyer's browser: the JS SDK can send its own billing_cycles with our plan_id), and the subscription id the
-// row is bound to (if any).
+// row is bound to (if any). A row already bound to this exact subscription id needs no custom_id HMAC check: the
+// binding is the proof, so a changed secret cannot silently stop every renewal (ruling A20); plan checks still apply.
 function palette_sub_matches(mysqli $c, array $row, array $sub): bool
 {
     $sid = $sub['id'] ?? null;
@@ -176,7 +173,7 @@ function palette_sub_matches(mysqli $c, array $row, array $sub): bool
         return false;
     }
     return is_string($sid) && preg_match(PALETTE_SUB_ID_RE, $sid)
-        && palette_sub_custom_row($c, $sub) === (int)$row['id']
+        && ($row['subscription_id'] === $sid || palette_sub_custom_row($c, $sub) === (int)$row['id'])
         && ($sub['plan_id'] ?? null) === $row['plan_id']
         && ($row['subscription_id'] === null || $row['subscription_id'] === $sid);
 }
@@ -484,9 +481,10 @@ function palette_sub_sale(mysqli $c, array $res): string
     // sale): never extend; record it, alert, and try again to stop the billing.
     if ($row['status'] !== 'pending' && !palette_sub_live_licence($c, $row)) return palette_sub_sale_no_key($c, $row, $sid, $saleId, $res);
 
-    // Money that reached a palette checkout but issues no key logs PALETTE_PAID_UNFULFILLED: alert on that prefix.
+    // Money that reached a palette checkout but issues or extends no key logs PALETTE_PAID_UNFULFILLED, first payment
+    // or renewal alike (ruling A20): alert on that prefix.
     $pending = $row['status'] === 'pending';
-    $unfulfilled = fn(string $why) => error_log(($pending ? 'PALETTE_PAID_UNFULFILLED' : 'palette:') . " sale $saleId for $sid: $why");
+    $unfulfilled = fn(string $why) => error_log("PALETTE_PAID_UNFULFILLED sale $saleId for $sid: $why");
     $cents = palette_dec_cents($res['amount']['total'] ?? null);
     if (($res['amount']['currency'] ?? '') !== 'USD' || $cents === null || $cents < palette_sub_row_price($c, $row)) {
         $unfulfilled('paid ' . json_encode($res['amount'] ?? null) . ', below the price; ignored');

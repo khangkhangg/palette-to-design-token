@@ -9,10 +9,12 @@ function palette_defaults(): array
             'ai_price_usd' => '3.99', 'ai_monthly_analyses' => 100, 'ai_monthly_token_cap' => 600000,
             'search_provider' => 'brave', 'search_key' => '', 'ai_paypal_plan_id' => '', 'ai_paypal_plan_mode' => '', 'ai_paypal_product_id' => '',
             // The USD price the stored PayPal plan bills (ruling A18): written by setup.php, shown and sold.
-            'ai_paypal_plan_price' => '',
-            // HMAC secret for subscription custom_ids: generated on first use, a secret like search_key (never printed).
-            'sub_secret' => ''];
+            'ai_paypal_plan_price' => ''];
 }
+
+// The HMAC secret behind subscription custom_ids (ruling A20) has its own admin_settings row, created once by
+// palette_migrate and never generated in a request, printed or returned.
+const PALETTE_SUB_SECRET_KEY = 'palette_sub_secret';
 
 function palette_migrate(mysqli $conn): void
 {
@@ -135,6 +137,42 @@ function palette_migrate(mysqli $conn): void
         seen_count      INT NOT NULL DEFAULT 1,
         PRIMARY KEY (site_id, related_site_id, relation)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    palette_migrate_sub_secret($conn);
+}
+
+// Ruling A20: creates the subscription HMAC secret once, atomically (INSERT IGNORE: concurrent or repeated migrations
+// keep the first value). A secret from before A20 inside the 'palette' settings blob is carried over, so custom ids
+// already handed to PayPal keep verifying. Read back and checked; never printed.
+function palette_migrate_sub_secret(mysqli $conn): void
+{
+    $st = $conn->prepare('SELECT setting_value FROM admin_settings WHERE setting_key = ?');
+    $k = PALETTE_SETTINGS_KEY;
+    $st->bind_param('s', $k);
+    $st->execute();
+    $raw = $st->get_result()->fetch_row()[0] ?? null;
+    $st->close();
+    $blob = is_string($raw) ? json_decode($raw, true) : null;
+    $old = is_array($blob) && is_string($blob['sub_secret'] ?? null) ? $blob['sub_secret'] : '';
+    $secret = preg_match('/^[0-9a-f]{64}$/D', $old) ? $old : bin2hex(random_bytes(32));
+    $key = PALETTE_SUB_SECRET_KEY;
+    $st = $conn->prepare('INSERT IGNORE INTO admin_settings (setting_key, setting_value) VALUES (?, ?)');
+    $st->bind_param('ss', $key, $secret);
+    $st->execute();
+    $st->close();
+    if (palette_sub_secret_stored($conn) === null) throw new RuntimeException('palette_sub_secret could not be stored');
+}
+
+// The stored subscription HMAC secret (64 hex), or null when migrate has not created it.
+function palette_sub_secret_stored(mysqli $conn): ?string
+{
+    $key = PALETTE_SUB_SECRET_KEY;
+    $st = $conn->prepare('SELECT setting_value FROM admin_settings WHERE setting_key = ?');
+    $st->bind_param('s', $key);
+    $st->execute();
+    $v = $st->get_result()->fetch_row()[0] ?? null;
+    $st->close();
+    return is_string($v) && preg_match('/^[0-9a-f]{64}$/D', $v) ? $v : null;
 }
 
 // Idempotent: adds the index only when INFORMATION_SCHEMA says no index of that name exists.

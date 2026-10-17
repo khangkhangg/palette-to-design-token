@@ -150,7 +150,7 @@ The page HTML, the text and other tabs are never sent.
 
 - **Price and limits:** `ai_price_usd` "3.99", `ai_monthly_analyses` 100, `ai_monthly_token_cap` 600000.
 - **Web search:** `search_provider` is `"brave"` or `"tavily"`, and `search_key`. It is a secret: never printed, and set through a CLI command in DEPLOY.
-- **PayPal:** `ai_paypal_plan_id`, `ai_paypal_plan_mode` and `ai_paypal_plan_price` (the price the stored plan bills, ruling A18), filled by `setup.php` (§6.4). `sub_secret` (64 hex, generated on first use, never printed or returned) keys the subscription `custom_id` HMAC.
+- **PayPal:** `ai_paypal_plan_id`, `ai_paypal_plan_mode` and `ai_paypal_plan_price` (the price the stored plan bills, ruling A18), filled by `setup.php` (§6.4). The subscription `custom_id` HMAC secret (64 hex) has its own `admin_settings` row `palette_sub_secret`, created once by `palette_migrate` (INSERT IGNORE, carried over from an older `sub_secret` in the settings blob), never generated in a request, printed or returned (ruling A20).
 - **Provider recommendation:** **Brave Search API** for independent web results at a predictable per-query price. Tavily is the alternative. Both sit behind one `palette_search(string $q): array` adapter, and the one in use is a setting. *Prices change; confirm on the provider's site before choosing.*
 
 ### 6.3 AI calls through the companies gateway
@@ -172,7 +172,7 @@ It does **not** call `ai_chat()`, because that applies the per-user monthly cap 
 - **Checkout** (`/palette/checkout?plan=ai`):
   - The page loads the PayPal JS SDK with `vault=true&intent=subscription`; the one-time plan keeps `intent=capture`.
   - The SDK can't mix the two in one page load, so the page loads the right one for the chosen plan, and switching plans reloads the SDK.
-  - `createSubscription` sends the server's plan id plus `custom_id = palette-sub:<pending row id>:<hmac16>`, where `hmac16` is the first 16 hex of HMAC-SHA256(row id, `sub_secret`). A custom_id without a valid HMAC matches no checkout.
+  - `createSubscription` sends the server's plan id plus `custom_id = palette-sub:<pending row id>:<hmac16>`, where `hmac16` is the first 16 hex of HMAC-SHA256(row id, `palette_sub_secret`). A custom_id without a valid HMAC matches no checkout, unless the row is already bound to that exact subscription id: then the binding is the proof and only the plan, override and amount checks apply (ruling A20). Every renewal or first payment that is ignored for underpayment, a non-transient lookup failure or no longer matching logs `PALETTE_PAID_UNFULFILLED`.
   - Any error from `subscribe_confirm` after PayPal approved (400, 419, 429, 502, network) locks the form with "We couldn't confirm your subscription. If you were charged, your key will arrive by email — don't subscribe again."; the plan cards are locked while confirming.
   - On approval the page calls `action=subscribe_confirm`. The server GETs the subscription, checks the plan id, status ACTIVE and amount, then issues the `ai` licence (claim-first, idempotent like orders), emails the key and shows it.
 - **Webhook events** (verified as today):

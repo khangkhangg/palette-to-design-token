@@ -68,7 +68,10 @@ AI insights tables: `palette_ai_usage` (lib/usage.php), `palette_ai_cache(host, 
 - A refund or reversal revokes the order's license; the order row keeps status `captured`.
 - Subscriptions (Pro + AI, `lib/subscriptions.php`): `subscribe_start` reserves a `palette_subscriptions` row (`pending`)
   and returns the plan id + `custom_id = palette-sub:<row id>:<hmac16>` (first 16 hex of HMAC-SHA256 of the row id with
-  the `sub_secret` setting, generated on first use and never printed; a custom_id without a valid HMAC matches nothing); `palette_sub_fulfil` is claim-first like orders
+  the secret in its own `admin_settings` row `palette_sub_secret`, created once by `palette_migrate` with INSERT IGNORE, carried over
+  from an older `sub_secret` in the `palette` blob, never generated in a request, printed or returned (ruling A20); an unbound
+  custom_id without a valid HMAC matches nothing, while a row already bound to the same subscription id skips the HMAC check
+  and keeps the plan, override and amount checks); `palette_sub_fulfil` is claim-first like orders
   (`UPDATE ... WHERE status='pending'` in a transaction) and issues a new `plan 'ai'` key (`order_id` = the `I-...`
   subscription id, `paid_through` = PayPal's `next_billing_time`, `period_start` = now, PHP time per ruling A4).
   The row stores `price_usd` at start (ruling A10); every amount check uses it, so a later price change never lapses

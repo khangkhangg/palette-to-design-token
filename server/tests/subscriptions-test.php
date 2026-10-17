@@ -67,6 +67,11 @@ function logged(callable $fn): string
     return (string)@file_get_contents($log);
 }
 
+function stored_secret(mysqli $c): ?string
+{
+    return $c->query("SELECT setting_value FROM admin_settings WHERE setting_key = 'palette_sub_secret'")->fetch_row()[0] ?? null;
+}
+
 function sub_row(mysqli $c, int $id): array
 {
     return $c->query("SELECT * FROM palette_subscriptions WHERE id = $id")->fetch_assoc();
@@ -135,10 +140,28 @@ $r = palette_sub_start($conn, ' Buyer@Studio.vn ', 'fr', true);
 $id = row_of((string)($r['custom_id'] ?? ''));
 $row = sub_row($conn, $id);
 ok('start ok: plan id + custom id palette-sub:<id>:<hmac16>', $r['ok'] === true && $r['plan_id'] === 'P-AI' && $id > 0
-    && $r['custom_id'] === 'palette-sub:' . $id . ':' . substr(hash_hmac('sha256', (string)$id, palette_settings($conn)['sub_secret']), 0, 16));
-$secret = palette_settings($conn)['sub_secret'];
-ok('sub_secret: 64 hex generated on first use and then stable', preg_match('/^[0-9a-f]{64}$/', $secret) === 1
-    && palette_sub_custom_id($conn, $id) === $r['custom_id'] && palette_settings($conn)['sub_secret'] === $secret);
+    && $r['custom_id'] === 'palette-sub:' . $id . ':' . substr(hash_hmac('sha256', (string)$id, stored_secret($conn)), 0, 16));
+$secret = stored_secret($conn);
+ok('A20: the HMAC secret lives in admin_settings palette_sub_secret (64 hex), not in the palette settings', preg_match('/^[0-9a-f]{64}$/', (string)$secret) === 1
+    && palette_sub_custom_id($conn, $id) === $r['custom_id'] && !array_key_exists('sub_secret', palette_settings($conn))
+    && !str_contains((string)getAdminSetting('palette'), (string)$secret));
+palette_migrate($conn);
+palette_migrate($conn);
+ok('A20: migrate twice keeps the same secret', stored_secret($conn) === $secret);
+// never generated lazily in a request: without the row, minting a custom_id fails and creates nothing
+$conn->query("DELETE FROM admin_settings WHERE setting_key = 'palette_sub_secret'");
+$threw = false;
+try { palette_sub_custom_id($conn, $id); } catch (RuntimeException $e) { $threw = true; }
+ok('A20: no secret row -> RuntimeException, nothing generated in the request', $threw && stored_secret($conn) === null);
+// an older secret inside the 'palette' blob is carried over, so already-minted custom ids keep working
+$conn->query("UPDATE admin_settings SET setting_value = JSON_SET(setting_value, '$.sub_secret', '" . str_repeat('cd', 32) . "') WHERE setting_key = 'palette'");
+palette_migrate($conn);
+ok('A20: migrate carries the blob sub_secret over', stored_secret($conn) === str_repeat('cd', 32));
+$conn->query("DELETE FROM admin_settings WHERE setting_key = 'palette_sub_secret'");
+$conn->query("UPDATE admin_settings SET setting_value = JSON_REMOVE(setting_value, '$.sub_secret') WHERE setting_key = 'palette'");
+palette_migrate($conn);
+ok('A20: migrate with no secret anywhere creates a fresh 64-hex one', preg_match('/^[0-9a-f]{64}$/', (string)stored_secret($conn)) === 1 && stored_secret($conn) !== str_repeat('cd', 32));
+$conn->query("REPLACE INTO admin_settings (setting_key, setting_value) VALUES ('palette_sub_secret', '" . $secret . "')");
 ok('start: pending row', $row['status'] === 'pending' && $row['email'] === 'buyer@studio.vn' && $row['lang'] === 'fr'
     && $row['plan_id'] === 'P-AI' && $row['subscription_id'] === null && $row['consent_at'] !== null && $row['price_usd'] === '3.99' && $GLOBALS['pp_calls'] === []);
 
@@ -151,7 +174,8 @@ $tok = generateCSRFToken('palette_checkout');
 $r = call('POST', 'subscribe_start', $good + ['csrf' => $tok]);
 ok('subscribe_start ok', $r['status'] === 200 && $r['body']['ok'] === true && $r['body']['plan_id'] === 'P-AI'
     && preg_match('/^palette-sub:(\d+):[0-9a-f]{16}$/', $r['body']['custom_id'], $m) === 1);
-ok('config never returns the subscription secret', !str_contains(json_encode(call('GET', 'config')), palette_settings($conn)['sub_secret']));
+ok('config never returns the subscription secret', !str_contains(json_encode(call('GET', 'config')), (string)stored_secret($conn)));
+ok('A20: subscribe_start never returns the secret', !str_contains(json_encode($r), (string)stored_secret($conn)));
 ok('subscribe_start remembers the row in the session', ($_SESSION['palette_subs'] ?? null) === [(int)$m[1]]);
 ok('subscribe_start errors: consent 400', ($e = call('POST', 'subscribe_start', ['email' => 'a@b.co', 'csrf' => $tok]))['status'] === 400 && $e['body']['error'] === 'err_consent');
 palette_settings_put($conn, ['ai_paypal_plan_id' => ''] + palette_settings($conn));
@@ -419,6 +443,38 @@ ok('webhook maps retry to 503', palette_webhook_response($conn, HDRS, json_encod
 route_sub(pp_sub($id, 'ACTIVE', time() + 92 * 86400));
 ok('redelivery after the outage renews', palette_webhook_response($conn, HDRS, json_encode(['id' => 'WH-1', 'event_type' => 'PAYMENT.SALE.COMPLETED',
     'resource' => sale('SALE-3', time() + 10)])) === [200, 'renewed'] && payments($conn) === 4);
+
+// ---- ruling A20: renewal-ignore paths on a bound row alert; the binding, not the HMAC, proves a bound renewal
+s_reset($conn);
+[$id, $lic] = active_sub($conn);
+route_sub(pp_sub($id, 'ACTIVE', time() + 40 * 86400));
+$log = logged(fn() => palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-A20-LOW', time() + 5, '1.00')));
+ok('A20: bound renewal paid below the row price -> PALETTE_PAID_UNFULFILLED', str_contains($log, 'PALETTE_PAID_UNFULFILLED sale SALE-A20-LOW for ' . SUB) && str_contains($log, 'below the price'));
+route_sub([], 404);
+$log = logged(fn() => palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-A20-404', time() + 6)));
+ok('A20: bound renewal, non-transient lookup failure -> PALETTE_PAID_UNFULFILLED', str_contains($log, 'PALETTE_PAID_UNFULFILLED sale SALE-A20-404 for ' . SUB) && str_contains($log, 'lookup failed'));
+route_sub(pp_sub($id, 'ACTIVE', null, ['plan_id' => 'P-OTHER']));
+$log = logged(fn() => palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-A20-PLAN', time() + 7)));
+ok('A20: bound renewal that no longer matches (other plan) -> ignored + PALETTE_PAID_UNFULFILLED', str_contains($log, 'PALETTE_PAID_UNFULFILLED sale SALE-A20-PLAN for ' . SUB)
+    && str_contains($log, 'no longer matches') && payments($conn) === 0);
+route_sub(pp_sub($id, 'ACTIVE', null, ['plan_overridden' => true]));
+$log = logged(fn() => palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-A20-OVR', time() + 8)));
+ok('A20: bound renewal with plan_overridden -> PALETTE_PAID_UNFULFILLED', str_contains($log, 'PALETTE_PAID_UNFULFILLED sale SALE-A20-OVR for ' . SUB) && payments($conn) === 0);
+// the secret changes (restore from backup, manual edit): a renewal on the bound row still renews; its custom_id no longer verifies
+$oldCid = palette_sub_custom_id($conn, $id);
+$keptSecret = stored_secret($conn);
+$conn->query("UPDATE admin_settings SET setting_value = '" . bin2hex(random_bytes(32)) . "' WHERE setting_key = 'palette_sub_secret'");
+ok('A20 setup: the old custom_id no longer verifies', palette_sub_custom_row($conn, ['custom_id' => $oldCid]) === false);
+$conn->query("UPDATE palette_licenses SET period_start = '" . local(time() - 31 * 86400) . "' WHERE id = " . (int)$lic['id']);
+route_sub(pp_sub($id, 'ACTIVE', time() + 45 * 86400, ['custom_id' => $oldCid]));
+ok('A20: bound renewal after a secret change -> renewed', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-A20-SEC', time() + 9)) === 'renewed'
+    && ai_lic($conn)['paid_through'] === local(time() + 45 * 86400));
+route_sub(pp_sub($id, 'ACTIVE', null, ['custom_id' => $oldCid, 'plan_id' => 'P-OTHER']));
+ok('A20: the binding skips only the HMAC: a bound renewal on another plan is still refused', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-A20-SEC2', time() + 10)) === 'ignored');
+// an unbound subscription id presenting the old custom_id is still refused (no binding, bad HMAC)
+route_sub(pp_sub($id, 'ACTIVE', null, ['id' => 'I-OTHERSUB0001', 'custom_id' => $oldCid]), 200, 'I-OTHERSUB0001');
+ok('A20: an unbound subscription with a stale HMAC matches nothing', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-A20-UNB', time() + 11, '3.99', 'I-OTHERSUB0001')) === 'ignored');
+$conn->query("UPDATE admin_settings SET setting_value = '$keptSecret' WHERE setting_key = 'palette_sub_secret'");
 
 // ---- status events
 s_reset($conn);
