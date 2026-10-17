@@ -53,7 +53,7 @@ $conn->query("DELETE FROM palette_licenses WHERE order_id = 'PLAN-DEF'");
 // ---- settings
 $d = palette_defaults();
 ok('ai settings defaults', $d['ai_price_usd'] === '3.99' && $d['ai_monthly_analyses'] === 100 && $d['ai_monthly_token_cap'] === 600000
-    && $d['search_provider'] === 'brave' && $d['search_key'] === '' && $d['ai_paypal_plan_id'] === '' && $d['ai_paypal_plan_mode'] === '' && $d['ai_paypal_product_id'] === '');
+    && $d['search_provider'] === 'brave' && $d['search_key'] === '' && $d['ai_paypal_plan_id'] === '' && $d['ai_paypal_plan_mode'] === '' && $d['ai_paypal_product_id'] === '' && $d['ai_paypal_plan_price'] === '');
 $conn->query("DELETE FROM admin_settings WHERE setting_key = 'palette'");
 palette_settings_put($conn, ['search_key' => 'SECRET-123', 'ai_monthly_analyses' => 50]);
 $s = palette_settings($conn);

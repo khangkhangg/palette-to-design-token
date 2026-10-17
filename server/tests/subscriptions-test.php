@@ -26,7 +26,7 @@ function s_reset(mysqli $c): void
 {
     stub_reset($c);
     foreach (['palette_subscriptions', 'palette_sub_payments', 'palette_ai_usage', 'palette_rate'] as $t) $c->query("DELETE FROM $t");
-    palette_settings_put($c, ['ai_paypal_plan_id' => 'P-AI', 'ai_paypal_plan_mode' => 'sandbox', 'webhook_id' => 'WH-PALETTE', 'webhook_mode' => 'sandbox']);
+    palette_settings_put($c, ['ai_paypal_plan_id' => 'P-AI', 'ai_paypal_plan_mode' => 'sandbox', 'ai_paypal_plan_price' => '3.99', 'webhook_id' => 'WH-PALETTE', 'webhook_mode' => 'sandbox']);
     $GLOBALS['pp_routes']['POST /v1/notifications/verify-webhook-signature'] = ['status' => 200, 'json' => ['verification_status' => 'SUCCESS']];
     $GLOBALS["mails"] = [];
     $_SESSION = [];
@@ -107,6 +107,14 @@ palette_settings_put($conn, ['ai_paypal_plan_mode' => 'sandbox'] + palette_setti
 stub_paypal($conn, false);
 ok('start: PayPal paused -> err_paused', palette_sub_start($conn, 'a@b.co', 'en', true) === ['ok' => false, 'error' => 'err_paused']);
 stub_paypal($conn, true);
+palette_settings_put($conn, ['ai_price_usd' => '4.99'] + palette_settings($conn));
+ok('A18: price changed but setup not re-run -> not ready, err_paused', palette_ai_plan_ready(palette_settings($conn), pp_settings($conn)) === false
+    && palette_sub_start($conn, 'a@b.co', 'en', true) === ['ok' => false, 'error' => 'err_paused']);
+palette_settings_put($conn, ['ai_price_usd' => '3.990'] + palette_settings($conn));
+ok('A18: the same price written differently still matches', palette_ai_plan_ready(palette_settings($conn), pp_settings($conn)) === true);
+palette_settings_put($conn, ['ai_paypal_plan_price' => ''] + palette_settings($conn));
+ok('A18: a plan without a stored price (setup from before A18) -> not ready', palette_ai_plan_ready(palette_settings($conn), pp_settings($conn)) === false);
+palette_settings_put($conn, ['ai_price_usd' => '3.99', 'ai_paypal_plan_price' => '3.99'] + palette_settings($conn));
 ok('start: nothing stored on errors', (int)$conn->query('SELECT COUNT(*) FROM palette_subscriptions')->fetch_row()[0] === 0);
 $r = palette_sub_start($conn, ' Buyer@Studio.vn ', 'fr', true);
 $id = (int)substr((string)($r['custom_id'] ?? ''), strlen('palette-sub:'));
@@ -263,13 +271,15 @@ ok('sale while APPROVED -> retry, nothing recorded', palette_sub_event($conn, 'P
 route_sub(pp_sub($id));
 ok('redelivered once ACTIVE -> fulfilled', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-A1', time() - 30)) === 'renewed' && license_count($conn) === 1);
 // the row keeps the price it was sold at (ruling A10)
-palette_settings_put($conn, ['ai_price_usd' => '9.99'] + palette_settings($conn));
+palette_settings_put($conn, ['ai_price_usd' => '9.99', 'ai_paypal_plan_price' => '9.99'] + palette_settings($conn));
 route_sub(pp_sub($id, 'ACTIVE', time() + 61 * 86400, ['billing_info' => ['last_payment' => ['amount' => ['value' => '3.99']]]]));
 ok('price raised later: renewal at the old price still renews', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-A2', time() + 5)) === 'renewed'
     && ai_lic($conn)['paid_through'] === local(time() + 61 * 86400));
 ok('below the row price -> ignored', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-A3', time() + 6, '3.98')) === 'ignored');
 $id2 = start($conn);
 ok('new checkouts store the new price', sub_row($conn, $id2)['price_usd'] === '9.99');
+palette_settings_put($conn, ['ai_price_usd' => '9.990', 'ai_paypal_plan_price' => '9.99'] + palette_settings($conn));
+ok('A18: the row price is the stored plan price', sub_row($conn, start($conn))['price_usd'] === '9.99');
 
 // ---- API subscribe_confirm: key only to the creating session
 s_reset($conn);

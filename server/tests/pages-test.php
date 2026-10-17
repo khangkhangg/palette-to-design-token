@@ -412,7 +412,7 @@ ok('ai off: Pro + AI card is coming soon and disabled', preg_match('/<div[^>]*ro
 ok('ai off: page data says so', (checkoutData($off)['ai_enabled'] ?? null) === false && (checkoutData($off)['plan'] ?? null) === 'pro');
 
 // AI set up for this PayPal mode (stub_paypal uses sandbox)
-cfg($conn, ['ai_paypal_plan_id' => 'P-TESTPLAN1', 'ai_paypal_plan_mode' => 'sandbox']);
+cfg($conn, ['ai_paypal_plan_id' => 'P-TESTPLAN1', 'ai_paypal_plan_mode' => 'sandbox', 'ai_paypal_plan_price' => '3.99']);
 $pro = checkout(['lang' => 'en']);
 $ai = checkout(['lang' => 'en', 'plan' => 'ai']);
 ok('default plan is Pro', preg_match('/<div[^>]*role="radio"[^>]*data-plan="pro"[^>]*aria-checked="true"/', $pro) === 1
@@ -434,9 +434,14 @@ $d = checkoutData($ai);
 ok('page data: both totals and the strings the script swaps', ($d['total'] ?? '') === '$1.49' && ($d['total_ai'] ?? '') === '$3.99' && ($d['ai_enabled'] ?? null) === true
     && ($d['t']['co_sub_pending'] ?? '') === palette_t('en', 'co_sub_pending') && ($d['t']['co_note_ai'] ?? '') === palette_t('en', 'co_note_ai')
     && ($d['t']['co_success_title_ai'] ?? '') === palette_t('en', 'co_success_title_ai'));
-cfg($conn, ['ai_price_usd' => '5.49']);
-ok('ai price follows the setting', str_contains(checkout(['lang' => 'en', 'plan' => 'ai']), '$5.49') && (checkoutData(checkout(['lang' => 'en']))['total_ai'] ?? '') === '$5.49');
-cfg($conn, ['ai_price_usd' => '3.99']);
+cfg($conn, ['ai_price_usd' => '5.49', 'ai_paypal_plan_price' => '5.49']);
+ok('ai price follows the plan setup made for it', str_contains(checkout(['lang' => 'en', 'plan' => 'ai']), '$5.49') && (checkoutData(checkout(['lang' => 'en']))['total_ai'] ?? '') === '$5.49');
+cfg($conn, ['ai_price_usd' => '6.49']);
+$changed = checkout(['lang' => 'en', 'plan' => 'ai']);
+ok('A18: price changed before setup ran -> Pro + AI is Coming soon, the PayPal plan price is shown, never the new one',
+    (checkoutData($changed)['ai_enabled'] ?? null) === false && preg_match('/<div[^>]*role="radio"[^>]*data-plan="ai"[^>]*aria-disabled="true"/', $changed) === 1
+    && str_contains($changed, h(palette_t('en', 'co_plan_soon'))) && !str_contains($changed, '$6.49') && (checkoutData($changed)['total_ai'] ?? '') === '$5.49');
+cfg($conn, ['ai_price_usd' => '3.99', 'ai_paypal_plan_price' => '3.99']);
 ok('language links keep the plan', str_contains($ai, 'href="/palette/checkout?lang=fr&amp;plan=ai"') && !str_contains($pro, 'plan=ai') && !str_contains($pro, ';plan='));
 ok('csp unchanged by the plan chooser', palette_page_headers()['Content-Security-Policy'] === "default-src 'self'; script-src 'self' https://www.paypal.com https://*.paypal.com https://*.paypalobjects.com; "
     . "frame-src https://*.paypal.com; connect-src 'self' https://*.paypal.com https://*.paypalobjects.com; "
@@ -515,7 +520,7 @@ foreach (LANGS as $l) {
 ok('checkout.js never uses window.confirm', !preg_match('/\bconfirm\s*\(/', (string)file_get_contents(PALETTE_DIR . '/assets/checkout.js')));
 
 // ---- Task 11: privacy, terms, landing and checkout copy for Pro + AI
-cfg($conn, ['ai_paypal_plan_id' => 'P-TESTPLAN1', 'ai_paypal_plan_mode' => 'sandbox', 'ai_price_usd' => '3.99', 'ai_monthly_analyses' => '100']);
+cfg($conn, ['ai_paypal_plan_id' => 'P-TESTPLAN1', 'ai_paypal_plan_mode' => 'sandbox', 'ai_price_usd' => '3.99', 'ai_paypal_plan_price' => '3.99', 'ai_monthly_analyses' => '100']);
 $privacy = fn(string $l) => palette_render_privacy(['query' => ['lang' => $l], 'accept_language' => '']);
 $terms = fn(string $l) => palette_render_terms(['query' => ['lang' => $l], 'accept_language' => '']);
 $pen = $privacy('en');
@@ -585,9 +590,15 @@ ok('plans table: every row has three value cells; AI insights row is Pro + AI on
     && count(array_filter($rows[0], fn($r) => substr_count($r, '<td>') !== 3)) === 0
     && preg_match('#<tr><th scope="row">AI insights</th><td>(.*?)</td><td>(.*?)</td><td>(.*?100 a month.*?)</td></tr>#s', $pl[0], $air) === 1
     && str_contains($air[1], 'Not included') && str_contains($air[2], 'Not included'));
-cfg($conn, ['ai_price_usd' => '5.49']);
-ok('plans table: Pro + AI price follows the setting', str_contains(landing(['lang' => 'en']), 'Pro + AI, $5.49 a month'));
-cfg($conn, ['ai_price_usd' => '3.99', 'ai_paypal_plan_id' => '']);
+cfg($conn, ['ai_price_usd' => '5.49', 'ai_paypal_plan_price' => '5.49']);
+ok('plans table: Pro + AI price follows the plan', str_contains(landing(['lang' => 'en']), 'Pro + AI, $5.49 a month'));
+cfg($conn, ['ai_price_usd' => '6.49']);
+$lpCh = landing(['lang' => 'en']);
+preg_match('#id="plans".*?</section>#s', $lpCh, $plCh);
+ok('A18: landing after a price change, before setup: Coming soon, no plan=ai link, new price never shown', str_contains($plCh[0], h(palette_t('en', 'co_plan_soon')))
+    && !str_contains($lpCh, 'plan=ai') && !str_contains($lpCh, '$6.49'));
+ok('A18: terms show the PayPal plan price, not the unsynced setting', str_contains(palette_render_terms(['query' => ['lang' => 'en'], 'accept_language' => '']), h(palette_t('en', 'terms_sub', ['price' => '$5.49']))));
+cfg($conn, ['ai_price_usd' => '3.99', 'ai_paypal_plan_price' => '3.99', 'ai_paypal_plan_id' => '']);
 $lpOff = landing(['lang' => 'en']);
 preg_match('#id="plans".*?</section>#s', $lpOff, $plOff);
 preg_match('#<thead>(.*?)</thead>#s', $plOff[0], $thOff);

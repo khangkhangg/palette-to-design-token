@@ -150,7 +150,7 @@ if ($dev && $path === '/__dev/seed') {
     $conn->query("INSERT INTO admin_settings (setting_key, setting_value) VALUES ('resend_api_key', 're_dev')");
     pp_settings_put($conn, ['enabled' => ($_GET['paypal'] ?? 'ready') === 'ready', 'mode' => 'sandbox', 'client_id' => 'dev-client', 'secret' => 'dev-secret', 'error' => '']);
     $settings = ['tax_mode' => ($_GET['tax'] ?? 'none') === 'ca' ? 'ca' : 'none'];
-    if (($_GET['ai'] ?? 'ready') === 'ready') $settings += ['ai_paypal_plan_id' => 'P-DEVPLAN001', 'ai_paypal_plan_mode' => 'sandbox'];
+    if (($_GET['ai'] ?? 'ready') === 'ready') $settings += ['ai_paypal_plan_id' => 'P-DEVPLAN001', 'ai_paypal_plan_mode' => 'sandbox', 'ai_paypal_plan_price' => '3.99'];
     if ($aiStub) {
         foreach (['palette_ai_usage', 'palette_ai_cache', 'palette_sites', 'palette_site_links'] as $t) $conn->query("DELETE FROM $t");
         companies_ai_tables($conn);

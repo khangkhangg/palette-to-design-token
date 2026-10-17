@@ -277,9 +277,13 @@ function cfg(mysqli $c, array $a): void
 api_reset($conn);
 $b = call('GET', 'config')['body'];
 ok('config ai off by default', $b['ai_enabled'] === false && $b['ai_price'] === '3.99');
-cfg($conn, ['ai_paypal_plan_id' => 'P-TESTPLAN1', 'ai_paypal_plan_mode' => 'sandbox', 'ai_price_usd' => '4.25']);
+cfg($conn, ['ai_paypal_plan_id' => 'P-TESTPLAN1', 'ai_paypal_plan_mode' => 'sandbox', 'ai_price_usd' => '4.25', 'ai_paypal_plan_price' => '4.25']);
 $b = call('GET', 'config')['body'];
 ok('config ai on when the plan exists for this PayPal mode, with its price', $b['ai_enabled'] === true && $b['ai_price'] === '4.25');
+cfg($conn, ['ai_price_usd' => '4.99']);
+$b = call('GET', 'config')['body'];
+ok('A18: config ai off after a price change until setup runs again, still showing the plan price', $b['ai_enabled'] === false && $b['ai_price'] === '4.25');
+cfg($conn, ['ai_price_usd' => '4.25']);
 cfg($conn, ['ai_paypal_plan_mode' => 'live']);
 ok('config ai off when the plan was made in the other mode', call('GET', 'config')['body']['ai_enabled'] === false);
 cfg($conn, ['ai_paypal_plan_mode' => 'sandbox']);

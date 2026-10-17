@@ -28,6 +28,7 @@ ok('plan body exact', calls_to('POST', '/v1/billing/plans')[0]['body'] === ['pro
 $s = palette_settings($conn);
 ok('stores plan id, mode, product id', $s['ai_paypal_plan_id'] === 'P-1' && $s['ai_paypal_plan_mode'] === 'sandbox' && $s['ai_paypal_product_id'] === 'PROD-1');
 ok('other settings kept', $s['price_usd'] === '1.49' && $s['ai_price_usd'] === '3.99');
+ok('A18: stores the plan price it created', $s['ai_paypal_plan_price'] === '3.99');
 
 // ---- second run, same mode: reuse, no POST
 $GLOBALS['pp_calls'] = [];
@@ -41,6 +42,7 @@ $GLOBALS['pp_routes']['POST /v1/billing/plans'] = ['status' => 201, 'json' => ['
 $GLOBALS['pp_calls'] = [];
 $r = palette_sub_setup($conn);
 ok('price change -> new plan', ($r['plan_id'] ?? '') === 'P-2' && $r['created'] === true && palette_settings($conn)['ai_paypal_plan_id'] === 'P-2');
+ok('A18: price change -> new plan price stored', palette_settings($conn)['ai_paypal_plan_price'] === '4.99');
 ok('price change: product reused, new price', calls_to('POST', '/v1/catalogs/products') === []
     && calls_to('POST', '/v1/billing/plans')[0]['body']['billing_cycles'][0]['pricing_scheme']['fixed_price']['value'] === '4.99'
     && calls_to('POST', '/v1/billing/plans')[0]['body']['product_id'] === 'PROD-1');
@@ -101,6 +103,7 @@ foreach ([['3.990', '3.99'], ['3.9900', '3.99'], ['4.0000', '4.00'], ['4', '4.00
     $GLOBALS['pp_calls'] = [];
     $r = palette_sub_setup($conn);
     ok("live price '$live' equals settings '$set': reused, no POST", ($r['created'] ?? null) === false && calls_to('POST', '/v1/') === []);
+    ok("A18: reuse stores the plan price as '" . palette_money(palette_dec_cents($set)) . "'", palette_settings($conn)['ai_paypal_plan_price'] === palette_money(palette_dec_cents($set)));
 }
 sub_reset($conn);
 palette_sub_setup($conn);

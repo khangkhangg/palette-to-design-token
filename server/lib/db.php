@@ -7,7 +7,9 @@ function palette_defaults(): array
             'extension_ids' => [], 'webhook_id' => '', 'webhook_mode' => '',
             // AI insights add-on. search_key is a secret: validated at use, never returned by any API action.
             'ai_price_usd' => '3.99', 'ai_monthly_analyses' => 100, 'ai_monthly_token_cap' => 600000,
-            'search_provider' => 'brave', 'search_key' => '', 'ai_paypal_plan_id' => '', 'ai_paypal_plan_mode' => '', 'ai_paypal_product_id' => ''];
+            'search_provider' => 'brave', 'search_key' => '', 'ai_paypal_plan_id' => '', 'ai_paypal_plan_mode' => '', 'ai_paypal_product_id' => '',
+            // The USD price the stored PayPal plan bills (ruling A18): written by setup.php, shown and sold.
+            'ai_paypal_plan_price' => ''];
 }
 
 function palette_migrate(mysqli $conn): void

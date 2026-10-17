@@ -89,7 +89,7 @@ function palette_api_handle(array $req): array
         $ready = pp_ready($pp);
         return palette_api_reply(200, ['ok' => true, 'enabled' => $ready] + ($ready ? ['client_id' => $pp['client_id']] : [])
             + ['price' => palette_money($m['price']), 'tax_mode' => $m['tax_mode'], 'ai_enabled' => palette_ai_plan_ready($s, $pp),
-               'ai_price' => palette_money(palette_sub_price_cents($s)), 'csrf' => palette_api_csrf_token()]);
+               'ai_price' => palette_money(palette_ai_sale_cents($s)), 'csrf' => palette_api_csrf_token()]);
     }
 
     if ($action === 'verify') {

@@ -218,7 +218,7 @@ function palette_price_label(string $lang): string
 // The Pro + AI monthly price as this language writes it.
 function palette_ai_price_label(string $lang): string
 {
-    return palette_usd($lang, palette_money(palette_sub_price_cents(palette_settings($GLOBALS['conn']))));
+    return palette_usd($lang, palette_money(palette_ai_sale_cents(palette_settings($GLOBALS['conn']))));
 }
 
 // Whether Pro + AI can be bought right now (plan exists for the current PayPal mode).
@@ -463,7 +463,7 @@ function palette_render_checkout(array $ctx): string
     $fr = $lang === 'fr';
     $usd = fn(string $amount): string => palette_usd($lang, $amount);
     $price = $usd(palette_money($money['price']));
-    $aiPrice = $usd(palette_money(palette_sub_price_cents($settings)));
+    $aiPrice = $usd(palette_money(palette_ai_sale_cents($settings)));
     $withTax = palette_total($settings, 'US', 'CA');
     $shown = $isAi ? $aiPrice : $price;
 

@@ -34,6 +34,7 @@ function palette_sub_setup(mysqli $c): array
         }
         $live = palette_dec_cents($r['json']['billing_cycles'][0]['pricing_scheme']['fixed_price']['value'] ?? null);
         if ($ok($r) && ($r['json']['status'] ?? '') === 'ACTIVE' && $live === $cents) {
+            palette_settings_put($c, ['ai_paypal_plan_price' => $price] + palette_settings($c));
             return ['ok' => true, 'plan_id' => $planId, 'mode' => $mode, 'created' => false];
         }
     }
@@ -59,7 +60,7 @@ function palette_sub_setup(mysqli $c): array
         error_log('palette: plan creation failed (HTTP ' . (int)$r['status'] . ')');
         return ['ok' => false, 'error' => 'err_paypal'];
     }
-    palette_settings_put($c, ['ai_paypal_plan_id' => $planId, 'ai_paypal_plan_mode' => $mode] + palette_settings($c));
+    palette_settings_put($c, ['ai_paypal_plan_id' => $planId, 'ai_paypal_plan_mode' => $mode, 'ai_paypal_plan_price' => $price] + palette_settings($c));
     return ['ok' => true, 'plan_id' => $planId, 'mode' => $mode, 'created' => true];
 }
 
@@ -186,12 +187,30 @@ function palette_sub_paypal_cancel(mysqli $c, string $subId, string $reason): bo
     return false;
 }
 
-// True when Pro + AI can be sold: PayPal is ready and the plan was created for the current PayPal mode
-// (a plan made in sandbox does not exist in live, and vice versa).
+// Cents the stored PayPal plan bills (ruling A18); null before setup.php stored a plan price.
+function palette_ai_plan_cents(array $settings): ?int
+{
+    $v = $settings['ai_paypal_plan_price'] ?? null;
+    $cents = palette_dec_cents(is_string($v) ? $v : null);
+    return $cents !== null && $cents > 0 ? $cents : null;
+}
+
+// The Pro + AI price to show: what the PayPal plan bills, or the setting while no plan price is stored.
+function palette_ai_sale_cents(array $settings): int
+{
+    return palette_ai_plan_cents($settings) ?? palette_sub_price_cents($settings);
+}
+
+// True when Pro + AI can be sold: PayPal is ready, the plan was created for the current PayPal mode (a plan made in
+// sandbox does not exist in live, and vice versa) and it bills ai_price_usd (ruling A18: after a price change the plan
+// is "Coming soon" until setup.php makes the plan for the new price).
 function palette_ai_plan_ready(array $settings, array $pp): bool
 {
+    $v = $settings['ai_price_usd'] ?? null;
+    $setting = palette_dec_cents(is_string($v) ? $v : (is_int($v) || is_float($v) ? (string)$v : null));
+    $plan = palette_ai_plan_cents($settings);
     return pp_ready($pp) && preg_match(PALETTE_PAYPAL_ID_RE, (string)$settings['ai_paypal_plan_id']) === 1
-        && $settings['ai_paypal_plan_mode'] === $pp['mode'];
+        && $settings['ai_paypal_plan_mode'] === $pp['mode'] && $plan !== null && $plan === $setting;
 }
 
 function palette_sub_start(mysqli $c, string $email, string $lang, bool $consent): array
@@ -207,7 +226,7 @@ function palette_sub_start(mysqli $c, string $email, string $lang, bool $consent
     if (!palette_ai_plan_ready($s, $pp)) return ['ok' => false, 'error' => 'err_paused'];
     $lang = palette_lang($lang);
     $now = palette_sub_now();
-    $price = palette_money(palette_sub_price_cents($s));
+    $price = palette_money((int)palette_ai_plan_cents($s));   // what the PayPal plan bills (ready implies it is set)
     $st = $c->prepare("INSERT INTO palette_subscriptions (email, lang, status, plan_id, price_usd, consent_at, created_at, updated_at)
                        VALUES (?, ?, 'pending', ?, ?, ?, ?, ?)");
     $st->bind_param('sssssss', $email, $lang, $plan, $price, $now, $now, $now);
