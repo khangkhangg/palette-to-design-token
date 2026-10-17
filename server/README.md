@@ -58,7 +58,11 @@ AI insights tables: `palette_ai_usage` (lib/usage.php), `palette_ai_cache(host, 
   The row stores `price_usd` at start (ruling A10); every amount check uses it, so a later price change never lapses
   existing subscribers. A key is issued only with proof of payment at that price: PayPal's `last_payment`, or an
   amount-checked PAYMENT.SALE.COMPLETED. A subscription with `plan_overridden` (the JS SDK lets the browser send its own
-  billing cycles with our plan id) is never fulfilled or extended.
+  billing cycles with our plan id) is never fulfilled or extended. A full-price first sale also fulfils a subscription
+  already CANCELLED or SUSPENDED in PayPal. The key then covers the paid month (`next_billing_time` if still ahead,
+  else the sale time + 1 month) and takes PayPal's status. A matching paid sale that still issues no key logs
+  `PALETTE_PAID_UNFULFILLED`. A refund that arrives before the first sale closes the pending row and records the sale
+  as refunded, so the later sale answers `already` and issues no key.
   `BILLING.SUBSCRIPTION.*` and `PAYMENT.SALE.*` events go to `palette_sub_event`: ACTIVATED fulfils a pending row
   (`pending` when PayPal reports no payment yet); SALE.COMPLETED records the sale (`sale_id` unique; a duplicate answers
   `already`), fulfils first if the row is still pending (503 `retry` while PayPal still shows APPROVED), then moves

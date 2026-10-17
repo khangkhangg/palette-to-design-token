@@ -226,6 +226,34 @@ ok('plan_overridden: confirm refused', palette_sub_confirm($conn, SUB)['ok'] ===
 ok('plan_overridden: ACTIVATED ignored', palette_sub_event($conn, 'BILLING.SUBSCRIPTION.ACTIVATED', $over) === 'ignored' && license_count($conn) === 0);
 ok('plan_overridden: even a full-price sale never fulfils', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-O1', time())) === 'ignored'
     && license_count($conn) === 0 && payments($conn) === 0);
+// a paid first sale reaching us after the buyer already stopped autopay still issues the key (re-review Important)
+foreach (['CANCELLED' => 'cancelled', 'SUSPENDED' => 'suspended'] as $ppSt => $local) {
+    s_reset($conn);
+    $id = start($conn);
+    $s = pp_sub($id, $ppSt, null, ['billing_info' => ['next_billing_time' => $ppSt === 'SUSPENDED' ? iso(time() - 86400) : null]]);
+    unset($s['billing_info']['last_payment']);
+    route_sub($s);
+    $paidT = time() - 3600;
+    $ev = palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-' . $ppSt, $paidT));
+    $l = ai_lic($conn);
+    ok("sale on a $ppSt pending row -> key issued", $ev === 'renewed' && license_count($conn) === 1 && count($GLOBALS['mails']) === 1 && payments($conn) === 1);
+    ok("$ppSt: paid_through = sale time + 1 month, status $local", $l['paid_through'] === date('Y-m-d H:i:s', strtotime(local($paidT) . ' +1 month'))
+        && $l['sub_status'] === $local && sub_row($conn, $id)['status'] === $local);
+}
+// a matching paid sale that still cannot be fulfilled raises the alert prefix
+s_reset($conn);
+$id = start($conn);
+route_sub(pp_sub($id, 'EXPIRED'));
+$log = sys_get_temp_dir() . '/palette-unfulfilled-test.log';
+@unlink($log);
+ini_set('error_log', $log);
+ok('sale on an EXPIRED pending row -> ignored', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-E1', time())) === 'ignored' && license_count($conn) === 0);
+palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-E2', time(), '1.00'));
+$logged = (string)@file_get_contents($log);
+ini_set('error_log', sys_get_temp_dir() . '/palette-test.log');
+ok('unfulfillable and underpaid pending sales log PALETTE_PAID_UNFULFILLED', substr_count($logged, 'PALETTE_PAID_UNFULFILLED') === 2
+    && str_contains($logged, 'SALE-E1') && str_contains($logged, 'SALE-E2'));
+
 // a first sale while PayPal still shows APPROVED is redelivered, not dropped (review Important 3)
 s_reset($conn);
 $id = start($conn);
@@ -402,8 +430,28 @@ $GLOBALS['pp_routes']['GET /v1/payments/sale/SALE-Y'] = ['status' => 503, 'json'
 ok('sale lookup outage -> retry, not revoked yet', palette_sub_event($conn, 'PAYMENT.SALE.REFUNDED', ['id' => 'REF-Y', 'sale_id' => 'SALE-Y']) === 'retry'
     && ai_lic($conn)['revoked_at'] === null);
 $GLOBALS['pp_routes']['POST /v1/billing/subscriptions/' . SUB . '/cancel'] = ['status' => 500, 'json' => []];
+$log = sys_get_temp_dir() . '/palette-cancel-failed-test.log';
+@unlink($log);
+ini_set('error_log', $log);
 ok('PayPal cancel failing never blocks the revoke', palette_sub_event($conn, 'PAYMENT.SALE.REVERSED', ['id' => 'SALE-Z', 'billing_agreement_id' => SUB]) === 'revoked'
     && ai_lic($conn)['revoked_at'] !== null && sub_row($conn, $id)['status'] === 'active');
+ini_set('error_log', sys_get_temp_dir() . '/palette-test.log');
+ok('failed cancel logs PALETTE_CANCEL_FAILED', str_contains((string)@file_get_contents($log), 'PALETTE_CANCEL_FAILED subscription=' . SUB));
+
+// a refund processed before the first sale is recorded: the later sale must not issue a key (re-review minor)
+s_reset($conn);
+$id = start($conn);
+route_sub(pp_sub($id));
+$GLOBALS['pp_routes']['POST /v1/billing/subscriptions/' . SUB . '/cancel'] = ['status' => 204, 'json' => null];
+ok('refund before the sale -> checkout closed', palette_sub_event($conn, 'PAYMENT.SALE.REFUNDED',
+    ['id' => 'REF-RB', 'sale_id' => 'SALE-RB', 'billing_agreement_id' => SUB, 'amount' => ['total' => '3.99', 'currency' => 'USD']]) === 'revoked');
+$pr = $conn->query("SELECT * FROM palette_sub_payments WHERE sale_id = 'SALE-RB'")->fetch_assoc();
+ok('refund before the sale: refunded payment recorded, row bound and cancelled, PayPal cancel called', $pr && $pr['status'] === 'refunded' && $pr['subscription_id'] === SUB
+    && sub_row($conn, $id)['status'] === 'cancelled' && sub_row($conn, $id)['subscription_id'] === SUB
+    && count(calls_to('POST', '/v1/billing/subscriptions/' . SUB . '/cancel')) === 1);
+ok('then the redelivered sale -> already, no key', palette_sub_event($conn, 'PAYMENT.SALE.COMPLETED', sale('SALE-RB', time() - 60)) === 'already' && license_count($conn) === 0);
+ok('then ACTIVATED / confirm -> no key', palette_sub_event($conn, 'BILLING.SUBSCRIPTION.ACTIVATED', pp_sub($id)) === 'already'
+    && palette_sub_confirm($conn, SUB)['ok'] === false && license_count($conn) === 0 && $GLOBALS['mails'] === []);
 ok('webhook still ignores companies order events', palette_webhook($conn, HDRS, json_encode(['event_type' => 'PAYMENT.CAPTURE.COMPLETED',
     'resource' => ['id' => 'C1', 'custom_id' => 'company:1']])) === 'ignored');
 
