@@ -9,9 +9,11 @@ const PALETTE_SEARCH_QUERY_MAX = 200;   // characters; callers build queries fro
 
 // [['title','url','snippet','host'] ...] (max 8, first result per host), or null when the provider
 // is unavailable: no key, unknown provider, empty query, transport failure/timeout, non-2xx or non-JSON reply.
-// [] means the provider answered with no results. The query is capped at 200 characters.
-function palette_search(array $settings, string $q): ?array
+// [] means the provider answered with no results. The query is capped at 200 characters. $timeoutSec is capped at 8 s;
+// the analyse budget (ruling A17) passes less when less is left.
+function palette_search(array $settings, string $q, int $timeoutSec = PALETTE_SEARCH_TIMEOUT): ?array
 {
+    $timeout = max(1, min(PALETTE_SEARCH_TIMEOUT, $timeoutSec));
     $q = trim(mb_substr(trim($q), 0, PALETTE_SEARCH_QUERY_MAX));
     $key = trim((string)($settings['search_key'] ?? ''));
     $provider = (string)($settings['search_provider'] ?? '');
@@ -20,14 +22,14 @@ function palette_search(array $settings, string $q): ?array
 
     if ($provider === 'brave') {
         $r = palette_http('GET', 'https://api.search.brave.com/res/v1/web/search?q=' . rawurlencode($q) . '&count=' . PALETTE_SEARCH_MAX,
-                     ['Accept: application/json', 'X-Subscription-Token: ' . $key], null, PALETTE_SEARCH_TIMEOUT);
+                     ['Accept: application/json', 'X-Subscription-Token: ' . $key], null, $timeout);
         // A 2xx answer with no `web` block is Brave's way of saying "no web results", not an outage.
         $rows = is_array($r['json'] ?? null) ? ($r['json']['web']['results'] ?? []) : null;
         $snippetField = 'description';
     } else {
         $r = palette_http('POST', 'https://api.tavily.com/search',
                      ['Content-Type: application/json', 'Accept: application/json'],
-                     json_encode(['api_key' => $key, 'query' => $q, 'max_results' => PALETTE_SEARCH_MAX], JSON_UNESCAPED_UNICODE), PALETTE_SEARCH_TIMEOUT);
+                     json_encode(['api_key' => $key, 'query' => $q, 'max_results' => PALETTE_SEARCH_MAX], JSON_UNESCAPED_UNICODE), $timeout);
         $rows = $r['json']['results'] ?? null;
         $snippetField = 'content';
     }

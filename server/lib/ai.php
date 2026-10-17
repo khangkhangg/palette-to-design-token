@@ -6,6 +6,8 @@
 const PALETTE_AI_MAX_TOKENS = 1800;
 const PALETTE_AI_TEMPERATURE = 0.3;
 const PALETTE_AI_TIMEOUT = 30;
+const PALETTE_AI_TIMEOUT_MIN = 5;        // seconds; the floor of a budgeted attempt (ruling A17)
+const PALETTE_AI_RETRY_MIN_LEFT = 15;   // seconds left needed for the unparseable retry (ruling A17)
 const PALETTE_AI_FEATURE = 'palette_ai';
 // hiring_ai_usage.user_id for palette calls (ruling A8). Not 0: companies logs guest JD analysis as user 0 and
 // ai_guard sums user 0 across features, so palette traffic would exhaust the guest quota. The key is still user 0's.
@@ -99,7 +101,9 @@ function palette_ai_transport(array $req, int $timeout): array
 // hiring_settings ai_enabled = 0 answers 'disabled' with no call and no log row.
 // error: '' | disabled | no_key | provider_unsupported | call_failed | http_<code> | truncated | unparseable.
 // usage counts every attempt.
-function palette_ai_call(mysqli $c, array $prompt): array
+// $deadline (palette_clock() seconds, ruling A17): each attempt's timeout is the time left (never under 5 s), and the
+// unparseable retry only happens with at least 15 s left. Without it every attempt gets PALETTE_AI_TIMEOUT.
+function palette_ai_call(mysqli $c, array $prompt, ?float $deadline = null): array
 {
     $res = ['ok' => false, 'json' => null, 'usage' => ['in' => 0, 'out' => 0], 'error' => ''];
     if ((int)hiring_setting($c, 'ai_enabled', 1) !== 1) { $res['error'] = 'disabled'; return $res; }
@@ -113,9 +117,11 @@ function palette_ai_call(mysqli $c, array $prompt): array
     $user = (string)($prompt['user'] ?? '');
 
     for ($attempt = 1; $attempt <= 2; $attempt++) {
+        if ($attempt === 2 && $deadline !== null && $deadline - palette_clock() < PALETTE_AI_RETRY_MIN_LEFT) break;   // no time for a retry
         $req = ai_provider_request($provider, $key, $model, $system, $user, $opt);
         if ($req === null) { $res['error'] = 'provider_unsupported'; return $res; }
-        [$out, $code, $cerr, $ms] = palette_ai_transport($req, PALETTE_AI_TIMEOUT);
+        $timeout = $deadline === null ? PALETTE_AI_TIMEOUT : max(PALETTE_AI_TIMEOUT_MIN, (int)floor($deadline - palette_clock()));
+        [$out, $code, $cerr, $ms] = palette_ai_transport($req, $timeout);
         $ans = ai_provider_parse($provider, is_string($out) ? json_decode($out, true) : null);
         $truncated = ($ans['stop'] ?? '') === 'length';
         ai_log($c, PALETTE_AI_LOG_USER, PALETTE_AI_FEATURE, $ans['usage'], [

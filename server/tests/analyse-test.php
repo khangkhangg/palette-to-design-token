@@ -289,6 +289,75 @@ $r = palette_analyse($conn, an_req(an_lic($conn)['key']));
 ok('no search results is not unavailable', $r['status'] === 200 && $r['body']['result']['search_unavailable'] === false);
 $GLOBALS['pp_http'] = $GLOBALS['pp_http_saved'];
 
+// ---- one 40 s budget per analyse (ruling A17), on a fake clock moved by the stubs
+$GLOBALS['clock'] = 1000.0;
+$GLOBALS['palette_clock'] = fn() => $GLOBALS['clock'];
+$GLOBALS['search_timeouts'] = [];
+$GLOBALS['search_cost'] = 8.0;   // seconds each search takes
+$GLOBALS['pp_http'] = function (string $m, string $u, array $h, ?string $b, int $timeout = -1) {
+    $GLOBALS['search_timeouts'][] = $timeout;
+    $GLOBALS['clock'] += is_array($GLOBALS['search_cost']) ? (array_shift($GLOBALS['search_cost']) ?? 0.0) : $GLOBALS['search_cost'];
+    return ($GLOBALS['pp_http_saved'])($m, $u, $h, $b);
+};
+$GLOBALS['ai_timeouts'] = [];
+$GLOBALS['ai_cost'] = [3.0];   // seconds per model attempt
+$GLOBALS['palette_ai_transport_saved'] = $GLOBALS['palette_ai_transport'];
+$GLOBALS['palette_ai_transport'] = function (array $req, int $timeout) {
+    $GLOBALS['ai_timeouts'][] = $timeout;
+    $GLOBALS['clock'] += array_shift($GLOBALS['ai_cost']) ?? 3.0;
+    return ($GLOBALS['palette_ai_transport_saved'])($req, $timeout);
+};
+$budgetLic = function () use ($conn) {
+    an_reset($conn);
+    $GLOBALS['search_timeouts'] = [];
+    $GLOBALS['ai_timeouts'] = [];
+    return an_lic($conn);
+};
+$lic = $budgetLic();
+$r = palette_analyse($conn, an_req($lic['key']));
+ok('A17: each search gets at most 8 s', $r['status'] === 200 && $GLOBALS['search_timeouts'] === [8, 8]);
+ok('A17: the model gets the rest of the 40 s budget (40 - 16 = 24 s)', $GLOBALS['ai_timeouts'] === [24]);
+
+$lic = $budgetLic();
+$GLOBALS['search_cost'] = 17.0;   // two slow searches leave 6 s
+$r = palette_analyse($conn, an_req($lic['key']));
+ok('A17: slow searches leave 6 s, and the model gets exactly that', $GLOBALS['search_timeouts'] === [8, 8] && $GLOBALS['ai_timeouts'] === [6]);
+$lic = $budgetLic();
+$GLOBALS['search_cost'] = [36.0, 1.0];   // the first search eats 36 s
+palette_analyse($conn, an_req($lic['key']));
+ok('A17: a later search is capped by what is left of the budget', $GLOBALS['search_timeouts'] === [8, 4]);
+$lic = $budgetLic();
+$GLOBALS['search_cost'] = 18.0;   // 4 s left
+palette_analyse($conn, an_req($lic['key']));
+ok('A17: model timeout has a 5 s floor', $GLOBALS['ai_timeouts'] === [5]);
+
+$lic = $budgetLic();
+$GLOBALS['search_cost'] = 8.0;
+$GLOBALS['ai_replies'] = [an_reply('not json'), an_reply(json_encode(an_answer()))];
+$GLOBALS['ai_cost'] = [5.0];   // 40 - 16 - 5 = 19 s left: enough for the retry
+$r = palette_analyse($conn, an_req($lic['key']));
+ok('A17: unparseable answer retried while >= 15 s remain, with the remaining time', $r['status'] === 200 && $GLOBALS['ai_timeouts'] === [24, 19]);
+$lic = $budgetLic();
+$GLOBALS['ai_replies'] = [an_reply('not json'), an_reply(json_encode(an_answer()))];
+$GLOBALS['ai_cost'] = [10.0];   // 14 s left: no retry
+$r = palette_analyse($conn, an_req($lic['key']));
+ok('A17: no unparseable retry with < 15 s left -> 503, analysis released', $r['status'] === 503 && $r['body']['error'] === 'err_ai_unavailable'
+    && $GLOBALS['ai_timeouts'] === [24] && count_rows($conn, "SELECT analyses FROM palette_ai_usage WHERE license_id = {$lic['id']}") === 0);
+
+$lic = $budgetLic();
+$GLOBALS['ai_replies'] = null;
+$GLOBALS['ai_cost'] = [30.0];   // 16 + 30 = 46 s: over budget
+$r = palette_analyse($conn, an_req($lic['key']));
+$u = $conn->query("SELECT analyses, tokens_in FROM palette_ai_usage WHERE license_id = {$lic['id']}")->fetch_assoc();
+ok('A17: an answer arriving after 40 s -> 503 err_ai_unavailable, released, tokens kept, nothing cached', $r['status'] === 503
+    && $r['body']['error'] === 'err_ai_unavailable' && (int)$u['analyses'] === 0 && (int)$u['tokens_in'] === 300
+    && count_rows($conn, 'SELECT COUNT(*) FROM palette_ai_cache') === 0);
+
+$GLOBALS['pp_http'] = $GLOBALS['pp_http_saved'];
+$GLOBALS['palette_ai_transport'] = $GLOBALS['palette_ai_transport_saved'];
+unset($GLOBALS['palette_clock']);
+$GLOBALS['ai_replies'] = null;
+
 // ---- search throws: the reservation is released
 an_reset($conn);
 $lic = an_lic($conn);

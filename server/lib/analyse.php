@@ -2,15 +2,19 @@
 // AI insights: the analyse request end to end (spec 5.2). Per-IP limit -> input whitelist + scrub (ruling A9) -> licence
 // (one row per request, ruling A5) -> per-licence limits -> 7-day result cache -> reserve one analysis -> 2 web searches -> one AI call -> validate -> record.
 // A cache hit, a failed call and an invalid answer cost no analysis; tokens are recorded for every call.
+// Ruling A17: the whole request has one 40 s budget (the extension gives up at 45 s): each search gets at most 8 s, the
+// model the rest (never under 5 s), and an answer that arrives after the budget is dropped (503, analysis released).
 
 const PALETTE_ANALYSE_MAX_BYTES = 16384;
 const PALETTE_ANALYSE_CACHE_TTL = 7 * 86400;
 const PALETTE_ANALYSE_PROMPT_RESULTS = 12;
 const PALETTE_ANALYSE_PATH_MAX = 300;
+const PALETTE_ANALYSE_BUDGET = 40;   // seconds for the whole request (ruling A17)
 
 // ['status' => int, 'body' => array]. $req: key, url, title, description, design, lang, ip.
 function palette_analyse(mysqli $c, array $req): array
 {
+    $deadline = palette_clock() + PALETTE_ANALYSE_BUDGET;
     $lang = palette_lang(is_string($req['lang'] ?? null) ? $req['lang'] : '');
     $ip = is_string($req['ip'] ?? null) ? $req['ip'] : '';
 
@@ -65,16 +69,26 @@ function palette_analyse(mysqli $c, array $req): array
     try {
         // 6. Search: both null = provider unavailable (AI-only); [] = no results.
         [$q1, $q2] = palette_analyse_queries($page['title'], $page['description'], $host);
-        $r1 = palette_search($settings, $q1);
-        $r2 = palette_search($settings, $q2);
+        $search = function (string $q) use ($settings, $deadline): ?array {
+            $left = (int)floor($deadline - palette_clock());
+            return $left < 1 ? null : palette_search($settings, $q, min(PALETTE_SEARCH_TIMEOUT, $left));
+        };
+        $r1 = $search($q1);
+        $r2 = $search($q2);
         $merged = [];
         foreach ([$r1 ?? [], $r2 ?? []] as $list) {
             foreach ($list as $row) $merged[$row['host']] ??= $row;
         }
 
         // 7. AI call; its tokens count whatever happens next.
-        $ai = palette_ai_call($c, palette_ai_prompt($page, $design, array_slice(array_values($merged), 0, PALETTE_ANALYSE_PROMPT_RESULTS), $lang));
+        $ai = palette_ai_call($c, palette_ai_prompt($page, $design, array_slice(array_values($merged), 0, PALETTE_ANALYSE_PROMPT_RESULTS), $lang), $deadline);
         palette_usage_tokens($c, $lic, $ai['usage']['in'], $ai['usage']['out']);
+        if (palette_clock() > $deadline) {
+            // The extension may already have given up: deliver nothing, charge nothing (tokens stay recorded).
+            error_log('palette_analyse: over the ' . PALETTE_ANALYSE_BUDGET . ' s budget; answer dropped');
+            palette_usage_release($c, $lic);
+            return palette_analyse_error(503, 'err_ai_unavailable', $lang);
+        }
         $result = $ai['ok'] ? palette_ai_validate($ai['json'], palette_ai_design_hexes($design), array_keys($merged), $host) : null;
         if ($result === null) {
             error_log('palette_analyse: AI ' . ($ai['ok'] ? 'answer failed validation' : $ai['error']));
