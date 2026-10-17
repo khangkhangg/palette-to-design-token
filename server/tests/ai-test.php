@@ -68,6 +68,9 @@ $fmt = $page;
 $fmt['title'] = "A\u{202E}B\u{200B}C\u{FEFF}D";
 ok('prompt: bidi, zero-width and BOM stripped', str_contains(palette_ai_prompt($fmt, $design, [], 'en')['user'], 'title: A B C D'));
 ok('design hexes collected', palette_ai_design_hexes($design) === ['#1f5e4b', '#f4efe6']);
+ok('design hexes: only colours[].hex and contrast.failing fg/bg, never roles or fonts',
+    palette_ai_design_hexes(['colours' => [['role' => '#abcdef', 'hex' => '#111111']], 'fonts' => ['#222222'],
+        'contrast' => ['pass' => 1, 'fail' => 1, 'failing' => [['fg' => '#333333', 'bg' => '#444444', 'ratio' => 2]]]]) === ['#111111', '#333333', '#444444']);
 
 // ---- validation
 $sent = ['#1F5E4B', '#f4efe6'];

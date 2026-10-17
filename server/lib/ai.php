@@ -27,13 +27,22 @@ function palette_ai_clean($v, int $max): string
     return mb_substr($v, 0, $max);
 }
 
-// Distinct lowercased #rgb / #rrggbb strings anywhere in the design summary, in order of appearance.
+// Distinct lowercased #rgb / #rrggbb colours of the design summary, in order of appearance: colours[].hex, then
+// contrast.failing[].fg / .bg. Nothing else (roles, fonts) is ever read as a colour.
 function palette_ai_design_hexes(array $design): array
 {
+    $vals = [];
+    foreach (is_array($design['colours'] ?? null) ? $design['colours'] : [] as $col) {
+        if (is_array($col)) $vals[] = $col['hex'] ?? null;
+    }
+    $failing = is_array($design['contrast'] ?? null) && is_array($design['contrast']['failing'] ?? null) ? $design['contrast']['failing'] : [];
+    foreach ($failing as $pair) {
+        if (is_array($pair)) array_push($vals, $pair['fg'] ?? null, $pair['bg'] ?? null);
+    }
     $out = [];
-    array_walk_recursive($design, function ($v) use (&$out) {
-        if (is_string($v) && preg_match('/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i', $v)) $out[strtolower($v)] = true;
-    });
+    foreach ($vals as $v) {
+        if (is_string($v) && preg_match('/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/iD', $v)) $out[strtolower($v)] = true;
+    }
     return array_keys($out);
 }
 

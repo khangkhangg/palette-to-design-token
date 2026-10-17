@@ -5,7 +5,7 @@
 // Strict decimal -> integer cents: "3.99", "3.990", "4.0000" ok; "3.999", "abc", "-1" null.
 function palette_dec_cents(mixed $v): ?int
 {
-    if (!is_string($v) || !preg_match('/^(\d{1,8})(?:\.(\d+))?$/', $v, $m)) return null;
+    if (!is_string($v) || !preg_match('/^(\d{1,8})(?:\.(\d+))?$/D', $v, $m)) return null;
     $frac = $m[2] ?? '';
     if (strlen($frac) > 2 && trim(substr($frac, 2), '0') !== '') return null;
     return (int)$m[1] * 100 + (int)str_pad(substr($frac, 0, 2), 2, '0');

@@ -113,6 +113,7 @@ foreach (['0', '0.00', 'abc', '-1', '3.999', '', '1e2'] as $bad) {
     $GLOBALS['pp_calls'] = [];
     ok("invalid ai_price_usd '$bad' -> err_bad_price, no calls", palette_sub_setup($conn) === ['ok' => false, 'error' => 'err_bad_price'] && $GLOBALS['pp_calls'] === []);
 }
+ok('dec_cents: a trailing newline is not a price (/D)', palette_dec_cents("3.99\n") === null && palette_dec_cents('3.99') === 399);
 ok('bad price shown in result html', str_contains(palette_sub_result_html(['ok' => false, 'error' => 'err_bad_price']), 'ai_price_usd'));
 foreach ([401, 403] as $code) {
     sub_reset($conn);
