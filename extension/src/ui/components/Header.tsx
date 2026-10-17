@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Settings } from '../../store';
-import { AVAILABLE_LANGS, LANG_NAMES, t } from '../i18n';
+import { AVAILABLE_LANGS, LANG_NAMES, formatDateTime, t } from '../i18n';
 import { Icon } from './Icon';
 
 const THEMES: { value: Settings['theme']; key: string }[] = [
@@ -27,8 +27,23 @@ export interface HeaderProps {
   licenseKey?: string | null;
   /** Shown to free users: opens the side panel's unlock view. */
   onEnterKey?(): void;
-  /** Shown to Pro users, behind an in-menu confirm step. */
-  onRemoveKey?(): void;
+  /** Shown to Pro users, behind an in-menu confirm step; says which licence to remove. */
+  onRemoveKey?(plan: LicensePlan): void;
+  /** The Pro + AI licence stored in this browser: active, or ended (kept so it can be renewed). */
+  ai?: AiMenuInfo | null;
+  /** Active Pro + AI: opens the account page. */
+  onManage?(): void;
+  /** Ended Pro + AI: opens checkout for the plan. */
+  onRenew?(): void;
+}
+
+export type LicensePlan = 'pro' | 'ai';
+export interface AiMenuInfo {
+  active: boolean;
+  /** ISO date the paid period ends (or ended). */
+  paidThrough: string | null;
+  /** The subscription is cancelled: access runs until paidThrough. */
+  cancelled: boolean;
 }
 
 /** "SDT-…-6789": enough to tell keys apart without showing the key. */
@@ -44,23 +59,36 @@ function ProActiveKey({ keyText }: { keyText: string }) {
   return <>{before}<bdi dir="ltr">{keyText}</bdi>{after}</>;
 }
 
+/** The Pro + AI status line, with its date isolated left-to-right. */
+function AiStatus({ ai }: { ai: AiMenuInfo }) {
+  const id = !ai.active ? 'settings.aiEnded' : ai.cancelled ? 'settings.aiEnds' : 'settings.aiRenews';
+  const [before, after = ''] = t(id, { date: MARK }).split(MARK);
+  return <>{before}<bdi dir="ltr">{ai.paidThrough ? formatDateTime(ai.paidThrough) : ''}</bdi>{after}</>;
+}
+
 export function Header({
   subtitle, theme, lang, busy, onTheme, onLang, onRescan, onOpenFull, onTogglePro, pro, licenseKey, onEnterKey, onRemoveKey,
+  ai, onManage, onRenew,
 }: HeaderProps) {
   const [open, setOpen] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  useEffect(() => { if (!open) setConfirming(false); }, [open]);
+  const [confirming, setConfirming] = useState<LicensePlan | null>(null);
+  useEffect(() => { if (!open) setConfirming(null); }, [open]);
   const cancelBtn = useRef<HTMLButtonElement>(null);
-  const removeBtn = useRef<HTMLButtonElement>(null);
-  /** Set by Cancel: focus goes back to the remove button once it is rendered again. */
-  const backToRemove = useRef(false);
+  const removeBtns = useRef<Partial<Record<LicensePlan, HTMLButtonElement | null>>>({});
+  /** Set by Cancel: focus goes back to that remove button once it is rendered again. */
+  const backToRemove = useRef<LicensePlan | null>(null);
   useEffect(() => {
     if (confirming) cancelBtn.current?.focus();
     else if (backToRemove.current) {
-      backToRemove.current = false;
-      removeBtn.current?.focus();
+      removeBtns.current[backToRemove.current]?.focus();
+      backToRemove.current = null;
     }
   }, [confirming]);
+  const aiActive = !!ai?.active;
+  /** Which licences "remove" can act on: those shown. A Pro flag with no stored key (dev toggle) still offers Pro. */
+  const plans: LicensePlan[] = [...(licenseKey ? ['pro' as const] : []), ...(ai ? ['ai' as const] : [])];
+  if (plans.length === 0 && pro) plans.push('pro');
+  const removeLabel = (p: LicensePlan) => (plans.length > 1 ? t(p === 'ai' ? 'settings.removeAiKey' : 'settings.removeProKey') : t('settings.removeKey'));
   const wrap = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
 
@@ -147,33 +175,57 @@ export function Header({
                 <span>{t('settings.enterKey')}</span>
               </button>
             )}
-            {pro && (
+            {(pro || ai) && (
               <div class="menu-license">
-                <p class="menu-pro">
-                  <Icon name="check" size={14} />
-                  <span>{licenseKey ? <ProActiveKey keyText={maskKey(licenseKey)} /> : t('settings.proActive')}</span>
-                </p>
-                {onRemoveKey && !confirming && (
-                  <button ref={removeBtn} type="button" class="menu-action menu-action-quiet" onClick={() => setConfirming(true)}>
-                    {t('settings.removeKey')}
+                {(licenseKey || (pro && !aiActive)) && (
+                  <p class="menu-pro">
+                    <Icon name="check" size={14} />
+                    <span>{licenseKey ? <ProActiveKey keyText={maskKey(licenseKey)} /> : t('settings.proActive')}</span>
+                  </p>
+                )}
+                {ai && (
+                  <p class={ai.active ? 'menu-pro' : 'menu-pro menu-pro-ended'}>
+                    <Icon name={ai.active ? 'check' : 'alert'} size={14} />
+                    <span><AiStatus ai={ai} /></span>
+                  </p>
+                )}
+                {ai?.active && onManage && (
+                  <button type="button" class="menu-action" onClick={() => { setOpen(false); onManage(); }}>
+                    {t('settings.manageSubscription')}
                   </button>
                 )}
+                {ai && !ai.active && onRenew && (
+                  <button type="button" class="menu-action" onClick={() => { setOpen(false); onRenew(); }}>
+                    {t('settings.renew')}
+                  </button>
+                )}
+                {onRemoveKey && !confirming && plans.map((p) => (
+                  <button
+                    key={p}
+                    ref={(el) => { removeBtns.current[p] = el; }}
+                    type="button"
+                    class="menu-action menu-action-quiet"
+                    onClick={() => setConfirming(p)}
+                  >
+                    {removeLabel(p)}
+                  </button>
+                ))}
                 {onRemoveKey && confirming && (
-                  <div class="menu-confirm" role="group" aria-label={t('settings.removeKey')}>
-                    <p class="menu-confirm-text">{t('settings.removeConfirm')}</p>
+                  <div class="menu-confirm" role="group" aria-label={removeLabel(confirming)}>
+                    <p class="menu-confirm-text">{t(confirming === 'ai' ? 'settings.removeConfirmAi' : 'settings.removeConfirm')}</p>
                     <div class="menu-confirm-actions">
                       <button
                         ref={cancelBtn}
                         type="button"
                         class="btn btn-small"
-                        onClick={() => { backToRemove.current = true; setConfirming(false); }}
+                        onClick={() => { backToRemove.current = confirming; setConfirming(null); }}
                       >
                         {t('settings.cancel')}
                       </button>
                       <button
                         type="button"
                         class="btn btn-small btn-danger"
-                        onClick={() => { setConfirming(false); onRemoveKey(); }}
+                        onClick={() => { setConfirming(null); onRemoveKey(confirming); }}
                       >
                         {t('settings.removeConfirmYes')}
                       </button>

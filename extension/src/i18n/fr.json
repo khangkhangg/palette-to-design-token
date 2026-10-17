@@ -26,6 +26,14 @@
     "removeKey": "Retirer la clé de ce navigateur",
     "removeConfirm": "Retirer la clé ? Pro sera désactivé dans ce navigateur jusqu’à ce que vous la saisissiez à nouveau.",
     "removeConfirmYes": "Retirer la clé",
+    "aiRenews": "Pro + AI · se renouvelle le {date}",
+    "aiEnds": "Pro + AI · se termine le {date}",
+    "aiEnded": "Pro + AI terminé le {date}",
+    "manageSubscription": "Gérer l’abonnement",
+    "renew": "Renouveler",
+    "removeProKey": "Retirer la clé Pro",
+    "removeAiKey": "Retirer la clé Pro + AI",
+    "removeConfirmAi": "Retirer la clé ? Pro + AI sera désactivé dans ce navigateur jusqu’à ce que vous la saisissiez à nouveau.",
     "cancel": "Annuler",
     "removeFailed": "Impossible de retirer la clé. Réessayez"
   },
@@ -247,6 +255,7 @@
     "unlocked": "Pro débloqué",
     "errInvalid": "Cette clé n’est pas valide.",
     "errRevoked": "Cette clé a été remboursée et ne fonctionne plus.",
+    "errEnded": "Cette formule Pro + AI est terminée.",
     "errNetwork": "Impossible de joindre le serveur — réessayez.",
     "errRateLimited": "Trop de tentatives — patientez une minute, puis réessayez.",
     "refund": "Toutes les ventes sont définitives. Pro se débloque instantanément et coûte 1,49 $ US, nous ne proposons donc aucun remboursement après l'achat."

@@ -27,7 +27,8 @@ vi.mock('../../src/scan', async (importOriginal) => ({
 }));
 vi.mock('../../src/license', () => ({
   recheckIfDue: mocks.recheckIfDue, activate: mocks.activate, checkoutUrl: () => '', lostKeyUrl: () => '',
-  currentLicense: async () => null, removeLicense: async () => {},
+  currentLicense: async () => null, currentAiLicense: async () => null, aiState: async () => ({ active: false, paidThrough: null, usage: null }),
+  accountUrl: () => '', removeLicense: async () => {},
 }));
 
 vi.mock('../../src/store', () => ({

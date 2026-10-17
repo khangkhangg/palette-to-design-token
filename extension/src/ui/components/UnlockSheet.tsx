@@ -20,6 +20,7 @@ const ERROR_KEY = {
   revoked: 'unlock.errRevoked',
   network: 'unlock.errNetwork',
   rate_limited: 'unlock.errRateLimited',
+  ended: 'unlock.errEnded',
 } as const;
 
 function Content({ onDone }: { onDone(): void }) {

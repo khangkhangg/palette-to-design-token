@@ -26,6 +26,14 @@
     "removeKey": "Quitar la clave de este navegador",
     "removeConfirm": "¿Quitar la clave? Pro se desactiva en este navegador hasta que la vuelvas a introducir.",
     "removeConfirmYes": "Quitar clave",
+    "aiRenews": "Pro + AI · se renueva el {date}",
+    "aiEnds": "Pro + AI · termina el {date}",
+    "aiEnded": "Pro + AI terminó el {date}",
+    "manageSubscription": "Gestionar suscripción",
+    "renew": "Renovar",
+    "removeProKey": "Quitar clave Pro",
+    "removeAiKey": "Quitar clave Pro + AI",
+    "removeConfirmAi": "¿Quitar la clave? Pro + AI se desactiva en este navegador hasta que la vuelvas a introducir.",
     "cancel": "Cancelar",
     "removeFailed": "No se pudo quitar la clave. Inténtalo de nuevo"
   },
@@ -247,6 +255,7 @@
     "unlocked": "Pro desbloqueado",
     "errInvalid": "Esa clave no es válida.",
     "errRevoked": "Esta clave se reembolsó y ya no funciona.",
+    "errEnded": "Este plan Pro + AI ha terminado.",
     "errNetwork": "No se pudo conectar con el servidor. Inténtalo de nuevo.",
     "errRateLimited": "Demasiados intentos. Espera un minuto y vuelve a intentarlo.",
     "refund": "Todas las ventas son definitivas. Como Pro se desbloquea al instante y cuesta 1,49 USD, no ofrecemos reembolsos después de la compra."

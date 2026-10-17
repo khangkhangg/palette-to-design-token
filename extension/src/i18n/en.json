@@ -24,6 +24,14 @@
     "removeKey": "Remove key from this browser",
     "removeConfirm": "Remove the key? Pro turns off in this browser until you enter it again.",
     "removeConfirmYes": "Remove key",
+    "aiRenews": "Pro + AI · renews {date}",
+    "aiEnds": "Pro + AI · ends {date}",
+    "aiEnded": "Pro + AI ended {date}",
+    "manageSubscription": "Manage subscription",
+    "renew": "Renew",
+    "removeProKey": "Remove Pro key",
+    "removeAiKey": "Remove Pro + AI key",
+    "removeConfirmAi": "Remove the key? Pro + AI turns off in this browser until you enter it again.",
     "cancel": "Cancel",
     "removeFailed": "Couldn't remove the key — try again"
   },
@@ -244,6 +252,7 @@
     "unlocked": "Pro unlocked",
     "errInvalid": "That key isn't valid.",
     "errRevoked": "This key was refunded and no longer works.",
+    "errEnded": "This Pro + AI plan has ended.",
     "errNetwork": "Couldn't reach the server — try again.",
     "errRateLimited": "Too many attempts — wait a minute and try again.",
     "refund": "All sales are final. Because Pro unlocks instantly and costs $1.49, we do not offer refunds after purchase."

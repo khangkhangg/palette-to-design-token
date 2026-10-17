@@ -22,6 +22,14 @@
     "removeKey": "从此浏览器移除密钥",
     "removeConfirm": "要移除密钥吗？在你重新输入之前，此浏览器中的 Pro 将关闭。",
     "removeConfirmYes": "移除密钥",
+    "aiRenews": "Pro + AI · {date} 续订",
+    "aiEnds": "Pro + AI · {date} 结束",
+    "aiEnded": "Pro + AI 已于 {date} 结束",
+    "manageSubscription": "管理订阅",
+    "renew": "续订",
+    "removeProKey": "移除 Pro 密钥",
+    "removeAiKey": "移除 Pro + AI 密钥",
+    "removeConfirmAi": "要移除密钥吗？在你重新输入之前，此浏览器中的 Pro + AI 将关闭。",
     "cancel": "取消",
     "removeFailed": "无法移除密钥，请重试"
   },
@@ -241,6 +249,7 @@
     "unlocked": "Pro 已解锁",
     "errInvalid": "该密钥无效。",
     "errRevoked": "此密钥已退款，无法再使用。",
+    "errEnded": "此 Pro + AI 方案已结束。",
     "errNetwork": "无法连接服务器，请重试。",
     "errRateLimited": "尝试次数过多，请等待一分钟后重试。",
     "refund": "所有销售均为最终交易。由于 Pro 即时解锁且价格仅为 1.49 美元，购买后恕不退款。"
