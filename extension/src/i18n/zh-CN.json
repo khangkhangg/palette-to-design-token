@@ -307,6 +307,8 @@
     "cached": "过去 7 天内的共享结果：未扣除分析次数。",
     "resultsReady": "结果已就绪",
     "quotaNoDate": "本月的 {limit} 次分析已用完。",
+    "tokenCap": "本月的 AI 用量已用完，将于 {date} 重置。",
+    "tokenCapNoDate": "本月的 AI 用量已用完。",
     "runInLang": "用{language}重新分析"
   },
   "plans": {

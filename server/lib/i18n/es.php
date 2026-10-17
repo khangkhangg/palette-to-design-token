@@ -31,6 +31,7 @@ return [
     'err_ended' => 'Tu suscripción Pro + IA terminó el {date}.',
     'err_ended_nodate' => 'Tu suscripción Pro + IA ha terminado.',
     'err_quota' => 'Has usado todos tus análisis de este periodo. Se restablecen el {date}.',
+    'err_token_cap' => 'Se ha agotado el límite de IA de este mes. Se restablece el {date}.',
     'err_ai_unavailable' => 'Los análisis con IA no están disponibles ahora mismo. No se te ha cobrado. Inténtalo de nuevo más tarde.',
     'email_sub_subject' => 'Tu clave de Site to Design Token Pro + IA',
     'email_sub_title' => 'Gracias por suscribirte a Pro + IA',

@@ -308,6 +308,8 @@ export function AiSection({ tokens }: AiSectionProps) {
   const [running, setRunning] = useState<0 | 1 | null>(null);
   const [error, setError] = useState<AnalyseReason | null>(null);
   const [quotaReset, setQuotaReset] = useState<string | null>(null);
+  /** The refusal was the hidden token cap, not the analyses limit: same lock, its own message. */
+  const [tokenCap, setTokenCap] = useState(false);
   const [sheet, setSheet] = useState(false);
   /** Read out by the section's live region: the progress step, then "Results ready". */
   const [announce, setAnnounce] = useState('');
@@ -315,7 +317,7 @@ export function AiSection({ tokens }: AiSectionProps) {
   const ctrl = useRef<AbortController | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
 
-  const showPlan = (p: Plan) => { setPlan(p); setQuotaReset(null); };
+  const showPlan = (p: Plan) => { setPlan(p); setQuotaReset(null); setTokenCap(false); };
   const refresh = () => { void loadPlan().then(showPlan).catch(() => showPlan({ kind: 'locked' })); };
 
   useEffect(() => {
@@ -389,8 +391,9 @@ export function AiSection({ tokens }: AiSectionProps) {
     if (r.reason === 'cancelled') return setFocus('analyse');
     if (r.reason === 'not_ai') return showPlan({ kind: 'locked' });
     if (r.reason === 'ended') return showPlan({ kind: 'ended', endedOn: r.endedOn ?? null });
-    if (r.reason === 'quota') {
+    if (r.reason === 'quota' || r.reason === 'token_cap') {
       setQuotaReset(r.resetsOn ?? usage?.resetsOn ?? '');
+      setTokenCap(r.reason === 'token_cap');
       return setFocus('analyse');
     }
     setError(r.reason);
@@ -440,7 +443,11 @@ export function AiSection({ tokens }: AiSectionProps) {
   const quotaNote = quota && (
     <p class="ai-quota" role="status">
       <Icon name="info" size={14} />
-      <span>{resetsOn ? ltr('ai.quota', { limit: usage?.limit ?? 100, date: resetsOn }) : ltr('ai.quotaNoDate', { limit: usage?.limit ?? 100 })}</span>
+      <span>
+        {tokenCap
+          ? (resetsOn ? ltr('ai.tokenCap', { date: resetsOn }) : t('ai.tokenCapNoDate'))
+          : (resetsOn ? ltr('ai.quota', { limit: usage?.limit ?? 100, date: resetsOn }) : ltr('ai.quotaNoDate', { limit: usage?.limit ?? 100 }))}
+      </span>
     </p>
   );
 

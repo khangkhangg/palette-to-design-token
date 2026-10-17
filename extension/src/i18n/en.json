@@ -311,6 +311,8 @@
     "cached": "Shared result from the last 7 days: no analysis used.",
     "resultsReady": "Results ready",
     "quotaNoDate": "You've used all {limit} analyses this month.",
+    "tokenCap": "This month's AI limit is used up. It resets on {date}.",
+    "tokenCapNoDate": "This month's AI limit is used up.",
     "runInLang": "Run again in {language}"
   },
   "plans": {

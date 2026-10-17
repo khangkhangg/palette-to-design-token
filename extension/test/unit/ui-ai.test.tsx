@@ -227,6 +227,23 @@ describe('AI section: running', () => {
     expect(((await ready()) as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it('the hidden token cap has its own message, not "out of analyses", and disables Analyse', async () => {
+    mocks.analyse.mockResolvedValue({ ok: false, reason: 'token_cap', resetsOn: '2026-11-01' });
+    render(<AiSection tokens={brewline()} />);
+    fireEvent.click(await ready());
+    expect(await screen.findByText(text(`This month's AI limit is used up. It resets on ${formatDate('2026-11-01', false)}.`))).toBeTruthy();
+    expect(screen.queryByText(text(/You've used all/))).toBeNull();
+    expect(((await ready()) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('a token-cap answer without a date says so without a date', async () => {
+    data.licenseAi = aiLicense({ usage: null });
+    mocks.analyse.mockResolvedValue({ ok: false, reason: 'token_cap' });
+    render(<AiSection tokens={brewline()} />);
+    fireEvent.click(await ready());
+    expect(await screen.findByText(text("This month's AI limit is used up."))).toBeTruthy();
+  });
+
   it('an out-of-quota answer without a reset date never shows "Resets ."', async () => {
     data.licenseAi = aiLicense({ usage: null });
     mocks.analyse.mockResolvedValue({ ok: false, reason: 'quota' });

@@ -62,8 +62,11 @@ function palette_analyse(mysqli $c, array $req): array
 
     // 5. Reserve before any paid call goes out.
     if (!palette_usage_reserve($c, $lic, $settings)) {
+        // Out of analyses, or the hidden monthly token cap was reached first (its own message).
+        $full = palette_usage_get($c, $lic, $settings);
         $now = $usage();
-        return palette_analyse_error(429, 'err_quota', $lang, ['resets_on' => $now['resets_on'], 'usage' => $now], ['date' => (string)$now['resets_on']]);
+        $err = $full['used'] < $full['limit'] && $full['tokens'] >= $full['token_cap'] ? 'err_token_cap' : 'err_quota';
+        return palette_analyse_error(429, $err, $lang, ['resets_on' => $now['resets_on'], 'usage' => $now], ['date' => (string)$now['resets_on']]);
     }
 
     try {

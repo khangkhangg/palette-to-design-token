@@ -31,6 +31,7 @@ return [
     'err_ended' => 'Your Pro + AI subscription ended on {date}.',
     'err_ended_nodate' => 'Your Pro + AI subscription has ended.',
     'err_quota' => 'You have used all your analyses for this period. They reset on {date}.',
+    'err_token_cap' => 'This month\'s AI limit is used up. It resets on {date}.',
     'err_ai_unavailable' => 'AI insights are unavailable right now. You were not charged. Please try again later.',
     'email_sub_subject' => 'Your Site to Design Token Pro + AI key',
     'email_sub_title' => 'Thank you for subscribing to Pro + AI',

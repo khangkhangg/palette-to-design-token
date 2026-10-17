@@ -315,6 +315,8 @@
     "cached": "Résultat partagé des 7 derniers jours : aucune analyse décomptée.",
     "resultsReady": "Résultats prêts",
     "quotaNoDate": "Vous avez utilisé vos {limit} analyses ce mois-ci.",
+    "tokenCap": "La limite d’IA de ce mois est atteinte. Elle sera réinitialisée le {date}.",
+    "tokenCapNoDate": "La limite d’IA de ce mois est atteinte.",
     "runInLang": "Relancer en {language}"
   },
   "plans": {

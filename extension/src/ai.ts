@@ -32,6 +32,8 @@ export interface DesignSummary {
 }
 export type AnalyseReason =
   | 'not_ai' | 'ended' | 'quota' | 'rate_limited' | 'unavailable' | 'network' | 'timeout'
+  /** The hidden monthly token cap was reached before the analyses ran out (resets with the period). */
+  | 'token_cap'
   /** Refused before sending: not a public http(s) page (localhost, IPs, .local …). */
   | 'unsupported'
   /** The server refused the request (400 / 413). */
@@ -250,11 +252,12 @@ export async function analyse(
     return typeof body?.ended_on === 'string' ? { ok: false, reason: 'ended', endedOn: body.ended_on } : { ok: false, reason: 'ended' };
   }
   if (status === 403) return { ok: false, reason: 'not_ai' };
-  if (status === 429 && error === 'err_quota') {
+  if (status === 429 && (error === 'err_quota' || error === 'err_token_cap')) {
     const usage = parseUsage(body?.usage);
     if (usage) await storeAiUsage(usage).catch(() => {});
     const resetsOn = typeof body?.resets_on === 'string' ? body.resets_on : usage?.resetsOn;
-    return resetsOn ? { ok: false, reason: 'quota', resetsOn } : { ok: false, reason: 'quota' };
+    const reason = error === 'err_quota' ? 'quota' : 'token_cap';
+    return resetsOn ? { ok: false, reason, resetsOn } : { ok: false, reason };
   }
   if (status === 429) return { ok: false, reason: 'rate_limited' };
   if (status === 400 || status === 413) return { ok: false, reason: 'bad_request' };

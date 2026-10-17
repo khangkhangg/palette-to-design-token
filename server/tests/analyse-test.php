@@ -225,7 +225,13 @@ ok('quota full -> 429 err_quota with resets_on', $r['status'] === 429 && $r['bod
 ok('quota full: no HTTP calls, used stays 100', $GLOBALS['search_calls'] === [] && $GLOBALS['ai_calls'] === []
     && count_rows($conn, "SELECT analyses FROM palette_ai_usage WHERE license_id = {$lic['id']}") === 100);
 $conn->query("UPDATE palette_ai_usage SET analyses = 0, tokens_in = 600000 WHERE license_id = {$lic['id']}");
-ok('token cap reached -> 429 err_quota', palette_analyse($conn, an_req($lic['key']))['body']['error'] === 'err_quota');
+$r = palette_analyse($conn, an_req($lic['key']));
+ok('token cap reached -> 429 err_token_cap with its own message and resets_on', $r['status'] === 429 && $r['body']['error'] === 'err_token_cap'
+    && $r['body']['resets_on'] === date('Y-m-d', strtotime($lic['paid_through']))
+    && $r['body']['message'] === palette_t('en', 'err_token_cap', ['date' => $r['body']['resets_on']]) && str_contains($r['body']['message'], "This month's AI limit is used up")
+    && isset($r['body']['usage']['used']));
+foreach (PALETTE_LANGS as $l) ok("err_token_cap in $l, with {date}", str_contains(palette_strings($l)['err_token_cap'] ?? '', '{date}')
+    && ($l === 'en' || palette_strings($l)['err_token_cap'] !== palette_strings('en')['err_token_cap']));
 
 // ---- rate limits
 an_reset($conn);

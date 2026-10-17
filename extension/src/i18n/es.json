@@ -315,6 +315,8 @@
     "cached": "Resultado compartido de los últimos 7 días: no se ha usado ningún análisis.",
     "resultsReady": "Resultados listos",
     "quotaNoDate": "Has usado los {limit} análisis de este mes.",
+    "tokenCap": "Se ha agotado el límite de IA de este mes. Se restablece el {date}.",
+    "tokenCapNoDate": "Se ha agotado el límite de IA de este mes.",
     "runInLang": "Volver a analizar en {language}"
   },
   "plans": {

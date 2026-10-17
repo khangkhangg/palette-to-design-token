@@ -31,6 +31,7 @@ return [
     'err_ended' => '您的 Pro + AI 订阅已于 {date} 结束。',
     'err_ended_nodate' => '您的 Pro + AI 订阅已结束。',
     'err_quota' => '您本周期的分析次数已用完，将于 {date} 重置。',
+    'err_token_cap' => '本月的 AI 用量已用完，将于 {date} 重置。',
     'err_ai_unavailable' => 'AI 洞察暂时不可用，本次未扣除次数。请稍后再试。',
     'email_sub_subject' => '你的 Site to Design Token Pro + AI 密钥',
     'email_sub_title' => '感谢订阅 Pro + AI',
