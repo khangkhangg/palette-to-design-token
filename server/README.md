@@ -11,6 +11,7 @@ directory of this folder.
 - `includes/functions.php`: `generateCSRFToken`, `verifyCSRFToken`, `getAdminSetting`
 - `getAdminSetting('resend_api_key')`: Resend API key; mail is sent only via Resend (`POST https://api.resend.com/emails`) using `pp_http`, never PHP `mail()`
 - `includes/paypal.php`: `pp_settings`, `pp_ready`, `pp_api`, `pp_token`, `pp_base`, `pp_http` (test hook `$GLOBALS['pp_http']`; `pp_token` + `pp_base` are used for the two calls that need a raw body or extra headers: capture with `PayPal-Request-Id`, and verify-webhook-signature with the event spliced in byte for byte)
+- `lib/http.php` `palette_http(method, url, headers, body, timeoutSec)`: palette's own HTTP call with a caller-chosen timeout (companies' `pp_http` hard-codes 25 s). Same `['status','json']` shape, status 0 on transport failure; delegates to `$GLOBALS['pp_http']` when that stub is set. Used by the search adapter (8 s).
 - Table owned by companies: `admin_settings` (settings key `palette`, JSON). Rate limits do not use companies' `checkRateLimit` (its purge is not scoped per endpoint, ruling S8): see `palette_rate` below.
 
 If any of these change in companies, this add-on must be updated.

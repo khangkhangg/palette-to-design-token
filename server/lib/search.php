@@ -1,9 +1,10 @@
 <?php
 // Web search for the AI insights add-on (Brave or Tavily) and host normalisation.
-// HTTP goes through companies' pp_http (stubbable via $GLOBALS['pp_http']); it takes no timeout
-// argument, so the search call uses pp_http's own default timeout. search_key is a secret: never logged.
+// HTTP goes through palette_http (lib/http.php, stubbable via $GLOBALS['pp_http']) with an 8 s timeout.
+// search_key is a secret: never logged.
 
 const PALETTE_SEARCH_MAX = 8;
+const PALETTE_SEARCH_TIMEOUT = 8;
 
 // [['title','url','snippet','host'] ...] (max 8, first result per host), or null when the provider
 // is unavailable: no key, unknown provider, empty query, transport failure/timeout, non-2xx or non-JSON reply.
@@ -16,14 +17,14 @@ function palette_search(array $settings, string $q): ?array
     if ($q === '' || $key === '' || !in_array($provider, ['brave', 'tavily'], true)) return null;
 
     if ($provider === 'brave') {
-        $r = pp_http('GET', 'https://api.search.brave.com/res/v1/web/search?q=' . rawurlencode($q) . '&count=' . PALETTE_SEARCH_MAX,
-                     ['Accept: application/json', 'X-Subscription-Token: ' . $key], null);
+        $r = palette_http('GET', 'https://api.search.brave.com/res/v1/web/search?q=' . rawurlencode($q) . '&count=' . PALETTE_SEARCH_MAX,
+                     ['Accept: application/json', 'X-Subscription-Token: ' . $key], null, PALETTE_SEARCH_TIMEOUT);
         $rows = $r['json']['web']['results'] ?? null;
         $snippetField = 'description';
     } else {
-        $r = pp_http('POST', 'https://api.tavily.com/search',
+        $r = palette_http('POST', 'https://api.tavily.com/search',
                      ['Content-Type: application/json', 'Accept: application/json'],
-                     json_encode(['api_key' => $key, 'query' => $q, 'max_results' => PALETTE_SEARCH_MAX], JSON_UNESCAPED_UNICODE));
+                     json_encode(['api_key' => $key, 'query' => $q, 'max_results' => PALETTE_SEARCH_MAX], JSON_UNESCAPED_UNICODE), PALETTE_SEARCH_TIMEOUT);
         $rows = $r['json']['results'] ?? null;
         $snippetField = 'content';
     }

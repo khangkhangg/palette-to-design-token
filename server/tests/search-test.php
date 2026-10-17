@@ -115,3 +115,14 @@ $cases = [
     ['https://notgoogle.com/url?q=https://x.example/', 'notgoogle.com'],
 ];
 foreach ($cases as [$in, $want]) ok('palette_host(' . $in . ') = ' . var_export($want, true), palette_host($in) === $want);
+
+// ---- palette_http
+$stubbed = false;
+$GLOBALS['pp_http'] = function () use (&$stubbed) { $stubbed = true; return ['status' => 204, 'json' => null]; };
+$r = palette_http('GET', 'http://example.invalid/', [], null, 2);
+ok('palette_http delegates to the pp_http stub when set', $stubbed && $r['status'] === 204);
+unset($GLOBALS['pp_http']);
+$t = microtime(true);
+$r = palette_http('GET', 'http://10.255.255.1/', [], null, 2);
+$el = microtime(true) - $t;
+ok('palette_http: unroutable address returns status 0 within the timeout', $r['status'] === 0 && $el < 4);
