@@ -86,9 +86,9 @@ export function siteHost(host: string): string {
 }
 
 /**
- * A public http(s) page as the server accepts it: origin + path (no userinfo, query or fragment) and its host.
- * Null for anything the server refuses: other schemes, IP literals, single-label and local hosts (localhost,
- * .local, .localhost, .internal, .test), numeric final labels, or a path over 300 characters.
+ * A public http(s) page as the server accepts it: origin + safe first path segment (no userinfo, query, fragment or
+ * deeper path) and its host. Null for anything the server refuses: other schemes, IP literals, single-label and local
+ * hosts (localhost, .local, .localhost, .internal, .test), numeric final labels, or a path over 300 characters.
  */
 export function publicPage(raw: string): { url: string; host: string } | null {
   let u: URL;
@@ -102,7 +102,16 @@ export function publicPage(raw: string): { url: string; host: string } | null {
   if (host === 'localhost' || /\.(local|localhost|internal|test)$/.test(host)) return null;
   const path = u.pathname || '/';
   if (path.length > PATH_MAX) return null;
-  return { url: `${u.protocol}//${hostname}${u.port ? `:${u.port}` : ''}${path}`, host };
+  return { url: `${u.protocol}//${hostname}${u.port ? `:${u.port}` : ''}${safePath(path)}`, host };
+}
+
+/**
+ * Ruling A14: only the first path segment is sent, and only when it is at most 24 characters with no digits and no @
+ * ("/shop", "/pricing"); any other path becomes "/". The server applies the same rule.
+ */
+function safePath(path: string): string {
+  const first = path.split('/')[1] ?? '';
+  return /^[^/\d@]{1,24}$/.test(first) ? `/${first}` : '/';
 }
 
 const str = (v: unknown, max = 600): string => (typeof v === 'string' ? v.trim().slice(0, max) : '');

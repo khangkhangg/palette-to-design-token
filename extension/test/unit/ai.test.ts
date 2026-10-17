@@ -97,7 +97,20 @@ describe('designSummary', () => {
 describe('publicPage', () => {
   it('strips the query string and fragment, and gives the host without www.', () => {
     expect(publicPage('https://www.Brewline.co/menu?utm_source=x&id=7#top')).toEqual({ url: 'https://www.brewline.co/menu', host: 'brewline.co' });
-    expect(publicPage('http://brewline.example:4517/shop/')).toEqual({ url: 'http://brewline.example:4517/shop/', host: 'brewline.example' });
+    expect(publicPage('http://brewline.example:4517/shop/')).toEqual({ url: 'http://brewline.example:4517/shop', host: 'brewline.example' });
+  });
+
+  it.each([
+    ['https://brewline.co/', 'https://brewline.co/'],
+    ['https://brewline.co/account/orders/778899', 'https://brewline.co/account'],
+    ['https://brewline.co/u/jane.doe', 'https://brewline.co/u'],
+    ['https://brewline.co/order-98765/x', 'https://brewline.co/'],
+    ['https://brewline.co/@jane/posts', 'https://brewline.co/'],
+    [`https://brewline.co/${'a'.repeat(25)}`, 'https://brewline.co/'],
+    [`https://brewline.co/${'a'.repeat(24)}/b`, `https://brewline.co/${'a'.repeat(24)}`],
+    ['https://brewline.co//x', 'https://brewline.co/'],
+  ])('sends only the origin and a safe first path segment (ruling A14): %s', (raw, url) => {
+    expect(publicPage(raw)?.url).toBe(url);
   });
 
   it.each([

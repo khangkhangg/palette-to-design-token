@@ -121,8 +121,8 @@ function palette_scrub_text($s, int $max): string
     return trim(mb_substr(trim($s), 0, $max));
 }
 
-// ['url' => origin + path (no userinfo, query or fragment), 'host' => palette_host] or null for anything that is not
-// a public http(s) page, or whose path is longer than 300 characters.
+// ['url' => origin + safe first segment (ruling A14; no userinfo, query, fragment or deeper path), 'host' => palette_host]
+// or null for anything that is not a public http(s) page, or whose path is longer than 300 characters.
 function palette_analyse_url($raw): ?array
 {
     if (!is_string($raw) || strlen($raw) > 4096) return null;
@@ -133,10 +133,18 @@ function palette_analyse_url($raw): ?array
     $path = (string)($p['path'] ?? '');
     if ($path === '') $path = '/';
     if (strlen($path) > PALETTE_ANALYSE_PATH_MAX) return null;
-    $url = $scheme . '://' . strtolower(rtrim((string)($p['host'] ?? ''), '.')) . (isset($p['port']) ? ':' . (int)$p['port'] : '') . $path;
-    $host = palette_host($url);   // no query left, so no redirect unwrapping
+    $origin = $scheme . '://' . strtolower(rtrim((string)($p['host'] ?? ''), '.')) . (isset($p['port']) ? ':' . (int)$p['port'] : '');
+    $host = palette_host($origin . '/');   // no query, so no redirect unwrapping
     if ($host === null || strlen($host) > 190) return null;
-    return ['url' => $url, 'host' => $host];
+    return ['url' => $origin . palette_analyse_safe_path($path), 'host' => $host];
+}
+
+// Ruling A14: the model and the search only ever see the origin plus the first path segment, and only when that
+// segment is at most 24 characters with no digits and no @ ("/shop", "/pricing"); any other path becomes "/".
+function palette_analyse_safe_path(string $path): string
+{
+    $first = explode('/', $path)[1] ?? '';
+    return preg_match('~^[^/\d@]{1,24}$~D', $first) ? '/' . $first : '/';
 }
 
 function palette_analyse_hex($v): ?string

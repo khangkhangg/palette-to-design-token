@@ -519,9 +519,10 @@ cfg($conn, ['ai_paypal_plan_id' => 'P-TESTPLAN1', 'ai_paypal_plan_mode' => 'sand
 $privacy = fn(string $l) => palette_render_privacy(['query' => ['lang' => $l], 'accept_language' => '']);
 $terms = fn(string $l) => palette_render_terms(['query' => ['lang' => $l], 'accept_language' => '']);
 $pen = $privacy('en');
-ok('privacy en: AI insights only on Analyse, with the address minus its query string',
+ok('privacy en: AI insights only on Analyse, with only the main part of the address (ruling A14)',
     str_contains($pen, h(palette_t('en', 'priv_ai_h'))) && str_contains(palette_t('en', 'priv_ai'), 'only when you press Analyse')
-    && str_contains(palette_t('en', 'priv_ai'), 'without anything after the ?') && str_contains(palette_t('en', 'priv_ai'), 'title') && str_contains(palette_t('en', 'priv_ai'), 'description')
+    && str_contains(palette_t('en', 'priv_ai'), "the site's address (only the main part, like example.com/shop)")
+    && !str_contains(palette_t('en', 'priv_ai'), 'without anything after the ?') && str_contains(palette_t('en', 'priv_ai'), 'title') && str_contains(palette_t('en', 'priv_ai'), 'description')
     && str_contains(palette_t('en', 'priv_ai'), 'summary of the design') && str_contains($pen, h(palette_t('en', 'priv_ai'))));
 ok('privacy en: scrubbing, Brave Search, DeepSeek, 7-day shared cache, aggregate list, PayPal and what we keep',
     str_contains(palette_t('en', 'priv_ai'), 'email addresses, links (anything starting with http, https or www, or containing a path), @handles and long digit runs such as phone numbers') && str_contains(palette_t('en', 'priv_ai'), 'other words in the title are sent as they are') && !str_contains(palette_t('en', 'priv_ai'), 'personal details') && str_contains(palette_t('en', 'priv_ai'), 'Brave Search')
@@ -540,6 +541,8 @@ foreach (LANGS as $l) {
         str_contains($p, h(palette_t($l, 'priv_ai_h'))) && str_contains($p, h($ai)) && str_contains($p, h(palette_t($l, 'priv_sends')))
         && str_contains($ai, 'Brave Search') && str_contains($ai, 'DeepSeek') && str_contains($ai, (string)(PALETTE_ANALYSE_CACHE_TTL / 86400)) && str_contains($ai, '@') && str_contains($ai, 'PayPal') && str_contains($ai, 'vietnamcos.com')
         && str_contains(palette_t($l, 'priv_sends'), 'Pro + AI') && preg_match(EMOJI_RE, $p) === 0);
+    ok("privacy $l: the address is only its main part, with the example.com/shop example (ruling A14)",
+        str_contains($ai, 'example.com/shop') && !str_contains($ai, '?'));
 }
 
 $ten = $terms('en');

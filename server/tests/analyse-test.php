@@ -112,6 +112,14 @@ ok('happy: q2 is description + similar websites', ($q2['q'] ?? '') === 'Small-ba
 ok('happy: one AI call', count($GLOBALS['ai_calls']) === 1);
 $user = $GLOBALS['ai_calls'][0]['body']['messages'][1]['content'] ?? '';
 ok('happy: prompt url is origin + path only', str_contains($user, 'url: https://www.shop.example/coffee') && !str_contains($user, 'utm') && !str_contains($user, '#top'));
+// ruling A14: only the origin and a safe first path segment (<= 24 chars, no digits or @) ever reach the model
+foreach (['https://shop.example/' => 'https://shop.example/', 'https://shop.example/pricing/' => 'https://shop.example/pricing',
+          'https://shop.example/shop/orders/12345/invoice' => 'https://shop.example/shop', 'https://shop.example/u/jane.doe' => 'https://shop.example/u',
+          'https://shop.example/order-98765/x' => 'https://shop.example/', 'https://shop.example/@jane/posts' => 'https://shop.example/',
+          'https://shop.example/' . str_repeat('a', 25) => 'https://shop.example/', 'https://shop.example/' . str_repeat('a', 24) => 'https://shop.example/' . str_repeat('a', 24),
+          'http://shop.example:8080/a%20b/c' => 'http://shop.example:8080/', 'https://shop.example//x' => 'https://shop.example/'] as $in => $want) {
+    ok("A14 url: $in -> $want", (palette_analyse_url($in)['url'] ?? null) === $want);
+}
 ok('happy: prompt merges search by host', substr_count($user, 'bluebottle.example') === 1 && str_contains($user, 'stumptown.example') && str_contains($user, 'onyx.example'));
 $aiRows = $conn->query("SELECT user_id, feature, ok FROM hiring_ai_usage")->fetch_all(MYSQLI_ASSOC);
 ok('happy: ai_log row', count($aiRows) === 1 && $aiRows[0]['feature'] === 'palette_ai' && (int)$aiRows[0]['ok'] === 1);
@@ -310,6 +318,16 @@ ok('scrub: sites_record scrubs on its own too', (function () use ($conn) {
     palette_sites_record($conn, 'direct.example', ['title' => '(5) bob@example.com | Direct'], palette_analyse_design([]), ['sector' => '', 'tags' => [], 'sites' => []]);
     return count_rows($conn, "SELECT COUNT(*) FROM palette_sites WHERE domain = 'direct.example' AND title = 'Direct' AND name = 'Direct'") === 1;
 })());
+
+// ---- a deep page: the model sees only the origin and a safe first segment (ruling A14)
+an_reset($conn);
+$lic = an_lic($conn);
+palette_analyse($conn, an_req($lic['key'], ['url' => 'https://shop.example/account/orders/778899?x=1', 'title' => 'Orders', 'description' => 'Your orders']));
+$deep = $GLOBALS['ai_calls'][0]['body']['messages'][1]['content'] ?? '';
+ok('A14: a deep page sends only origin + first segment to the model', str_contains($deep, 'url: https://shop.example/account')
+    && !str_contains($deep, 'orders/') && !str_contains($deep, '778899'));
+ok('A14: cache and site list still keyed by host', count_rows($conn, "SELECT COUNT(*) FROM palette_ai_cache WHERE host = 'shop.example'") === 1
+    && count_rows($conn, "SELECT COUNT(*) FROM palette_sites WHERE domain = 'shop.example'") === 1);
 
 // ---- input validation
 an_reset($conn);
