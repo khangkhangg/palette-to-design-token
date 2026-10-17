@@ -50,9 +50,10 @@ function palette_analyse(mysqli $c, array $req): array
     $settings = palette_settings($c);
     $usage = fn() => array_intersect_key(palette_usage_get($c, $lic, $settings), ['used' => 1, 'limit' => 1, 'resets_on' => 1]);
 
-    // 4. Cache: same host, language and colour set within 7 days costs nothing.
+    // 4. Cache: same host, language, colour set and page text (ruling A13) within 7 days costs nothing.
     $hash = palette_colour_hash($design);
-    $cached = palette_cache_get($c, $host, $lang, $hash);
+    $pageHash = palette_page_hash($page);
+    $cached = palette_cache_get($c, $host, $lang, $hash, $pageHash);
     if ($cached !== null) return ['status' => 200, 'body' => ['ok' => true, 'result' => $cached, 'cached' => true, 'usage' => $usage()]];
 
     // 5. Reserve before any paid call goes out.
@@ -83,7 +84,7 @@ function palette_analyse(mysqli $c, array $req): array
         $result['search_unavailable'] = $r1 === null && $r2 === null;
 
         // 8. Record.
-        palette_cache_put($c, $host, $lang, $hash, $result);
+        palette_cache_put($c, $host, $lang, $hash, $pageHash, $result);
         palette_sites_record($c, $host, $page, $design, $result);
     } catch (Throwable $e) {
         palette_usage_release($c, $lic);   // nothing was delivered, so nothing is charged
@@ -226,11 +227,18 @@ function palette_analyse_queries(string $title, string $description, string $hos
     return ['"' . $brand . '" competitors', $topic . ' similar websites'];
 }
 
-function palette_cache_get(mysqli $c, string $host, string $lang, string $hash): ?array
+// sha1 of the scrubbed title + "\n" + scrubbed description (ruling A13): a cached answer is only ever reused for the same
+// page text, so one page cannot plant an answer that other pages of the host would be served.
+function palette_page_hash(array $page): string
+{
+    return sha1((string)($page['title'] ?? '') . "\n" . (string)($page['description'] ?? ''));
+}
+
+function palette_cache_get(mysqli $c, string $host, string $lang, string $hash, string $pageHash): ?array
 {
     $since = date('Y-m-d H:i:s', time() - PALETTE_ANALYSE_CACHE_TTL);
-    $st = $c->prepare('SELECT result_json FROM palette_ai_cache WHERE host = ? AND lang = ? AND colour_hash = ? AND created_at >= ?');
-    $st->bind_param('ssss', $host, $lang, $hash, $since);
+    $st = $c->prepare('SELECT result_json FROM palette_ai_cache WHERE host = ? AND lang = ? AND colour_hash = ? AND page_hash = ? AND created_at >= ?');
+    $st->bind_param('sssss', $host, $lang, $hash, $pageHash, $since);
     $st->execute();
     $row = $st->get_result()->fetch_row();
     $st->close();
@@ -239,13 +247,13 @@ function palette_cache_get(mysqli $c, string $host, string $lang, string $hash):
 }
 
 // Upserts the result and purges expired rows (the table only grows by misses, so this is cheap).
-function palette_cache_put(mysqli $c, string $host, string $lang, string $hash, array $result): void
+function palette_cache_put(mysqli $c, string $host, string $lang, string $hash, string $pageHash, array $result): void
 {
     $json = json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
     $now = date('Y-m-d H:i:s');
-    $st = $c->prepare('INSERT INTO palette_ai_cache (host, lang, colour_hash, result_json, created_at) VALUES (?, ?, ?, ?, ?)
+    $st = $c->prepare('INSERT INTO palette_ai_cache (host, lang, colour_hash, page_hash, result_json, created_at) VALUES (?, ?, ?, ?, ?, ?)
                        ON DUPLICATE KEY UPDATE result_json = VALUES(result_json), created_at = VALUES(created_at)');
-    $st->bind_param('sssss', $host, $lang, $hash, $json, $now);
+    $st->bind_param('ssssss', $host, $lang, $hash, $pageHash, $json, $now);
     $st->execute();
     $st->close();
     $cut = date('Y-m-d H:i:s', time() - PALETTE_ANALYSE_CACHE_TTL);

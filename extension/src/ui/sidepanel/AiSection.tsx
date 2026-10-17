@@ -246,9 +246,9 @@ function Results({ host, entry, usage, quota, onRun }: {
         )}
         {result.sites.length === 0 && <p class="ai-muted ai-small">{t('ai.noSites')}</p>}
         <ul class="ai-site-list">
-          {result.sites.map((s) => (
-            <li key={s.domain}>
-              <a class="ai-site" href={s.url} target="_blank" rel="noopener noreferrer">
+          {result.sites.map((s) => {
+            const inner = (
+              <>
                 <span class="ai-logo" style={{ backgroundColor: LOGO[[...s.domain].reduce((n, ch) => n + ch.charCodeAt(0), 0) % LOGO.length] }} aria-hidden="true">
                   {(s.name.trim()[0] ?? s.domain[0]).toUpperCase()}
                 </span>
@@ -259,10 +259,22 @@ function Results({ host, entry, usage, quota, onRun }: {
                 <span class={s.source === 'web' ? 'ai-badge ai-badge-web' : 'ai-badge ai-badge-ai'}>
                   {t(s.source === 'web' ? 'ai.sourceWeb' : 'ai.sourceAi')}
                 </span>
-                <span class="sr-only">{t('ai.newTab')}</span>
-              </a>
-            </li>
-          ))}
+              </>
+            );
+            // Only a domain the web search returned is a link; a model suggestion may not exist (or be anyone's), so it is text.
+            return (
+              <li key={s.domain}>
+                {s.source === 'web' ? (
+                  <a class="ai-site" href={s.url} target="_blank" rel="noopener noreferrer">
+                    {inner}
+                    <span class="sr-only">{t('ai.newTab')}</span>
+                  </a>
+                ) : (
+                  <div class="ai-site ai-site-plain">{inner}</div>
+                )}
+              </li>
+            );
+          })}
         </ul>
         {result.sites.length > 0 && <p class="ai-muted ai-small">{t('ai.sourcesNote')}</p>}
       </section>

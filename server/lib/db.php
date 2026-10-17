@@ -92,13 +92,19 @@ function palette_migrate(mysqli $conn): void
         tokens_out   INT NOT NULL DEFAULT 0,
         PRIMARY KEY (license_id, period_start)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    // page_hash = sha1(scrubbed title + "\n" + scrubbed description), ruling A13. The cache is disposable (7 days), so a
+    // table from before the column existed is dropped and recreated rather than altered.
+    if (palette_table_exists($conn, 'palette_ai_cache') && !palette_column_exists($conn, 'palette_ai_cache', 'page_hash')) {
+        $conn->query('DROP TABLE palette_ai_cache');
+    }
     $conn->query("CREATE TABLE IF NOT EXISTS palette_ai_cache (
         host        VARCHAR(190) NOT NULL,
         lang        VARCHAR(8) NOT NULL,
         colour_hash CHAR(40) NOT NULL,
+        page_hash   CHAR(40) NOT NULL,
         result_json MEDIUMTEXT NOT NULL,
         created_at  DATETIME NOT NULL,
-        PRIMARY KEY (host, lang, colour_hash)
+        PRIMARY KEY (host, lang, colour_hash, page_hash)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     // Private site list (spec 8): aggregate counts only, no user identifiers.
     $conn->query("CREATE TABLE IF NOT EXISTS palette_sites (
@@ -141,12 +147,27 @@ function palette_add_index(mysqli $conn, string $table, string $index, string $c
 // Idempotent ALTER: adds the column only when INFORMATION_SCHEMA says it is missing.
 function palette_add_column(mysqli $conn, string $table, string $column, string $definition): void
 {
+    if (!palette_column_exists($conn, $table, $column)) $conn->query("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
+}
+
+function palette_column_exists(mysqli $conn, string $table, string $column): bool
+{
     $st = $conn->prepare('SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
     $st->bind_param('ss', $table, $column);
     $st->execute();
     $exists = $st->get_result()->num_rows > 0;
     $st->close();
-    if (!$exists) $conn->query("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
+    return $exists;
+}
+
+function palette_table_exists(mysqli $conn, string $table): bool
+{
+    $st = $conn->prepare('SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?');
+    $st->bind_param('s', $table);
+    $st->execute();
+    $exists = $st->get_result()->num_rows > 0;
+    $st->close();
+    return $exists;
 }
 
 function palette_settings(mysqli $conn): array

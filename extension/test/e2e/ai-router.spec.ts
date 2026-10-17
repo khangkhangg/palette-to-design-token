@@ -92,11 +92,13 @@ test('Analyse against the dev router: results render with web and AI sources, an
   await expect(panel.locator('.ai-verdict')).toHaveText('On par', { timeout: 30_000 });
   await expect(panel.locator('.ai-tags li')).toHaveText(['Specialty coffee', 'Online shop', 'Premium, craft']);
   await expect(panel.locator('.ai-meaning')).toHaveCount(2);
-  const sites = panel.locator('a.ai-site');
+  const sites = panel.locator('.ai-site');
   await expect(sites).toHaveCount(3);
-  // northwind / harbor-coffee came from the canned search results; brewlab only from the model.
+  // northwind / harbor-coffee came from the canned search results (links); brewlab only from the model (plain text).
+  await expect(panel.locator('a.ai-site')).toHaveCount(2);
   await expect(sites.filter({ hasText: 'northwind.example' }).locator('.ai-badge')).toHaveText('Web');
-  await expect(sites.filter({ hasText: 'brewlab.example' }).locator('.ai-badge')).toHaveText('AI');
+  await expect(sites.filter({ hasText: 'brewlab.example' }).locator('.ai-badge')).toHaveText('AI · check it');
+  await expect(panel.locator('a.ai-site', { hasText: 'brewlab.example' })).toHaveCount(0);
   await expect(sites.first()).toHaveAttribute('href', 'https://northwind.example/');
   await expect(panel.locator('.ai-footer').first()).toContainText('used 1 of 100');
   await expect(panel.locator('.ai-sub')).toContainText('99 analyses left');

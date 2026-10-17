@@ -659,7 +659,7 @@ body.sidepanel, body.sidepanel #app { block-size: 100vh; }
   display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-block-start: 1px solid var(--line-soft);
   color: var(--ink); text-decoration: none; border-radius: 6px;
 }
-.ai-site:hover .ai-site-name { color: var(--accent); }
+a.ai-site:hover .ai-site-name { color: var(--accent); }
 .ai-site:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .ai-logo {
   inline-size: 32px; block-size: 32px; flex-shrink: 0; border-radius: 8px;

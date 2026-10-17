@@ -301,7 +301,7 @@
     "improve": "Could be better",
     "sites": "Check these sites",
     "sourceWeb": "Web",
-    "sourceAi": "AI",
+    "sourceAi": "AI · check it",
     "sourcesNote": "\"Web\" sites were found by search. \"AI\" suggestions come from the model's memory: check them.",
     "searchDown": "Web search unavailable; suggestions are from AI only.",
     "noSites": "No similar sites found.",

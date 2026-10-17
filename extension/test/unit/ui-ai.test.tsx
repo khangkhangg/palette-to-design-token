@@ -290,18 +290,24 @@ describe('AI section: results (I)', () => {
     expect(screen.queryByText(/Web search unavailable/)).toBeNull();
   });
 
-  it('opens each site in a new tab with a text Web / AI badge', async () => {
+  it('links only web-found sites (new tab); AI suggestions are plain text with a "check it" badge', async () => {
     await showResult();
     const links = screen.getAllByRole('link', { name: /Roast/ }) as HTMLAnchorElement[];
-    expect(links.map((a) => a.href)).toEqual(['https://ridge.example/', 'https://saltline.example/']);
-    for (const a of links) {
-      expect(a.target).toBe('_blank');
-      expect(a.rel).toBe('noopener noreferrer');
-      expect(a.textContent).toContain('(opens in a new tab)');
-    }
+    expect(links.map((a) => a.href)).toEqual(['https://ridge.example/']);
+    expect(links[0].target).toBe('_blank');
+    expect(links[0].rel).toBe('noopener noreferrer');
+    expect(links[0].textContent).toContain('(opens in a new tab)');
     expect(links[0].querySelector('.ai-badge')!.textContent).toBe('Web');
-    expect(links[1].querySelector('.ai-badge')!.textContent).toBe('AI');
     expect(links[0].textContent).toContain('ridge.example');
+    // ruling A13: a model-made domain is never one click away
+    const items = [...document.querySelectorAll('.ai-site-list > li')];
+    expect(items).toHaveLength(2);
+    const aiItem = items[1];
+    expect(aiItem.querySelector('a')).toBeNull();
+    expect(aiItem.textContent).toContain('Saltline Roastery');
+    expect(aiItem.textContent).toContain('saltline.example');
+    expect(aiItem.textContent).not.toContain('(opens in a new tab)');
+    expect(aiItem.querySelector('.ai-badge')!.textContent).toBe('AI · check it');
   });
 
   it('says when web search was unavailable, and when the result was a shared cached one', async () => {
