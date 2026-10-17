@@ -128,6 +128,13 @@ describe('AI section: ready (H)', () => {
     expect(screen.queryByText(text(/^resets /))).toBeNull();
   });
 
+  it('unmounting after the chrome global is gone does not throw (cleanup order in other suites)', async () => {
+    const { unmount } = render(<AiSection tokens={brewline()} />);
+    await ready();
+    uninstallFakeChrome();
+    expect(() => unmount()).not.toThrow();
+  });
+
   it('"Don\'t show this note again" is stored and respected next time', async () => {
     const { unmount } = render(<AiSection tokens={brewline()} />);
     await ready();

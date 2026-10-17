@@ -337,10 +337,11 @@ export function AiSection({ tokens }: AiSectionProps) {
     const onChange = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
       if (area === 'local' && changes[LICENSE_KEY]) refresh();
     };
-    chrome.storage?.onChanged?.addListener(onChange);
+    globalThis.chrome?.storage?.onChanged?.addListener(onChange);
     return () => {
       live = false;
-      chrome.storage?.onChanged?.removeListener(onChange);
+      // globalThis: a test (or teardown) may already have removed the chrome global when this cleanup runs.
+      globalThis.chrome?.storage?.onChanged?.removeListener(onChange);
       ctrl.current?.abort();
       ctrl.current = null;
     };
