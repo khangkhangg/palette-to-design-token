@@ -69,6 +69,13 @@ ok('non-JSON 200 -> null', palette_search($s, 'q') === null);
 $reply = ['status' => 200, 'json' => ['web' => ['results' => [['title' => 'x']]]]];
 ok('malformed result entries are dropped', palette_search($s, 'q') === []);
 ok('empty query -> null', palette_search($s, '   ') === null);
+$reply = ['status' => 200, 'json' => ['query' => ['original' => 'q'], 'type' => 'search']];
+ok('brave 2xx without web key -> [] (no results, not unavailable)', palette_search($s, 'q') === []);
+$calls = [];
+$reply = ['status' => 200, 'json' => ['web' => ['results' => []]]];
+palette_search($s, str_repeat('é', 250));
+parse_str((string)parse_url($calls[0]['url'], PHP_URL_QUERY), $qs);
+ok('query capped at 200 characters', ($qs['q'] ?? '') === str_repeat('é', 200));
 
 // secret never logged
 file_put_contents($log, "");
@@ -101,6 +108,11 @@ $cases = [
     ['http://svc.internal', null],
     ['http://foo.test', null],
     ['http://intranet', null],
+    ['http://0x7f.0x0.0x0.0x1/', null],
+    ['http://foo.0x7f000001/', null],
+    ['http://0177.0.0.01/', null],
+    ['http://shop.0xabc/', null],
+    ['https://0x.example/', '0x.example'],
     ['ftp://example.com/', null],
     ['javascript:alert(1)', null],
     ['example.com', null],

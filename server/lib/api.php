@@ -1,10 +1,12 @@
 <?php
 // JSON API handler: pure function of the request array (see api.php for the superglobals adapter).
-// $req = ['method','action','post','origin','ip','session','lang'?]. CSRF is checked against $_SESSION
+// $req = ['method','action','post','origin','ip','session','lang'?,'body_bytes'?]. CSRF is checked against $_SESSION
 // (companies' helpers are session based); $req['session'] supplies the logged-in user.
 // Returns ['status','headers','body'] plus 'defer' (a callable to run after the response is flushed) for resend.
 
-const PALETTE_API_POST_ACTIONS = ['create', 'capture', 'resend', 'claim', 'verify'];
+const PALETTE_API_POST_ACTIONS = ['create', 'capture', 'resend', 'claim', 'verify', 'analyse'];
+// Called from the extension's own origin: CORS for the allowed extension ids, and no CSRF token.
+const PALETTE_API_EXTENSION_ACTIONS = ['verify', 'analyse'];
 
 function palette_api_extension_ids(array $settings): array
 {
@@ -60,8 +62,9 @@ function palette_api_handle(array $req): array
 
     if ($action !== 'config' && !in_array($action, PALETTE_API_POST_ACTIONS, true)) return palette_api_error(404, 'err_unknown_action', $lang);
 
-    $cors = $action === 'verify' ? palette_api_cors((string)($req['origin'] ?? ''), palette_settings($conn)) : [];
-    if ($action === 'verify' && $method === 'OPTIONS') {
+    $fromExtension = in_array($action, PALETTE_API_EXTENSION_ACTIONS, true);
+    $cors = $fromExtension ? palette_api_cors((string)($req['origin'] ?? ''), palette_settings($conn)) : [];
+    if ($fromExtension && $method === 'OPTIONS') {
         return palette_api_reply(204, [], $cors + ['Access-Control-Allow-Methods' => 'POST', 'Access-Control-Allow-Headers' => 'Content-Type', 'Access-Control-Max-Age' => '600']);
     }
     if ($method !== ($action === 'config' ? 'GET' : 'POST')) return palette_api_error(405, 'err_method', $lang, $cors);
@@ -78,6 +81,14 @@ function palette_api_handle(array $req): array
         $r = palette_verify($conn, $str('key'), (string)($req['ip'] ?? ''));
         if (isset($r['error'])) return palette_api_error(429, 'api_rate_limited', $lang, $cors);
         return palette_api_reply(200, ['ok' => true] + $r, $cors);
+    }
+
+    if ($action === 'analyse') {
+        // body_bytes: the raw request body size (api.php reads at most one byte past the limit).
+        if ((int)($req['body_bytes'] ?? 0) > PALETTE_ANALYSE_MAX_BYTES) return palette_api_error(413, 'err_bad_request', $lang, $cors);
+        $r = palette_analyse($conn, ['key' => $str('key'), 'url' => $str('url'), 'title' => $str('title'), 'description' => $str('description'),
+            'design' => $post['design'] ?? null, 'lang' => $lang, 'ip' => (string)($req['ip'] ?? '')]);
+        return palette_api_reply($r['status'], $r['body'], $cors);
     }
 
     if (!verifyCSRFToken(is_string($post['csrf'] ?? null) ? $post['csrf'] : '', 'palette_checkout')) return palette_api_error(419, 'err_csrf', $lang);

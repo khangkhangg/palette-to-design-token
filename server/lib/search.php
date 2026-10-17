@@ -5,12 +5,14 @@
 
 const PALETTE_SEARCH_MAX = 8;
 const PALETTE_SEARCH_TIMEOUT = 8;
+const PALETTE_SEARCH_QUERY_MAX = 200;   // characters; callers build queries from page text
 
 // [['title','url','snippet','host'] ...] (max 8, first result per host), or null when the provider
 // is unavailable: no key, unknown provider, empty query, transport failure/timeout, non-2xx or non-JSON reply.
+// [] means the provider answered with no results. The query is capped at 200 characters.
 function palette_search(array $settings, string $q): ?array
 {
-    $q = trim($q);
+    $q = trim(mb_substr(trim($q), 0, PALETTE_SEARCH_QUERY_MAX));
     $key = trim((string)($settings['search_key'] ?? ''));
     $provider = (string)($settings['search_provider'] ?? '');
     if ($provider === '') $provider = 'brave';
@@ -19,7 +21,8 @@ function palette_search(array $settings, string $q): ?array
     if ($provider === 'brave') {
         $r = palette_http('GET', 'https://api.search.brave.com/res/v1/web/search?q=' . rawurlencode($q) . '&count=' . PALETTE_SEARCH_MAX,
                      ['Accept: application/json', 'X-Subscription-Token: ' . $key], null, PALETTE_SEARCH_TIMEOUT);
-        $rows = $r['json']['web']['results'] ?? null;
+        // A 2xx answer with no `web` block is Brave's way of saying "no web results", not an outage.
+        $rows = is_array($r['json'] ?? null) ? ($r['json']['web']['results'] ?? []) : null;
         $snippetField = 'description';
     } else {
         $r = palette_http('POST', 'https://api.tavily.com/search',
@@ -76,7 +79,7 @@ function palette_host_of(string $url): ?string
     if ($h === '' || $h[0] === '[' || filter_var($h, FILTER_VALIDATE_IP)) return null;   // IPv6 / IPv4 literals
     if (str_starts_with($h, 'www.')) $h = substr($h, 4);
     if (!str_contains($h, '.') || !preg_match('/^[a-z0-9._-]+$/', $h) || preg_match('/(^|\.)\.|\.\./', $h)) return null;
-    if (preg_match('/\.(\d+)$/', $h)) return null;                                      // numeric TLD: an obfuscated IP
+    if (preg_match('/\.(\d+|0x[0-9a-f]+)$/', $h)) return null;                         // decimal/octal or hex final label: an obfuscated IP
     if ($h === 'localhost' || preg_match('/\.(local|localhost|internal|test)$/', $h)) return null;
     return $h;
 }

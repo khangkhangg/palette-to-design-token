@@ -25,7 +25,11 @@ If any of these change in companies, this add-on must be updated.
 `palette_rate(bucket, window_start, count)` backs `palette_rate_hit($bucket, $max, $windowSec, ?$now)` in `lib/rate.php`:
 fixed windows, an atomic `INSERT ... ON DUPLICATE KEY UPDATE count = count + 1`, and a purge of its own rows older than a
 day on about 1 in 50 calls. Buckets: `verify:ip:` 30/60 s, `resend:ip:` 10/h, `resend:email:<sha1>` 3/h, `create:ip:` 20/h,
-`claim:user:` 30/h.
+`claim:user:` 30/h, `ai:min:<license id>` 6/60 s, `ai:hour:<license id>` 60/h, `ai:ip:` 20/h.
+
+AI insights tables: `palette_ai_usage` (lib/usage.php), `palette_ai_cache(host, lang, colour_hash, result_json, created_at)`
+(lib/analyse.php: 7-day TTL, expired rows purged on every store) and the private site list `palette_sites` +
+`palette_site_links` (lib/sites.php: aggregate counters only, no licence, user, email or IP is stored).
 
 ## PayPal
 
@@ -60,7 +64,7 @@ companies repo (`PALETTE_COMPANIES_DIR`, default `C:\Projects\companies`).
 `config.php` loads, so its real `.env` credentials are never used, and exits 2 unless
 `SELECT DATABASE()` ends in `_test`. Each `*-test.php` runs in its own php process.
 It also seeds `DEEPSEEK_API_KEY` empty (companies' `.env` holds the real platform AI key, which `ai_key_for` would
-otherwise fall back to), and `companies_ai_tables($conn)` creates the companies AI tables (copied from companies
+otherwise fall back to), and `companies_ai_tables($conn)` (`tests/companies-ai-tables.php`, shared with the dev router) creates the companies AI tables (copied from companies
 migrations 045, 048, 049, 059) in the test database.
 
 ## Known limitations
@@ -76,6 +80,23 @@ Errors are `{ok:false, error:<i18n key>, message:<localised>}`; 419 bad CSRF, 42
 `create` stores the PayPal order id in `$_SESSION['palette_orders']`; `capture` returns the key only for those ids, otherwise `{ok:true, key:null, email_masked, message}` (the key was emailed).
 `verify` sends CORS headers only for `chrome-extension://<id>` origins whose id is in the `extension_ids` setting; the client IP is `palette_client_ip($_SERVER)`: `CF-Connecting-IP` only when `REMOTE_ADDR` is inside Cloudflare's published ranges (`PALETTE_CLOUDFLARE_CIDRS`, refresh yearly), else `REMOTE_ADDR`; never `X-Forwarded-For`.
 `resend` answers first and runs `palette_resend` after `fastcgi_finish_request()` (ruling S4); on servers without it (CLI, `php -S`) the work stays synchronous.
+
+`analyse` (POST JSON, no CSRF, same CORS and preflight as `verify`; bodies over 16 KB answer 413) runs `palette_analyse()` in
+`lib/analyse.php`. Request: `{key, url, title, description, lang, design}` where `design` is
+`{colours: [{role, hex}] (<= 10), fonts: [string] (<= 3), type_sizes: [number] (<= 12), spacing_base: number|null,
+radius: [number] (<= 6), contrast: {pass, fail, failing: [{fg, bg, ratio}] (<= 6)}}`; anything else is dropped before
+the prompt. `url` must be a public http(s) page (`palette_host`), path <= 300 characters; only origin + path is used.
+Order: input -> licence (`plan = 'ai'`, not revoked, `paid_through >= now`) -> rate limits -> cache (same host, lang
+and sorted-hex sha1 within 7 days: `cached: true`, no analysis used) -> reserve one analysis -> two searches
+(`"<brand>" competitors`, `<description or title> similar websites`; both unavailable = AI only with
+`result.search_unavailable: true`) -> AI call (tokens always recorded) -> validation -> cache, site list -> 200
+`{ok, result, cached, usage: {used, limit, resets_on}}`. A failed call or invalid answer releases the analysis.
+Errors: 400 `err_bad_request` (also malformed key), 403 `err_not_ai` (unknown, pro or revoked key), 403 `err_ended`
+(+ `ended_on`), 429 `api_rate_limited`, 429 `err_quota` (+ `resets_on`, `usage`; analyses or token cap), 503
+`err_ai_unavailable`.
+
+`admin-sites.php` (served as `/palette/admin-sites.php`, admin session `$_SESSION['user_role'] === 'admin'`, else 403) lists
+the 200 most-seen sites; `?format=csv` downloads them with formula-leading cells (`= + - @`, tab, CR) prefixed by `'`.
 
 ## Pages (`index.php`, `checkout.php`, `account.php`, `privacy.php`, `terms.php`)
 
@@ -111,4 +132,8 @@ winget PHP 8.4, else `php`). The router seeds `$_ENV` with the `palette_test` da
 `config.php` loads (under the `cli-server` SAPI it reads `DB_HOST_REMOTE`, which is also seeded), refuses to serve
 unless the database name ends in `_test`, and with `PALETTE_DEV_PP_STUB=1` stubs PayPal REST and Resend and adds
 `/__dev/seed`, `/__dev/login`, `/__dev/license`. The PayPal JS SDK is replaced in the browser by the spec.
+`PALETTE_DEV_AI_STUB=1` (also `_test` only) answers web search and the AI model locally so `action=analyse` works end to
+end, and extends the dev routes: `/__dev/seed?ext=<id>` (dev AI + search keys, AI tables cleared, extension id allowed),
+`/__dev/license?plan=ai[&ended=1]`, `/__dev/login?user_id=1&role=admin`. A title containing `dev-ai-fail` makes the
+model answer 503 and a query containing `dev-search-down` makes search answer 500 (use a host that is not cached yet).
 It is separate from `npm run e2e` (which needs no PHP or database). **Do not deploy `tests/`.**
