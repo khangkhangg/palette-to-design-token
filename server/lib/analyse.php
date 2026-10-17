@@ -1,6 +1,6 @@
 <?php
-// AI insights: the analyse request end to end (spec 5.2). Input whitelist -> licence (one row per request, ruling A5)
-// -> rate limits -> 7-day result cache -> reserve one analysis -> 2 web searches -> one AI call -> validate -> record.
+// AI insights: the analyse request end to end (spec 5.2). Per-IP limit -> input whitelist + scrub (ruling A9) -> licence
+// (one row per request, ruling A5) -> per-licence limits -> 7-day result cache -> reserve one analysis -> 2 web searches -> one AI call -> validate -> record.
 // A cache hit, a failed call and an invalid answer cost no analysis; tokens are recorded for every call.
 
 const PALETTE_ANALYSE_MAX_BYTES = 16384;
@@ -14,13 +14,17 @@ function palette_analyse(mysqli $c, array $req): array
     $lang = palette_lang(is_string($req['lang'] ?? null) ? $req['lang'] : '');
     $ip = is_string($req['ip'] ?? null) ? $req['ip'] : '';
 
-    // 1. Input: only the whitelisted fields go any further.
+    // Per-IP load protection first, so bad input and invalid keys are limited too.
+    if (!palette_rate_hit('ai:ip:' . $ip, 20, 3600)) return palette_analyse_error(429, 'api_rate_limited', $lang);
+
+    // 1. Input: only the whitelisted fields go any further. Title and description are scrubbed of personal data
+    // (ruling A9) before they reach the prompt, the shared cache or the site list.
     $u = palette_analyse_url($req['url'] ?? null);
     $key = palette_normalise_key(is_string($req['key'] ?? null) ? $req['key'] : '');
     if ($u === null || $key === null || !is_array($req['design'] ?? null)) return palette_analyse_error(400, 'err_bad_request', $lang);
     $design = palette_analyse_design($req['design']);
-    $page = ['url' => $u['url'], 'title' => palette_ai_clean($req['title'] ?? '', 200),
-             'description' => palette_ai_clean($req['description'] ?? '', 300)];
+    $page = ['url' => $u['url'], 'title' => palette_scrub_text($req['title'] ?? '', 200),
+             'description' => palette_scrub_text($req['description'] ?? '', 300)];
     $host = $u['host'];
 
     // 2. Licence, loaded once and passed to every usage call (ruling A5).
@@ -31,16 +35,17 @@ function palette_analyse(mysqli $c, array $req): array
     $st->close();
     if (!$lic || $lic['plan'] !== 'ai' || $lic['revoked_at'] !== null) return palette_analyse_error(403, 'err_not_ai', $lang);
     if (!palette_licence_access($lic)['ai']) {
-        $ended = $lic['paid_through'] === null ? null : date('Y-m-d', strtotime($lic['paid_through']));
-        return palette_analyse_error(403, 'err_ended', $lang, ['ended_on' => $ended], ['date' => (string)$ended]);
+        $t = $lic['paid_through'] === null ? false : strtotime($lic['paid_through']);
+        if ($t === false) return palette_analyse_error(403, 'err_ended', $lang, ['ended_on' => null], [], 'err_ended_nodate');
+        $ended = date('Y-m-d', $t);
+        return palette_analyse_error(403, 'err_ended', $lang, ['ended_on' => $ended], ['date' => $ended]);
     }
 
-    // 3. Rate limits: every bucket records the hit.
+    // 3. Per-licence rate limits: both buckets record the hit.
     $id = (int)$lic['id'];
     $okMin = palette_rate_hit("ai:min:$id", 6, 60);
     $okHour = palette_rate_hit("ai:hour:$id", 60, 3600);
-    $okIp = palette_rate_hit('ai:ip:' . $ip, 20, 3600);
-    if (!$okMin || !$okHour || !$okIp) return palette_analyse_error(429, 'api_rate_limited', $lang);
+    if (!$okMin || !$okHour) return palette_analyse_error(429, 'api_rate_limited', $lang);
 
     $settings = palette_settings($c);
     $usage = fn() => array_intersect_key(palette_usage_get($c, $lic, $settings), ['used' => 1, 'limit' => 1, 'resets_on' => 1]);
@@ -87,9 +92,32 @@ function palette_analyse(mysqli $c, array $req): array
     return ['status' => 200, 'body' => ['ok' => true, 'result' => $result, 'cached' => false, 'usage' => $usage()]];
 }
 
-function palette_analyse_error(int $status, string $key, string $lang, array $extra = [], array $vars = []): array
+// $messageKey: the i18n string when it differs from the error key (err_ended without a date).
+function palette_analyse_error(int $status, string $key, string $lang, array $extra = [], array $vars = [], string $messageKey = ''): array
 {
-    return ['status' => $status, 'body' => ['ok' => false, 'error' => $key, 'message' => palette_t($lang, $key, $vars)] + $extra];
+    return ['status' => $status, 'body' => ['ok' => false, 'error' => $key, 'message' => palette_t($lang, $messageKey ?: $key, $vars)] + $extra];
+}
+
+// Page text with personal data removed (ruling A9): URLs, email addresses, @handles, unread counters such as "(3)" or
+// "[12]", and runs of 6+ digits (phone numbers, ids). Separators left dangling are collapsed; then flattened and capped.
+function palette_scrub_text($s, int $max): string
+{
+    $s = palette_ai_clean($s, 2000);
+    if ($s === '') return '';
+    $s = (string)preg_replace([
+        '~\b[a-z][a-z0-9+.-]*://\S*~iu',                                   // scheme URLs
+        '~\bwww\.\S+~iu',                                                  // www. hosts
+        '~[^\s@<>()\[\]]+@[^\s@<>()\[\]]+\.[^\s@<>()\[\]]+~u',             // email addresses
+        '~(?<![\w@])@[\p{L}\p{N}_][\p{L}\p{N}_.]*~u',                      // @handles
+        '~\b[a-z0-9-]+(?:\.[a-z0-9-]+)+/\S*~iu',                           // host/path without a scheme
+        '~\+?\d(?:[\s().-]{0,2}\d){5,}~u',                                 // 6+ digits: phones, ids (before counters)
+        '~[(\[]\s*\d+\+?\s*[)\]]~u',                                       // unread counters (3) [12] (99+)
+    ], ' ', $s);
+    $sep = '[-–—|·:•]';
+    $s = (string)preg_replace("~\\s*$sep(?:\\s*$sep)+\\s*~u", ' – ', $s);      // "a – – b" -> "a – b"
+    $s = (string)preg_replace("~^(?:\\s|$sep)+|(?:\\s|$sep)+$~u", '', $s);     // no separator at either end
+    $s = (string)preg_replace('~\s+~u', ' ', $s);
+    return trim(mb_substr(trim($s), 0, $max));
 }
 
 // ['url' => origin + path (no userinfo, query or fragment), 'host' => palette_host] or null for anything that is not
@@ -155,7 +183,8 @@ function palette_analyse_design(array $d): array
         $bg = palette_analyse_hex($pair['bg'] ?? null);
         if ($fg !== null && $bg !== null) $failing[] = ['fg' => $fg, 'bg' => $bg, 'ratio' => palette_analyse_num($pair['ratio'] ?? null)];
     }
-    $count = fn($v) => is_int($v) && $v >= 0 ? min($v, 100000) : 0;
+    // JSON may carry 3.0 for 3: integral non-negative numbers count, anything else is 0.
+    $count = fn($v) => (is_int($v) || (is_float($v) && is_finite($v))) && $v >= 0 && floor($v) == $v ? (int)min($v, 100000) : 0;
     return [
         'colours' => $colours,
         'fonts' => $fonts,

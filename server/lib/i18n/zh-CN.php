@@ -29,6 +29,7 @@ return [
     'err_bad_request' => '请求内容不完整。请检查您填写的信息。',
     'err_not_ai' => '此密钥不包含 AI 洞察功能。',
     'err_ended' => '您的 Pro + AI 订阅已于 {date} 结束。',
+    'err_ended_nodate' => '您的 Pro + AI 订阅已结束。',
     'err_quota' => '您本周期的分析次数已用完，将于 {date} 重置。',
     'err_ai_unavailable' => 'AI 洞察暂时不可用，本次未扣除次数。请稍后再试。',
     'page_by' => '来自 vietnamcos.com',

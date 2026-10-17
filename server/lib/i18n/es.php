@@ -29,6 +29,7 @@ return [
     'err_bad_request' => 'La solicitud estaba incompleta. Revisa tus datos.',
     'err_not_ai' => 'Esta clave no incluye los análisis con IA.',
     'err_ended' => 'Tu suscripción Pro + IA terminó el {date}.',
+    'err_ended_nodate' => 'Tu suscripción Pro + IA ha terminado.',
     'err_quota' => 'Has usado todos tus análisis de este periodo. Se restablecen el {date}.',
     'err_ai_unavailable' => 'Los análisis con IA no están disponibles ahora mismo. No se te ha cobrado. Inténtalo de nuevo más tarde.',
     'page_by' => 'de vietnamcos.com',

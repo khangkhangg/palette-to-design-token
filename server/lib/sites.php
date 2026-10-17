@@ -7,13 +7,14 @@ function palette_sites_json($v): string
     return (string)json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
 }
 
-// $page: url/title/description as sent; $design: the whitelisted summary; $result: the validated AI result.
+// $page: url/title/description; $design: the whitelisted summary; $result: the validated AI result.
+// Only the scrubbed title (ruling A9) and the brand derived from it are stored; the description and url are not.
 function palette_sites_record(mysqli $c, string $host, array $page, array $design, array $result): void
 {
     if ($host === '' || strlen($host) > 190) return;
     $now = date('Y-m-d H:i:s');
-    $name = mb_substr(palette_brand((string)($page['title'] ?? ''), $host), 0, 190);
-    $title = palette_ai_clean($page['title'] ?? '', 255);
+    $title = palette_scrub_text($page['title'] ?? '', 255);   // idempotent; analyse has already scrubbed it
+    $name = mb_substr(palette_brand($title, $host), 0, 190);
     $sector = palette_ai_clean($result['sector'] ?? '', 100);
     $tags = palette_sites_json(array_values(array_filter(is_array($result['tags'] ?? null) ? $result['tags'] : [], 'is_string')));
     $colours = [];
@@ -122,6 +123,7 @@ function palette_admin_sites_page(mysqli $c, array $session, array $query): arra
           . 'th{background:#f0f2f6}@media (prefers-color-scheme:dark){body{color:#e6e8ee;background:#14161b}th{background:#232731}th,td{border-color:#3a3f4b}a{color:#8ab4f8}}'
           . '</style></head><body><h1>Site to Design Token: sites</h1>'
           . '<p>' . count($sites) . ' most-seen sites (analysed or suggested). Aggregate counts only, no user data. '
+          . 'analyses_count counts uncached analyses only (a cached answer is not recorded). '
           . '<a href="?format=csv">Download CSV</a></p>'
           . '<table><thead><tr>' . $head . '</tr></thead><tbody>' . $rows . '</tbody></table></body></html>';
     return ['status' => 200, 'headers' => $html, 'body' => $body];

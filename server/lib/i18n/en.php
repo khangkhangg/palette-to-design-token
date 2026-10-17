@@ -29,6 +29,7 @@ return [
     'err_bad_request' => 'That request was incomplete. Please check your details.',
     'err_not_ai' => 'This key does not include AI insights.',
     'err_ended' => 'Your Pro + AI subscription ended on {date}.',
+    'err_ended_nodate' => 'Your Pro + AI subscription has ended.',
     'err_quota' => 'You have used all your analyses for this period. They reset on {date}.',
     'err_ai_unavailable' => 'AI insights are unavailable right now. You were not charged. Please try again later.',
     'page_by' => 'by vietnamcos.com',

@@ -45,7 +45,8 @@ $r = palette_admin_sites_page($conn, $admin, []);
 ok('admin: html 200 with page security headers', $r['status'] === 200 && str_contains($r['headers']['Content-Security-Policy'] ?? '', "default-src 'self'")
     && ($r['headers']['X-Frame-Options'] ?? '') === 'DENY' && ($r['headers']['Cache-Control'] ?? '') === 'no-store');
 ok('admin: html table of sites', str_contains($r['body'], '<table') && str_contains($r['body'], 'bluebottle.example') && str_contains($r['body'], 'format=csv'));
-ok('admin: html escaped', !str_contains($r['body'], '<script>alert(1)') && str_contains($r['body'], '&lt;script&gt;'));
+ok('admin: copy says analyses_count is uncached analyses only', str_contains($r['body'], 'uncached analyses only'));
+ok('admin: html escaped',!str_contains($r['body'], '<script>alert(1)') && str_contains($r['body'], '&lt;script&gt;'));
 $r = palette_admin_sites_page($conn, $admin, ['format' => 'csv']);
 ok('admin: csv download headers', $r['status'] === 200 && str_starts_with($r['headers']['Content-Type'] ?? '', 'text/csv')
     && str_contains($r['headers']['Content-Disposition'] ?? '', 'attachment') && ($r['headers']['X-Content-Type-Options'] ?? '') === 'nosniff');

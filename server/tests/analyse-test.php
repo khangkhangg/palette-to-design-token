@@ -175,6 +175,14 @@ ok('ended ai -> 403 err_ended with date', $r['status'] === 403 && $r['body']['er
     && $r['body']['ended_on'] === date('Y-m-d', strtotime($ended['paid_through'])) && str_contains($r['body']['message'], $r['body']['ended_on']));
 ok('licence errors make no HTTP calls', $GLOBALS['search_calls'] === [] && $GLOBALS['ai_calls'] === []);
 ok('malformed key -> 400', palette_analyse($conn, an_req('nope'))['status'] === 400);
+$nodate = an_lic($conn, 'ai', null);
+$r = palette_analyse($conn, an_req($nodate['key']));
+ok('ended ai without paid_through -> ended_on null, dateless message', $r['status'] === 403 && $r['body']['error'] === 'err_ended'
+    && $r['body']['ended_on'] === null && $r['body']['message'] === palette_t('en', 'err_ended_nodate') && !str_contains($r['body']['message'], '{date}'));
+$conn->query('DELETE FROM palette_rate');
+for ($i = 0; $i < 20; $i++) palette_analyse($conn, an_req('SDT-0000-0000-0000', ['ip' => '198.51.100.20']));
+$r = palette_analyse($conn, an_req(an_lic($conn)['key'], ['ip' => '198.51.100.20']));
+ok('rate: invalid keys count toward the per-IP limit', $r['status'] === 429 && $r['body']['error'] === 'api_rate_limited');
 
 // ---- quota
 an_reset($conn);
@@ -251,6 +259,46 @@ $r = palette_analyse($conn, an_req(an_lic($conn)['key']));
 ok('no search results is not unavailable', $r['status'] === 200 && $r['body']['result']['search_unavailable'] === false);
 $GLOBALS['pp_http'] = $GLOBALS['pp_http_saved'];
 
+// ---- search throws: the reservation is released
+an_reset($conn);
+$lic = an_lic($conn);
+$GLOBALS['pp_http'] = function () { throw new RuntimeException('search exploded'); };
+$thrown = false;
+try { palette_analyse($conn, an_req($lic['key'])); } catch (RuntimeException $e) { $thrown = $e->getMessage() === 'search exploded'; }
+ok('search throws: exception propagates, analysis released', $thrown
+    && count_rows($conn, "SELECT analyses FROM palette_ai_usage WHERE license_id = {$lic['id']}") === 0 && $GLOBALS['ai_calls'] === []);
+$GLOBALS['pp_http'] = $GLOBALS['pp_http_saved'];
+
+// ---- personal data scrubbed from page text (ruling A9)
+$inbox = palette_scrub_text('Inbox (3) – jane.doe@example.com – Mail', 200);
+ok('scrub: inbox title loses the email and the counter', $inbox === 'Inbox – Mail');
+ok('scrub: leading counters', palette_scrub_text('(12) Messages | Chat', 200) === 'Messages | Chat' && palette_scrub_text('[99+] Feed', 200) === 'Feed');
+ok('scrub: phone number removed', palette_scrub_text('Call +1 (555) 123-4567 today', 200) === 'Call today'
+    && palette_scrub_text('Order 98765432 status', 200) === 'Order status');
+ok('scrub: handles and URLs removed', palette_scrub_text('Profile of @jane_doe on https://social.example/jane?x=1 and www.foo.example/bar', 200) === 'Profile of on and'
+    && palette_scrub_text('See shop.example/u/jane now', 200) === 'See now');
+ok('scrub: normal titles unchanged', palette_scrub_text('Ridge Coffee | Small batch', 200) === 'Ridge Coffee | Small batch'
+    && palette_scrub_text('Small-batch beans roasted weekly', 300) === 'Small-batch beans roasted weekly'
+    && palette_scrub_text('Top 10 Coffee Shops in 2026', 200) === 'Top 10 Coffee Shops in 2026'
+    && palette_scrub_text('Café Ñandú — Inicio', 200) === 'Café Ñandú — Inicio');
+ok('scrub: capped and flattened', palette_scrub_text("a\nb  c", 200) === 'a b c' && mb_strlen(palette_scrub_text(str_repeat('x ', 300), 200)) <= 200);
+an_reset($conn);
+$lic = an_lic($conn);
+$r = palette_analyse($conn, an_req($lic['key'], ['url' => 'https://mail.example/inbox', 'title' => 'Inbox (3) – jane.doe@example.com – Mail',
+    'description' => 'Signed in as jane.doe@example.com, call 0912 345 678']));
+$prompt = json_encode($GLOBALS['ai_calls'][0]['body'] ?? []);
+$rows = json_encode($conn->query("SELECT * FROM palette_sites")->fetch_all(MYSQLI_ASSOC)) . json_encode($conn->query("SELECT * FROM palette_ai_cache")->fetch_all(MYSQLI_ASSOC));
+$queries = implode(' ', array_map('urldecode', $GLOBALS['search_calls']));
+ok('scrub: analyse succeeds', $r['status'] === 200);
+ok('scrub: prompt and search queries hold no email, counter or phone', !str_contains($prompt, 'jane.doe') && !str_contains($prompt, '(3)') && !str_contains($prompt, '345 678')
+    && !str_contains($queries, 'jane.doe') && !str_contains($queries, '345'));
+ok('scrub: site list and cache hold no email', !str_contains($rows, 'jane.doe') && !str_contains($rows, '345 678')
+    && count_rows($conn, "SELECT COUNT(*) FROM palette_sites WHERE domain = 'mail.example' AND title = 'Inbox – Mail' AND name = 'Inbox – Mail'") === 1);
+ok('scrub: sites_record scrubs on its own too', (function () use ($conn) {
+    palette_sites_record($conn, 'direct.example', ['title' => '(5) bob@example.com | Direct'], palette_analyse_design([]), ['sector' => '', 'tags' => [], 'sites' => []]);
+    return count_rows($conn, "SELECT COUNT(*) FROM palette_sites WHERE domain = 'direct.example' AND title = 'Direct' AND name = 'Direct'") === 1;
+})());
+
 // ---- input validation
 an_reset($conn);
 $lic = an_lic($conn);
@@ -279,7 +327,10 @@ ok('design: <= 12 type sizes, <= 6 radius', count($w['type_sizes']) === 12 && co
 ok('design: spacing_base null when missing', array_key_exists('spacing_base', $w) && $w['spacing_base'] === null);
 ok('design: contrast ints and <= 6 valid failing pairs', $w['contrast']['pass'] === 3 && $w['contrast']['fail'] === 2 && count($w['contrast']['failing']) === 6
     && array_keys($w['contrast']['failing'][0]) === ['fg', 'bg', 'ratio']);
-ok('design: keys', array_keys($w) === ['colours', 'fonts', 'type_sizes', 'spacing_base', 'radius', 'contrast']);
+$cf = palette_analyse_design(['contrast' => ['pass' => 5.0, 'fail' => 2.5, 'failing' => []]]);
+ok('design: integral float counts accepted, fractional ones are 0', $cf['contrast']['pass'] === 5 && $cf['contrast']['fail'] === 0
+    && palette_analyse_design(['contrast' => ['pass' => -1, 'fail' => '3']])['contrast'] === ['pass' => 0, 'fail' => 0, 'failing' => []]);
+ok('design: keys', array_keys($w) ===['colours', 'fonts', 'type_sizes', 'spacing_base', 'radius', 'contrast']);
 $GLOBALS['ai_calls'] = [];
 palette_analyse($conn, an_req($lic['key'], ['design' => $huge]));
 ok('design: whitelisted summary is what reaches the prompt', $GLOBALS['ai_calls'] !== [] && !str_contains(json_encode($GLOBALS['ai_calls'][0]['body']), 'leak-me'));

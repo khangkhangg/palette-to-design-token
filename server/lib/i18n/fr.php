@@ -29,6 +29,7 @@ return [
     'err_bad_request' => 'La requête était incomplète. Vérifiez vos informations.',
     'err_not_ai' => 'Cette clé n\'inclut pas les analyses IA.',
     'err_ended' => 'Votre abonnement Pro + IA a pris fin le {date}.',
+    'err_ended_nodate' => 'Votre abonnement Pro + IA a pris fin.',
     'err_quota' => 'Vous avez utilisé toutes vos analyses pour cette période. Elles seront réinitialisées le {date}.',
     'err_ai_unavailable' => 'Les analyses IA sont indisponibles pour le moment. Rien ne vous a été décompté. Réessayez plus tard.',
     'page_by' => 'par vietnamcos.com',

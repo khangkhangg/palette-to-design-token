@@ -86,13 +86,16 @@ Errors are `{ok:false, error:<i18n key>, message:<localised>}`; 419 bad CSRF, 42
 `{colours: [{role, hex}] (<= 10), fonts: [string] (<= 3), type_sizes: [number] (<= 12), spacing_base: number|null,
 radius: [number] (<= 6), contrast: {pass, fail, failing: [{fg, bg, ratio}] (<= 6)}}`; anything else is dropped before
 the prompt. `url` must be a public http(s) page (`palette_host`), path <= 300 characters; only origin + path is used.
-Order: input -> licence (`plan = 'ai'`, not revoked, `paid_through >= now`) -> rate limits -> cache (same host, lang
+`title` and `description` pass through `palette_scrub_text` (ruling A9: URLs, emails, @handles, unread counters, runs of
+6+ digits removed) before the prompt, the searches, the shared cache and the site list (which keeps only the scrubbed
+title and its brand).
+Order: per-IP limit -> input -> licence (`plan = 'ai'`, not revoked, `paid_through >= now`) -> per-licence limits -> cache (same host, lang
 and sorted-hex sha1 within 7 days: `cached: true`, no analysis used) -> reserve one analysis -> two searches
 (`"<brand>" competitors`, `<description or title> similar websites`; both unavailable = AI only with
 `result.search_unavailable: true`) -> AI call (tokens always recorded) -> validation -> cache, site list -> 200
 `{ok, result, cached, usage: {used, limit, resets_on}}`. A failed call or invalid answer releases the analysis.
 Errors: 400 `err_bad_request` (also malformed key), 403 `err_not_ai` (unknown, pro or revoked key), 403 `err_ended`
-(+ `ended_on`), 429 `api_rate_limited`, 429 `err_quota` (+ `resets_on`, `usage`; analyses or token cap), 503
+(+ `ended_on`; null with the `err_ended_nodate` message when there is no `paid_through`), 429 `api_rate_limited`, 429 `err_quota` (+ `resets_on`, `usage`; analyses or token cap), 503
 `err_ai_unavailable`.
 
 `admin-sites.php` (served as `/palette/admin-sites.php`, admin session `$_SESSION['user_role'] === 'admin'`, else 403) lists
