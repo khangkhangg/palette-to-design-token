@@ -177,8 +177,8 @@ describe('analyse', () => {
       { ok: false, reason: 'quota', resetsOn: '2026-11-01' }],
     [429, { ok: false, error: 'api_rate_limited' }, { ok: false, reason: 'rate_limited' }],
     [503, { ok: false, error: 'err_ai_unavailable' }, { ok: false, reason: 'unavailable' }],
-    [400, { ok: false, error: 'err_bad_request' }, { ok: false, reason: 'unsupported' }],
-    [413, { ok: false, error: 'err_too_large' }, { ok: false, reason: 'unsupported' }],
+    [400, { ok: false, error: 'err_bad_request' }, { ok: false, reason: 'bad_request' }],
+    [413, { ok: false, error: 'err_too_large' }, { ok: false, reason: 'bad_request' }],
     [502, '<html>bad gateway</html>', { ok: false, reason: 'unavailable' }],
     [200, { ok: false }, { ok: false, reason: 'unavailable' }],
   ])('maps HTTP %i %j', async (status, body, want) => {
@@ -223,11 +223,37 @@ describe('analyse', () => {
     expect(await pending).toEqual({ ok: false, reason: 'cancelled' });
   });
 
+  it('answers cancelled when the caller aborts after the request went out', async () => {
+    let started!: () => void;
+    const inFlight = new Promise<void>((r) => { started = r; });
+    fetchMock.mockImplementation((_url: string, init: RequestInit) => new Promise((_, reject) => {
+      started();
+      init.signal!.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+    }));
+    const ctrl = new AbortController();
+    const pending = analyse(tokens(), page(), 'en', ctrl.signal);
+    await inFlight;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    ctrl.abort();
+    expect(await pending).toEqual({ ok: false, reason: 'cancelled' });
+    expect(await storedResult('brewline.co')).toBeNull();
+  });
+
+  it.each([
+    ['an unknown verdict', { verdict: 'amazing' }],
+    ['an unknown fit level', { fit: { level: 'perfect', reason: 'x' } }],
+    ['no result', { verdict: undefined, fit: undefined }],
+  ])('treats %s as an invalid answer, kept nowhere', async (_name, over) => {
+    fetchMock.mockResolvedValue(json(200, { ok: true, cached: false, usage: USAGE, result: { ...RESULT, ...over } }));
+    expect(await analyse(tokens(), page(), 'en')).toEqual({ ok: false, reason: 'invalid' });
+    expect(await storedResult('brewline.co')).toBeNull();
+  });
+
   it('drops anything outside the schema and rebuilds unsafe links', async () => {
     fetchMock.mockResolvedValue(json(200, {
       ok: true, cached: false, usage: USAGE,
       result: {
-        ...RESULT, verdict: 'amazing', extra: 'x', tags: ['ok', 3],
+        ...RESULT, extra: 'x', tags: ['ok', 3],
         sites: [{ ...RESULT.sites[0], url: 'javascript:alert(1)', source: 'web' }, { name: 'Bad', domain: 'not a domain', url: 'https://x/', why: '', relation: 'similar', source: 'ai' }],
       },
     }));
@@ -235,7 +261,7 @@ describe('analyse', () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect('extra' in r.result).toBe(false);
-    expect(r.result.verdict).toBe('on_par');
+    expect(r.result.verdict).toBe('competitive');
     expect(r.result.tags).toEqual(['ok']);
     expect(r.result.sites).toEqual([{ ...RESULT.sites[0], url: 'https://ridge.example/' }]);
   });

@@ -16,7 +16,8 @@ export function KeyEntry({ onDone }: { onDone(): void }) {
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<keyof typeof ERROR_KEY | null>(null);
-  const [done, setDone] = useState(false);
+  /** The plan the key unlocked, once it activated. */
+  const [done, setDone] = useState<'pro' | 'ai' | null>(null);
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
   useEffect(() => {
@@ -32,7 +33,7 @@ export function KeyEntry({ onDone }: { onDone(): void }) {
     setError(null);
     const r = await activate(key).catch(() => ({ ok: false as const, reason: 'network' as const }));
     setBusy(false);
-    if (r.ok) setDone(true);
+    if (r.ok) setDone(r.plan === 'ai' ? 'ai' : 'pro');
     else setError(r.reason);
   };
 
@@ -45,7 +46,7 @@ export function KeyEntry({ onDone }: { onDone(): void }) {
             class="key-input"
             type="text"
             value={key}
-            disabled={busy || done}
+            disabled={busy || done !== null}
             placeholder={t('unlock.keyPlaceholder')}
             autocomplete="off"
             spellcheck={false}
@@ -55,12 +56,12 @@ export function KeyEntry({ onDone }: { onDone(): void }) {
             onInput={(e) => { setKey((e.target as HTMLInputElement).value); if (error) setError(null); }}
           />
         </label>
-        <button type="submit" class="key-activate" disabled={busy || done || key.trim() === ''}>
+        <button type="submit" class="key-activate" disabled={busy || done !== null || key.trim() === ''}>
           {busy ? t('unlock.activating') : t('unlock.activate')}
         </button>
       </form>
       <div id="key-status" class={done ? 'key-ok' : 'key-error'} role="status">
-        {done ? t('unlock.unlocked') : error ? t(ERROR_KEY[error]) : null}
+        {done ? t(done === 'ai' ? 'unlock.unlockedAi' : 'unlock.unlocked') : error ? t(ERROR_KEY[error]) : null}
       </div>
       <a class="lost-key" href={lostKeyUrl(renderedLang())} target="_blank" rel="noopener noreferrer">{t('unlock.lostKey')}</a>
     </div>

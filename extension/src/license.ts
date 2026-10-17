@@ -23,7 +23,7 @@ export interface AiLicense extends License {
   lastAttemptAt: string | null;
 }
 export type ActivateResult =
-  | { ok: true }
+  | { ok: true; plan: 'pro' | 'ai' }
   | { ok: false; reason: 'invalid' | 'revoked' | 'ended' | 'network' | 'rate_limited' };
 
 const LICENSE_KEY = 'license';
@@ -162,7 +162,7 @@ export async function activate(rawKey: string): Promise<ActivateResult> {
     await chrome.storage.local.set({ [LICENSE_KEY]: lic });
   }
   await syncPro(true);
-  return { ok: true };
+  return { ok: true, plan: v.ai ? 'ai' : 'pro' };
 }
 
 /** Returns true when it removed the licence. */

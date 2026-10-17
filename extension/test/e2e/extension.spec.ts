@@ -380,6 +380,9 @@ test.describe('AI insights', () => {
       await analyse.click();
 
       await expect(panel.locator('.ai-verdict')).toHaveText('On par');
+      // The clicked button is gone: focus lands on the results heading, and the live region says so.
+      await expect(panel.locator('.ai-results .ai-title')).toBeFocused();
+      await expect(panel.locator('[aria-live="polite"]')).toHaveText('Results ready');
       expect(sent).toHaveLength(1);
       expect(Object.keys(sent[0]).sort()).toEqual(['description', 'design', 'key', 'lang', 'title', 'url']);
       expect(sent[0].url).toBe(`${PUBLIC}/light-marketing.html`);

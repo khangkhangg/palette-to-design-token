@@ -158,7 +158,7 @@ properties for Arabic), Geist self-hosted under `assets/fonts/` (OFL). No extern
 
     cd extension && npm run e2e:checkout
 
-Runs `test/e2e/checkout.spec.ts` against `php -S` with `tests/dev-router.php` (PHP from `$PHP_BIN`, else the
+Builds the test extension (`dist-e2e`), then runs `test/e2e/checkout.spec.ts` and `test/e2e/ai-router.spec.ts` (the side panel's AI insights posting `action=analyse`) against `php -S` with `tests/dev-router.php` (PHP from `$PHP_BIN`, else the
 winget PHP 8.4, else `php`). The router seeds `$_ENV` with the `palette_test` database before companies'
 `config.php` loads (under the `cli-server` SAPI it reads `DB_HOST_REMOTE`, which is also seeded), refuses to serve
 unless the database name ends in `_test`, and with `PALETTE_DEV_PP_STUB=1` stubs PayPal REST and Resend and adds

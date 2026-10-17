@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { CHECKOUT_PORT } from '../../playwright.checkout.config';
 
 /**
- * AI insights end to end (npm run e2e:checkout): the built test extension (dist-e2e, from npm run e2e) posts
+ * AI insights end to end (npm run e2e:checkout): the built test extension (dist-e2e, which npm run e2e:checkout builds first) posts
  * action=analyse to the real api.php under `php -S` with server/tests/dev-router.php, PALETTE_DEV_AI_STUB=1
  * (canned web search + model answer) on the palette_test database. Playwright forwards the extension's
  * https://vietnamcos.com/palette/* requests to the router and serves the scanned page under a public host.
@@ -20,7 +20,7 @@ let extId: string;
 const opened: Page[] = [];
 
 test.beforeAll(async () => {
-  if (!existsSync(resolve(DIST, 'manifest.json'))) throw new Error('dist-e2e is missing: run npm run e2e first');
+  if (!existsSync(resolve(DIST, 'manifest.json'))) throw new Error('dist-e2e is missing: run it through npm run e2e:checkout');
   context = await chromium.launchPersistentContext('', {
     channel: 'chromium',
     args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`],

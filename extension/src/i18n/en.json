@@ -228,7 +228,8 @@
     "errEnded": "This Pro + AI plan has ended.",
     "errNetwork": "Couldn't reach the server — try again.",
     "errRateLimited": "Too many attempts — wait a minute and try again.",
-    "refund": "All sales are final. Because Pro unlocks instantly and costs $1.49, we do not offer refunds after purchase."
+    "refund": "All sales are final. Because Pro unlocks instantly and costs $1.49, we do not offer refunds after purchase.",
+    "unlockedAi": "Pro + AI unlocked"
   },
   "ai": {
     "title": "AI insights",
@@ -259,7 +260,7 @@
     "leftShort_one": "{n} analysis left",
     "leftShort_other": "{n} analyses left",
     "sentTitle": "What gets sent",
-    "sentBody": "This page's address and title, and the design summary above (colours, fonts, spacing, contrast). Nothing you type, no other tabs. It goes to vietnamcos.com, a web search, and our AI provider (DeepSeek).",
+    "sentBody": "This page's address, title and description, and the design summary above (colours, fonts, spacing, contrast). Nothing you type, no other tabs. It goes to vietnamcos.com, a web search, and our AI provider (DeepSeek).",
     "privacy": "Privacy policy",
     "hideNote": "Don't show this note again",
     "analyse": "Analyse {host}",
@@ -276,7 +277,9 @@
       "network": "Couldn't reach the server. Check your connection and try again.",
       "timeout": "The analysis took too long. No analysis was used.",
       "unavailable": "The AI isn't available right now. No analysis was used.",
-      "rateLimited": "Too many analyses in a short time. Wait a minute and try again."
+      "rateLimited": "Too many analyses in a short time. Wait a minute and try again.",
+      "badRequest": "We couldn't analyse this page.",
+      "invalid": "The AI's answer couldn't be read. Try again."
     },
     "tags": "Sector",
     "verdict": "Verdict",
@@ -305,7 +308,10 @@
     "newTab": "(opens in a new tab)",
     "footer": "AI can be wrong. Analysed {date} · used {used} of {limit}",
     "footerNoUsage": "AI can be wrong. Analysed {date}",
-    "cached": "Shared result from the last 7 days: no analysis used."
+    "cached": "Shared result from the last 7 days: no analysis used.",
+    "resultsReady": "Results ready",
+    "quotaNoDate": "You've used all {limit} analyses this month.",
+    "runInLang": "Run again in {language}"
   },
   "plans": {
     "title": "Choose your plan",

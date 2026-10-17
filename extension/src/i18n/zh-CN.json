@@ -225,7 +225,8 @@
     "errEnded": "此 Pro + AI 方案已结束。",
     "errNetwork": "无法连接服务器，请重试。",
     "errRateLimited": "尝试次数过多，请等待一分钟后重试。",
-    "refund": "所有销售均为最终交易。由于 Pro 即时解锁且价格仅为 1.49 美元，购买后恕不退款。"
+    "refund": "所有销售均为最终交易。由于 Pro 即时解锁且价格仅为 1.49 美元，购买后恕不退款。",
+    "unlockedAi": "Pro + AI 已解锁"
   },
   "ai": {
     "title": "AI 洞察",
@@ -255,7 +256,7 @@
     "resets": "{date} 重置",
     "leftShort_other": "剩余 {n} 次分析",
     "sentTitle": "会发送哪些内容",
-    "sentBody": "此页面的地址和标题，以及上方的设计摘要（颜色、字体、间距、对比度）。不含你输入的任何内容，也不含其他标签页。数据会发送到 vietnamcos.com、一个网络搜索服务和我们的 AI 服务商（DeepSeek）。",
+    "sentBody": "此页面的地址、标题和描述，以及上方的设计摘要（颜色、字体、间距、对比度）。不含你输入的任何内容，也不含其他标签页。数据会发送到 vietnamcos.com、一个网络搜索服务和我们的 AI 服务商（DeepSeek）。",
     "privacy": "隐私政策",
     "hideNote": "不再显示此说明",
     "analyse": "分析 {host}",
@@ -272,7 +273,9 @@
       "network": "无法连接服务器。请检查网络后重试。",
       "timeout": "分析耗时过长。未扣除分析次数。",
       "unavailable": "AI 暂时不可用。未扣除分析次数。",
-      "rateLimited": "短时间内分析次数过多。请等一分钟后重试。"
+      "rateLimited": "短时间内分析次数过多。请等一分钟后重试。",
+      "badRequest": "无法分析此页面。",
+      "invalid": "无法读取 AI 的回答。请重试。"
     },
     "tags": "行业",
     "verdict": "评价",
@@ -301,7 +304,10 @@
     "newTab": "（在新标签页中打开）",
     "footer": "AI 可能出错。分析于 {date} · 已用 {used} / {limit}",
     "footerNoUsage": "AI 可能出错。分析于 {date}",
-    "cached": "过去 7 天内的共享结果：未扣除分析次数。"
+    "cached": "过去 7 天内的共享结果：未扣除分析次数。",
+    "resultsReady": "结果已就绪",
+    "quotaNoDate": "本月的 {limit} 次分析已用完。",
+    "runInLang": "用{language}重新分析"
   },
   "plans": {
     "title": "选择套餐",

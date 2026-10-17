@@ -231,7 +231,8 @@
     "errEnded": "Cette formule Pro + AI est terminée.",
     "errNetwork": "Impossible de joindre le serveur — réessayez.",
     "errRateLimited": "Trop de tentatives — patientez une minute, puis réessayez.",
-    "refund": "Toutes les ventes sont définitives. Pro se débloque instantanément et coûte 1,49 $ US, nous ne proposons donc aucun remboursement après l'achat."
+    "refund": "Toutes les ventes sont définitives. Pro se débloque instantanément et coûte 1,49 $ US, nous ne proposons donc aucun remboursement après l'achat.",
+    "unlockedAi": "Pro + AI débloqué"
   },
   "ai": {
     "title": "Analyses IA",
@@ -263,7 +264,7 @@
     "leftShort_many": "{n} d'analyses restantes",
     "leftShort_other": "{n} analyses restantes",
     "sentTitle": "Ce qui est envoyé",
-    "sentBody": "L'adresse et le titre de cette page, et le résumé du design ci-dessus (couleurs, polices, espacements, contraste). Rien de ce que vous tapez, aucun autre onglet. Ces données vont à vietnamcos.com, à une recherche web et à notre fournisseur d'IA (DeepSeek).",
+    "sentBody": "L'adresse, le titre et la description de cette page, et le résumé du design ci-dessus (couleurs, polices, espacements, contraste). Rien de ce que vous tapez, aucun autre onglet. Ces données vont à vietnamcos.com, à une recherche web et à notre fournisseur d'IA (DeepSeek).",
     "privacy": "Politique de confidentialité",
     "hideNote": "Ne plus afficher cette note",
     "analyse": "Analyser {host}",
@@ -280,7 +281,9 @@
       "network": "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez.",
       "timeout": "L'analyse a pris trop de temps. Aucune analyse n'a été décomptée.",
       "unavailable": "L'IA n'est pas disponible pour le moment. Aucune analyse n'a été décomptée.",
-      "rateLimited": "Trop d'analyses en peu de temps. Attendez une minute et réessayez."
+      "rateLimited": "Trop d'analyses en peu de temps. Attendez une minute et réessayez.",
+      "badRequest": "Impossible d'analyser cette page.",
+      "invalid": "La réponse de l'IA est illisible. Réessayez."
     },
     "tags": "Secteur",
     "verdict": "Verdict",
@@ -309,7 +312,10 @@
     "newTab": "(s'ouvre dans un nouvel onglet)",
     "footer": "L'IA peut se tromper. Analysé le {date} · {used} sur {limit} utilisées",
     "footerNoUsage": "L'IA peut se tromper. Analysé le {date}",
-    "cached": "Résultat partagé des 7 derniers jours : aucune analyse décomptée."
+    "cached": "Résultat partagé des 7 derniers jours : aucune analyse décomptée.",
+    "resultsReady": "Résultats prêts",
+    "quotaNoDate": "Vous avez utilisé vos {limit} analyses ce mois-ci.",
+    "runInLang": "Relancer en {language}"
   },
   "plans": {
     "title": "Choisissez votre formule",

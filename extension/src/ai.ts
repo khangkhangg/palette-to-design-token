@@ -32,8 +32,12 @@ export interface DesignSummary {
 }
 export type AnalyseReason =
   | 'not_ai' | 'ended' | 'quota' | 'rate_limited' | 'unavailable' | 'network' | 'timeout'
-  /** Refused before sending: not a public http(s) page (localhost, IPs, .local …), or the server could not take it. */
+  /** Refused before sending: not a public http(s) page (localhost, IPs, .local …). */
   | 'unsupported'
+  /** The server refused the request (400 / 413). */
+  | 'bad_request'
+  /** A 200 whose result does not fit the schema (unknown verdict or fit level, no usage). */
+  | 'invalid'
   /** The caller aborted (Cancel). */
   | 'cancelled';
 export type AnalyseOutcome =
@@ -106,6 +110,8 @@ const strs = (v: unknown, cap: number): string[] =>
   (Array.isArray(v) ? v : []).map((x) => str(x, 200)).filter((x) => x !== '').slice(0, cap);
 const oneOf = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T =>
   (allowed as readonly unknown[]).includes(v) ? (v as T) : fallback;
+const VERDICTS = ['behind', 'on_par', 'competitive'] as const;
+const FIT_LEVELS = ['strong', 'ok', 'weak'] as const;
 const DOMAIN = /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}$/;
 
 /** The answer reduced to the schema; links are rebuilt from the domain, so only https://<domain>/ is ever opened. */
@@ -113,6 +119,10 @@ function cleanResult(raw: unknown): AiResult | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
   const fit = (r.fit ?? {}) as Record<string, unknown>;
+  // The verdict and fit level are shown as the answer itself: an unknown one makes the result invalid, never a guess.
+  const verdict = VERDICTS.find((v) => v === r.verdict);
+  const level = FIT_LEVELS.find((v) => v === fit.level);
+  if (!verdict || !level) return null;
   const sites: AiSite[] = [];
   for (const s of Array.isArray(r.sites) ? r.sites : []) {
     const o = (s ?? {}) as Record<string, unknown>;
@@ -132,10 +142,10 @@ function cleanResult(raw: unknown): AiResult | null {
   const out: AiResult = {
     sector: str(r.sector, 120),
     tags: strs(r.tags, 4),
-    verdict: oneOf(r.verdict, ['behind', 'on_par', 'competitive'] as const, 'on_par'),
+    verdict,
     summary: str(r.summary, 800),
     colours,
-    fit: { level: oneOf(fit.level, ['strong', 'ok', 'weak'] as const, 'ok'), reason: str(fit.reason, 300) },
+    fit: { level, reason: str(fit.reason, 300) },
     works: strs(r.works, 3),
     improve: strs(r.improve, 3),
     sites,
@@ -221,7 +231,7 @@ export async function analyse(
   if (status === 200 && body?.ok === true) {
     const result = cleanResult(body.result);
     const usage = parseUsage(body.usage);
-    if (!result || !usage) return { ok: false, reason: 'unavailable' };
+    if (!result || !usage) return { ok: false, reason: 'invalid' };
     const cached = body.cached === true;
     await storeAiUsage(usage).catch(() => {});
     await keepResult(target.host, { result, usage, analysedAt: new Date().toISOString(), lang, cached }).catch(() => {});
@@ -238,6 +248,6 @@ export async function analyse(
     return resetsOn ? { ok: false, reason: 'quota', resetsOn } : { ok: false, reason: 'quota' };
   }
   if (status === 429) return { ok: false, reason: 'rate_limited' };
-  if (status === 400 || status === 413) return { ok: false, reason: 'unsupported' };
+  if (status === 400 || status === 413) return { ok: false, reason: 'bad_request' };
   return { ok: false, reason: 'unavailable' };
 }

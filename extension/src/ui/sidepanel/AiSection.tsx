@@ -6,7 +6,7 @@ import { aiState, checkoutUrl, currentAiLicense, type AiUsage } from '../../lice
 import type { Tokens } from '../../model/tokens';
 import { Icon, type IconName } from '../components/Icon';
 import { PlanSheet } from '../components/PlanSheet';
-import { formatDate, plural, renderedLang, t } from '../i18n';
+import { LANG_NAMES, formatDate, plural, renderedLang, t } from '../i18n';
 
 const NOTE_KEY = 'aiNoteHidden';
 const LICENSE_KEY = 'licenseAi';
@@ -27,6 +27,17 @@ const ERROR_KEY: Partial<Record<AnalyseReason, string>> = {
   unavailable: 'ai.errors.unavailable',
   rate_limited: 'ai.errors.rateLimited',
   unsupported: 'ai.unsupported',
+  bad_request: 'ai.errors.badRequest',
+  invalid: 'ai.errors.invalid',
+};
+/** Where focus goes after the section changes state (the control that had it is gone). */
+type FocusTarget = 'results' | 'analyse' | 'alert' | 'cancel';
+/** Tried in order; the first that exists gets focus (a disabled Analyse falls back to the heading). */
+const FOCUS_SELECTORS: Record<FocusTarget, string[]> = {
+  results: ['.ai-results .ai-title'],
+  analyse: ['.ai-cta:not([disabled])', '.ai-run:not([disabled])', '.ai-title'],
+  alert: ['.ai-error'],
+  cancel: ['.ai-cancel'],
 };
 
 type Plan =
@@ -72,7 +83,7 @@ function Head({ sub, children }: { sub: ComponentChildren; children?: ComponentC
     <div class="ai-head">
       <span class="ai-icon" aria-hidden="true"><Icon name="sparkles" size={18} /></span>
       <div class="ai-head-text">
-        <h2 class="ai-title" id="ai-title">{t('ai.title')}</h2>
+        <h2 class="ai-title" id="ai-title" tabIndex={-1}>{t('ai.title')}</h2>
         <span class="ai-sub">{sub}</span>
       </div>
       {children}
@@ -87,7 +98,9 @@ function UsageBar({ usage }: { usage: AiUsage }) {
     <div class="ai-usage">
       <div class="ai-usage-text">
         <span class="ai-usage-left">{ltr('ai.left', { left, limit: usage.limit })}</span>
-        <span class="ai-usage-reset">{ltr('ai.resets', { date: formatDate(usage.resetsOn, false) })}</span>
+        {formatDate(usage.resetsOn, false) && (
+          <span class="ai-usage-reset">{ltr('ai.resets', { date: formatDate(usage.resetsOn, false) })}</span>
+        )}
       </div>
       <div class="ai-bar" aria-hidden="true"><div class="ai-bar-fill" style={{ inlineSize: `${pct}%` }} /></div>
     </div>
@@ -98,7 +111,7 @@ function ErrorNote({ reason, onRetry }: { reason: AnalyseReason; onRetry?(): voi
   const key = ERROR_KEY[reason];
   if (!key) return null;
   return (
-    <div class="ai-error" role="alert">
+    <div class="ai-error" role="alert" tabIndex={-1}>
       <Icon name="alert" size={14} />
       <span>{t(key)}</span>
       {onRetry && <button type="button" class="link-btn" onClick={onRetry}>{t('ai.retry')}</button>}
@@ -161,8 +174,8 @@ function Verdict({ result }: { result: AiResult }) {
   );
 }
 
-function Results({ host, entry, usage, busy, quota, onRun }: {
-  host: string; entry: StoredResult; usage: AiUsage | null; busy: boolean; quota: boolean; onRun(): void;
+function Results({ host, entry, usage, quota, onRun }: {
+  host: string; entry: StoredResult; usage: AiUsage | null; quota: boolean; onRun(): void;
 }) {
   const { result } = entry;
   const left = usage ? Math.max(0, usage.limit - usage.used) : null;
@@ -171,7 +184,7 @@ function Results({ host, entry, usage, busy, quota, onRun }: {
   return (
     <section class="ai-results" aria-labelledby="ai-title">
       <Head sub={<><bdi dir="ltr">{host}</bdi>{left !== null && <> · {plural('ai.leftShort', left)}</>}</>}>
-        <button type="button" class="icon-btn" aria-label={t('ai.runAgain')} title={t('ai.runAgain')} disabled={busy || quota} onClick={onRun}>
+        <button type="button" class="icon-btn ai-run" aria-label={t('ai.runAgain')} title={t('ai.runAgain')} disabled={quota} onClick={onRun}>
           <Icon name="rescan" />
         </button>
       </Head>
@@ -179,6 +192,18 @@ function Results({ host, entry, usage, busy, quota, onRun }: {
         <ul class="ai-tags" aria-label={t('ai.tags')}>
           {tags.map((tag, i) => <li key={i} dir="auto">{tag}</li>)}
         </ul>
+      )}
+      {entry.lang !== renderedLang() && (
+        <p class="ai-lang-hint">
+          <Icon name="info" size={14} />
+          {quota ? (
+            <span>{t('ai.runInLang', { language: LANG_NAMES[renderedLang()] ?? renderedLang() })}</span>
+          ) : (
+            <button type="button" class="link-btn" onClick={onRun}>
+              {t('ai.runInLang', { language: LANG_NAMES[renderedLang()] ?? renderedLang() })}
+            </button>
+          )}
+        </p>
       )}
       <Verdict result={result} />
       {(result.colours.length > 0 || result.fit.reason) && (
@@ -272,9 +297,14 @@ export function AiSection({ tokens }: AiSectionProps) {
   const [error, setError] = useState<AnalyseReason | null>(null);
   const [quotaReset, setQuotaReset] = useState<string | null>(null);
   const [sheet, setSheet] = useState(false);
+  /** Read out by the section's live region: the progress step, then "Results ready". */
+  const [announce, setAnnounce] = useState('');
+  const [focus, setFocus] = useState<FocusTarget | null>(null);
   const ctrl = useRef<AbortController | null>(null);
+  const wrap = useRef<HTMLDivElement>(null);
 
-  const refresh = () => { void loadPlan().then(setPlan).catch(() => setPlan({ kind: 'locked' })); };
+  const showPlan = (p: Plan) => { setPlan(p); setQuotaReset(null); };
+  const refresh = () => { void loadPlan().then(showPlan).catch(() => showPlan({ kind: 'locked' })); };
 
   useEffect(() => {
     let live = true;
@@ -303,13 +333,26 @@ export function AiSection({ tokens }: AiSectionProps) {
 
   useEffect(() => {
     if (running !== 0) return;
-    const id = setTimeout(() => setRunning((s) => (s === 0 ? 1 : s)), STEP_MS);
+    const id = setTimeout(() => {
+      setRunning((s) => (s === 0 ? 1 : s));
+      setAnnounce(t('ai.asking'));
+    }, STEP_MS);
     return () => clearTimeout(id);
   }, [running]);
 
+  // Runs after the render that removed the focused control: put focus where the user's next step is.
+  useEffect(() => {
+    if (!focus) return;
+    for (const sel of FOCUS_SELECTORS[focus]) {
+      const el = wrap.current?.querySelector<HTMLElement>(sel);
+      if (el) { el.focus(); break; }
+    }
+    setFocus(null);
+  });
+
   const usage = plan.kind === 'active' ? plan.usage : null;
   const quota = quotaReset !== null || (usage !== null && usage.used >= usage.limit);
-  const resetsOn = quotaReset ?? usage?.resetsOn ?? '';
+  const resetsOn = formatDate(quotaReset ?? usage?.resetsOn ?? '', false);
 
   const run = async () => {
     if (running !== null) return;
@@ -317,25 +360,36 @@ export function AiSection({ tokens }: AiSectionProps) {
     ctrl.current = c;
     setError(null);
     setRunning(0);
+    setAnnounce(t('ai.searching'));
+    setFocus('cancel');
     const r = await analyse(tokens, page, renderedLang(), c.signal);
     if (ctrl.current !== c) return;
     ctrl.current = null;
     setRunning(null);
+    setAnnounce('');
     if (r.ok) {
       setEntry({ result: r.result, usage: r.usage, analysedAt: new Date().toISOString(), lang: renderedLang(), cached: r.cached });
-      setPlan({ kind: 'active', usage: r.usage });
+      showPlan({ kind: 'active', usage: r.usage });
+      setAnnounce(t('ai.resultsReady'));
+      setFocus('results');
       return;
     }
-    if (r.reason === 'cancelled') return;
-    if (r.reason === 'not_ai') return setPlan({ kind: 'locked' });
-    if (r.reason === 'ended') return setPlan({ kind: 'ended', endedOn: r.endedOn ?? null });
-    if (r.reason === 'quota') return setQuotaReset(r.resetsOn ?? usage?.resetsOn ?? '');
+    if (r.reason === 'cancelled') return setFocus('analyse');
+    if (r.reason === 'not_ai') return showPlan({ kind: 'locked' });
+    if (r.reason === 'ended') return showPlan({ kind: 'ended', endedOn: r.endedOn ?? null });
+    if (r.reason === 'quota') {
+      setQuotaReset(r.resetsOn ?? usage?.resetsOn ?? '');
+      return setFocus('analyse');
+    }
     setError(r.reason);
+    setFocus('alert');
   };
   const cancel = () => {
     ctrl.current?.abort();
     ctrl.current = null;
     setRunning(null);
+    setAnnounce('');
+    setFocus('analyse');
   };
 
   if (plan.kind === 'loading' || noteHidden === null) return null;
@@ -344,20 +398,24 @@ export function AiSection({ tokens }: AiSectionProps) {
     <PlanSheet variant="overlay" plan="ai" onClose={() => { setSheet(false); refresh(); }} />
   );
 
+  return (
+    <div class="ai-wrap" ref={wrap}>
+      <div class="sr-only" aria-live="polite" aria-atomic="true">{announce}</div>
+      {body()}
+      {sheetEl}
+    </div>
+  );
+
+  function body() {
   if (plan.kind !== 'active') {
-    return (
-      <>
-        <Locked ended={plan.kind === 'ended'} endedOn={plan.kind === 'ended' ? plan.endedOn : null} onSee={() => setSheet(true)} />
-        {sheetEl}
-      </>
-    );
+    return <Locked ended={plan.kind === 'ended'} endedOn={plan.kind === 'ended' ? plan.endedOn : null} onSee={() => setSheet(true)} />;
   }
 
   if (running !== null) {
     return (
       <section class="ai-card" aria-labelledby="ai-title" aria-busy="true">
         <Head sub={<bdi dir="ltr">{host}</bdi>} />
-        <div class="ai-running" role="status">
+        <div class="ai-running">
           <span class="spinner" aria-hidden="true" />
           <span class="ai-step">{t(running === 0 ? 'ai.searching' : 'ai.asking')}</span>
           <span class="ai-caption">{t('ai.runningNote')}</span>
@@ -370,17 +428,17 @@ export function AiSection({ tokens }: AiSectionProps) {
   const quotaNote = quota && (
     <p class="ai-quota" role="status">
       <Icon name="info" size={14} />
-      <span>{ltr('ai.quota', { limit: usage?.limit ?? 100, date: formatDate(resetsOn, false) })}</span>
+      <span>{resetsOn ? ltr('ai.quota', { limit: usage?.limit ?? 100, date: resetsOn }) : ltr('ai.quotaNoDate', { limit: usage?.limit ?? 100 })}</span>
     </p>
   );
 
   if (entry) {
     return (
-      <div class="ai-wrap">
+      <>
         {error && <ErrorNote reason={error} onRetry={supported && !quota ? run : undefined} />}
         {quotaNote}
-        <Results host={host} entry={entry} usage={usage} busy={false} quota={quota || !supported} onRun={run} />
-      </div>
+        <Results host={host} entry={entry} usage={usage} quota={quota || !supported} onRun={run} />
+      </>
     );
   }
 
@@ -421,4 +479,5 @@ export function AiSection({ tokens }: AiSectionProps) {
       <span class="ai-caption">{t('ai.usesOne')}</span>
     </section>
   );
+  }
 }

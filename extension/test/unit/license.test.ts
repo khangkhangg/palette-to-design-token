@@ -23,7 +23,7 @@ afterEach(() => { uninstallFakeChrome(); vi.unstubAllGlobals(); vi.useRealTimers
 describe('activate', () => {
   it('posts the normalised key as JSON, stores the licence and turns Pro on', async () => {
     fetchMock.mockReturnValue(reply(200, { ok: true, valid: true, revoked: false, email_masked: 'a***@x.com' }));
-    expect(await activate('  sdt-abcd-2345-6789 ')).toEqual({ ok: true });
+    expect(await activate('  sdt-abcd-2345-6789 ')).toEqual({ ok: true, plan: 'pro' });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('https://vietnamcos.com/palette/api.php?action=verify');
     expect(init.method).toBe('POST');
@@ -39,9 +39,9 @@ describe('activate', () => {
   });
   it('accepts keys typed with spaces or without dashes, like the server', async () => {
     fetchMock.mockImplementation(() => reply(200, { ok: true, valid: true, revoked: false, email_masked: null }));
-    expect(await activate('SDT ABCD 2345 6789')).toEqual({ ok: true });
-    expect(await activate('sdtabcd23456789')).toEqual({ ok: true });
-    expect(await activate('sdt_abcd.23o5/6i8l')).toEqual({ ok: true });
+    expect(await activate('SDT ABCD 2345 6789')).toEqual({ ok: true, plan: 'pro' });
+    expect(await activate('sdtabcd23456789')).toEqual({ ok: true, plan: 'pro' });
+    expect(await activate('sdt_abcd.23o5/6i8l')).toEqual({ ok: true, plan: 'pro' });
     expect(fetchMock.mock.calls.map((c) => JSON.parse(c[1].body).key)).toEqual([KEY, KEY, 'SDT-ABCD-2305-6181']);
   });
   it('treats a 200 without a clear verdict as a network failure, not an invalid key', async () => {
@@ -215,7 +215,7 @@ describe('Pro + AI licences', () => {
   it('activating an ai key stores licenseAi, keeps an existing pro licence and turns Pro on', async () => {
     data.license = lic('2026-10-01T00:00:00.000Z');
     fetchMock.mockReturnValue(aiOk(iso(20 * DAY)));
-    expect(await activate(AI_KEY)).toEqual({ ok: true });
+    expect(await activate(AI_KEY)).toEqual({ ok: true, plan: 'ai' });
     expect(aiRec().key).toBe(AI_KEY);
     expect(aiRec().plan).toBe('ai');
     expect(aiRec().paidThrough).toBe(iso(20 * DAY));

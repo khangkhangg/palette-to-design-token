@@ -231,7 +231,8 @@
     "errEnded": "Este plan Pro + AI ha terminado.",
     "errNetwork": "No se pudo conectar con el servidor. Inténtalo de nuevo.",
     "errRateLimited": "Demasiados intentos. Espera un minuto y vuelve a intentarlo.",
-    "refund": "Todas las ventas son definitivas. Como Pro se desbloquea al instante y cuesta 1,49 USD, no ofrecemos reembolsos después de la compra."
+    "refund": "Todas las ventas son definitivas. Como Pro se desbloquea al instante y cuesta 1,49 USD, no ofrecemos reembolsos después de la compra.",
+    "unlockedAi": "Pro + AI desbloqueado"
   },
   "ai": {
     "title": "Análisis con IA",
@@ -263,7 +264,7 @@
     "leftShort_many": "quedan {n} de análisis",
     "leftShort_other": "quedan {n} análisis",
     "sentTitle": "Qué se envía",
-    "sentBody": "La dirección y el título de esta página, y el resumen de diseño de arriba (colores, fuentes, espaciado, contraste). Nada de lo que escribes, ninguna otra pestaña. Se envía a vietnamcos.com, a una búsqueda web y a nuestro proveedor de IA (DeepSeek).",
+    "sentBody": "La dirección, el título y la descripción de esta página, y el resumen de diseño de arriba (colores, fuentes, espaciado, contraste). Nada de lo que escribes, ninguna otra pestaña. Se envía a vietnamcos.com, a una búsqueda web y a nuestro proveedor de IA (DeepSeek).",
     "privacy": "Política de privacidad",
     "hideNote": "No volver a mostrar esta nota",
     "analyse": "Analizar {host}",
@@ -280,7 +281,9 @@
       "network": "No se pudo conectar con el servidor. Revisa tu conexión y vuelve a intentarlo.",
       "timeout": "El análisis tardó demasiado. No se ha usado ningún análisis.",
       "unavailable": "La IA no está disponible ahora mismo. No se ha usado ningún análisis.",
-      "rateLimited": "Demasiados análisis en poco tiempo. Espera un minuto y vuelve a intentarlo."
+      "rateLimited": "Demasiados análisis en poco tiempo. Espera un minuto y vuelve a intentarlo.",
+      "badRequest": "No pudimos analizar esta página.",
+      "invalid": "No se pudo leer la respuesta de la IA. Vuelve a intentarlo."
     },
     "tags": "Sector",
     "verdict": "Veredicto",
@@ -309,7 +312,10 @@
     "newTab": "(se abre en una pestaña nueva)",
     "footer": "La IA puede equivocarse. Analizado el {date} · usados {used} de {limit}",
     "footerNoUsage": "La IA puede equivocarse. Analizado el {date}",
-    "cached": "Resultado compartido de los últimos 7 días: no se ha usado ningún análisis."
+    "cached": "Resultado compartido de los últimos 7 días: no se ha usado ningún análisis.",
+    "resultsReady": "Resultados listos",
+    "quotaNoDate": "Has usado los {limit} análisis de este mes.",
+    "runInLang": "Volver a analizar en {language}"
   },
   "plans": {
     "title": "Elige tu plan",

@@ -112,7 +112,7 @@ describe('AI section: ready (H)', () => {
     expect(screen.getByText(text('63 of 100 analyses left'))).toBeTruthy();
     expect(screen.getByText(text(`resets ${formatDate('2026-11-01', false)}`))).toBeTruthy();
     expect(screen.getByText('What gets sent')).toBeTruthy();
-    expect(screen.getByText(/It goes to vietnamcos\.com, a web search, and our AI provider \(DeepSeek\)/)).toBeTruthy();
+    expect(screen.getByText(/^This page's address, title and description, and the design summary above.*It goes to vietnamcos\.com, a web search, and our AI provider \(DeepSeek\)/)).toBeTruthy();
     const privacy = screen.getByRole('link', { name: 'Privacy policy' }) as HTMLAnchorElement;
     expect(privacy.href).toBe('https://vietnamcos.com/palette/privacy?lang=en');
     expect(privacy.target).toBe('_blank');
@@ -151,7 +151,7 @@ describe('AI section: ready (H)', () => {
 describe('AI section: running', () => {
   beforeEach(() => { data.licenseAi = aiLicense(); });
 
-  it('shows progress steps, and Cancel aborts the request and goes back', async () => {
+  it('announces progress steps in a live region that was already mounted, focuses Cancel, and Cancel aborts and refocuses Analyse', async () => {
     let signal: AbortSignal | undefined;
     mocks.analyse.mockImplementation((_t, _p, _l, s: AbortSignal) => {
       signal = s;
@@ -160,17 +160,43 @@ describe('AI section: running', () => {
     const tokens = brewline();
     render(<AiSection tokens={tokens} />);
     const btn = await ready();
+    const live = document.querySelector('[aria-live="polite"]')!;
+    expect(live.textContent).toBe('');
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    btn.focus();
     fireEvent.click(btn);
-    expect(screen.getByRole('status').textContent).toContain('Searching the web…');
+    expect(document.querySelector('[aria-live="polite"]')).toBe(live); // same node: the change is read out
+    expect(live.textContent).toBe('Searching the web…');
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }));
     expect(mocks.analyse).toHaveBeenCalledWith(tokens, { url: 'https://brewline.co/menu', title: 'Brewline', description: 'Coffee' }, 'en', expect.any(AbortSignal));
     await act(async () => { vi.advanceTimersByTime(5000); });
-    expect(screen.getByText('Asking the AI…')).toBeTruthy();
+    expect(screen.getByText('Asking the AI…', { selector: '.ai-step' })).toBeTruthy();
+    expect(live.textContent).toBe('Asking the AI…');
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(signal!.aborted).toBe(true);
     vi.useRealTimers();
-    expect(await ready()).toBeTruthy();
+    const again = await ready();
+    expect(document.activeElement).toBe(again);
+    expect(live.textContent).toBe('');
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('after results, focus moves to the results heading and "Results ready" is announced', async () => {
+    mocks.analyse.mockResolvedValue({ ok: true, result: RESULT, cached: false, usage: { ...USAGE, used: 38 } });
+    render(<AiSection tokens={brewline()} />);
+    const btn = await ready();
+    btn.focus();
+    fireEvent.click(btn);
+    await screen.findByText('Competitive', { selector: '.ai-verdict' });
+    const heading = screen.getByRole('heading', { name: 'AI insights' });
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+    expect(heading.getAttribute('tabindex')).toBe('-1');
+    expect(heading.closest('.ai-results')).toBeTruthy();
+    expect(document.querySelector('[aria-live="polite"]')!.textContent).toBe('Results ready');
+    // Run again from the results: the icon button goes away while running, then focus returns to the new results.
+    mocks.analyse.mockResolvedValueOnce({ ok: false, reason: 'cancelled' });
+    fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Run again' })));
   });
 
   it.each([
@@ -178,12 +204,16 @@ describe('AI section: running', () => {
     ['unavailable', "The AI isn't available right now. No analysis was used."],
     ['network', "Couldn't reach the server. Check your connection and try again."],
     ['rate_limited', 'Too many analyses in a short time. Wait a minute and try again.'],
-  ])('shows the %s error inline with Try again', async (reason, text) => {
+    ['bad_request', "We couldn't analyse this page."],
+    ['invalid', "The AI's answer couldn't be read. Try again."],
+  ])('shows the %s error inline with Try again, and focuses it', async (reason, text) => {
     mocks.analyse.mockResolvedValueOnce({ ok: false, reason }).mockResolvedValueOnce({ ok: true, result: RESULT, cached: false, usage: { ...USAGE, used: 38 } });
     render(<AiSection tokens={brewline()} />);
     fireEvent.click(await ready());
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain(text);
+    if (reason === 'bad_request' || reason === 'invalid') expect(alert.textContent).not.toContain('No analysis was used');
+    await waitFor(() => expect(document.activeElement).toBe(alert));
     fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }));
     expect(await screen.findByText('Competitive', { selector: '.ai-verdict' })).toBeTruthy();
     expect(mocks.analyse).toHaveBeenCalledTimes(2);
@@ -195,6 +225,26 @@ describe('AI section: running', () => {
     fireEvent.click(await ready());
     expect(await screen.findByText(text(/You've used all 100 analyses this month/))).toBeTruthy();
     expect(((await ready()) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('an out-of-quota answer without a reset date never shows "Resets ."', async () => {
+    data.licenseAi = aiLicense({ usage: null });
+    mocks.analyse.mockResolvedValue({ ok: false, reason: 'quota' });
+    render(<AiSection tokens={brewline()} />);
+    fireEvent.click(await ready());
+    expect(await screen.findByText(text("You've used all 100 analyses this month."))).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/Resets/);
+  });
+
+  it('a later licence refresh with fresh usage clears the out-of-quota state', async () => {
+    mocks.analyse.mockResolvedValue({ ok: false, reason: 'quota', resetsOn: '2026-11-01' });
+    render(<AiSection tokens={brewline()} />);
+    fireEvent.click(await ready());
+    await screen.findByText(text(/You've used all 100 analyses this month/));
+    // The period renewed: the stored licence now reports fresh usage.
+    await act(async () => { await chrome.storage.local.set({ licenseAi: aiLicense({ usage: { used: 0, limit: 100, resetsOn: '2026-12-01' } }) }); });
+    await waitFor(() => expect(((screen.getByRole('button', { name: 'Analyse brewline.co' })) as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.queryByText(text(/You've used all/))).toBeNull();
   });
 
   it('an ended answer returns the card to G with the date', async () => {
@@ -266,6 +316,22 @@ describe('AI section: results (I)', () => {
     expect(document.querySelector('.ai-fit')!.textContent).toContain('Weak fit');
   });
 
+  it('a stored result in another language says so, with "Run again in <language>"', async () => {
+    data.aiResults = [{ host: 'brewline.co', result: RESULT, usage: null, analysedAt: '2026-10-17T09:00:00.000Z', lang: 'fr', cached: false }];
+    mocks.analyse.mockResolvedValue({ ok: false, reason: 'cancelled' });
+    render(<AiSection tokens={brewline()} />);
+    const hint = await screen.findByRole('button', { name: 'Run again in English' });
+    fireEvent.click(hint);
+    expect(mocks.analyse).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'en', expect.any(AbortSignal));
+  });
+
+  it('a stored result in the UI language shows no language hint', async () => {
+    data.aiResults = [{ host: 'brewline.co', result: RESULT, usage: null, analysedAt: '2026-10-17T09:00:00.000Z', lang: 'en', cached: false }];
+    render(<AiSection tokens={brewline()} />);
+    await screen.findByText('Competitive', { selector: '.ai-verdict' });
+    expect(screen.queryByText(/Run again in/)).toBeNull();
+  });
+
   it('shows the stored result without calling the API; Run again calls it', async () => {
     data.aiResults = [{ host: 'brewline.co', result: RESULT, usage: { used: 38, limit: 100, resetsOn: '2026-11-01' }, analysedAt: '2026-10-17T09:00:00.000Z', lang: 'en', cached: false }];
     mocks.analyse.mockResolvedValue({ ok: true, result: { ...RESULT, verdict: 'on_par' }, cached: false, usage: { used: 39, limit: 100, resetsOn: '2026-11-01' } });
@@ -331,13 +397,13 @@ describe('PlanSheet (J)', () => {
   });
 
   it('after an AI key activates from the AI section, the card turns ready', async () => {
-    mocks.activate.mockImplementation(async () => { data.licenseAi = aiLicense(); return { ok: true }; });
+    mocks.activate.mockImplementation(async () => { data.licenseAi = aiLicense(); return { ok: true, plan: 'ai' }; });
     render(<AiSection tokens={brewline()} />);
     fireEvent.click(await screen.findByRole('button', { name: 'See Pro + AI' }));
     fireEvent.click(screen.getByRole('button', { name: 'Enter it' }));
     fireEvent.input(screen.getByLabelText('License key'), { target: { value: 'SDT-ABCD-2345-6789' } });
     fireEvent.click(screen.getByRole('button', { name: 'Activate' }));
-    expect(await screen.findByText('Pro unlocked')).toBeTruthy();
+    expect(await screen.findByText('Pro + AI unlocked')).toBeTruthy();
     expect(await screen.findByRole('button', { name: 'Analyse brewline.co' }, { timeout: 3000 })).toBeTruthy();
     expect(screen.queryByRole('dialog')).toBeNull();
   });
