@@ -86,7 +86,41 @@ ok('product failure -> err_paypal, nothing stored', palette_sub_setup($conn) ===
 sub_reset($conn);
 $GLOBALS['pp_routes']['POST /v1/billing/plans'] = ['status' => 422, 'json' => []];
 ok('plan failure -> err_paypal, nothing stored', palette_sub_setup($conn) === ['ok' => false, 'error' => 'err_paypal']
-    && palette_settings($conn)['ai_paypal_plan_id'] === '' && palette_settings($conn)['ai_paypal_product_id'] === '');
+    && palette_settings($conn)['ai_paypal_plan_id'] === '' && palette_settings($conn)['ai_paypal_product_id'] === 'PROD-1');
+// retry after the failed plan POST reuses the stored product
+$GLOBALS['pp_routes']['POST /v1/billing/plans'] = ['status' => 201, 'json' => ['id' => 'P-RETRY']];
+$GLOBALS['pp_calls'] = [];
+ok('retry reuses stored product (no duplicate)', palette_sub_setup($conn)['plan_id'] === 'P-RETRY' && calls_to('POST', '/v1/catalogs/products') === []);
+
+// ---- price normalisation
+foreach ([['3.990', '3.99'], ['3.9900', '3.99'], ['4.0000', '4.00'], ['4', '4.00']] as [$live, $set]) {
+    sub_reset($conn);
+    palette_settings_put($conn, ['ai_price_usd' => $set]);
+    palette_sub_setup($conn);
+    $GLOBALS['pp_routes']['GET /v1/billing/plans/P-1']['json']['billing_cycles'][0]['pricing_scheme']['fixed_price']['value'] = $live;
+    $GLOBALS['pp_calls'] = [];
+    $r = palette_sub_setup($conn);
+    ok("live price '$live' equals settings '$set': reused, no POST", ($r['created'] ?? null) === false && calls_to('POST', '/v1/') === []);
+}
+sub_reset($conn);
+palette_sub_setup($conn);
+$GLOBALS['pp_routes']['GET /v1/billing/plans/P-1']['json']['billing_cycles'][0]['pricing_scheme']['fixed_price']['value'] = '3.999';
+$GLOBALS['pp_routes']['POST /v1/billing/plans'] = ['status' => 201, 'json' => ['id' => 'P-9']];
+ok('live price 3.999 differs -> new plan', palette_sub_setup($conn)['plan_id'] === 'P-9');
+foreach (['0', '0.00', 'abc', '-1', '3.999', '', '1e2'] as $bad) {
+    sub_reset($conn);
+    palette_settings_put($conn, ['ai_price_usd' => $bad]);
+    $GLOBALS['pp_calls'] = [];
+    ok("invalid ai_price_usd '$bad' -> err_bad_price, no calls", palette_sub_setup($conn) === ['ok' => false, 'error' => 'err_bad_price'] && $GLOBALS['pp_calls'] === []);
+}
+ok('bad price shown in result html', str_contains(palette_sub_result_html(['ok' => false, 'error' => 'err_bad_price']), 'ai_price_usd'));
+foreach ([401, 403] as $code) {
+    sub_reset($conn);
+    palette_sub_setup($conn);
+    $GLOBALS['pp_routes']['GET /v1/billing/plans/P-1'] = ['status' => $code, 'json' => []];
+    $GLOBALS['pp_calls'] = [];
+    ok("plan GET $code -> err_paypal, nothing created", palette_sub_setup($conn) === ['ok' => false, 'error' => 'err_paypal'] && calls_to('POST', '/v1/') === []);
+}
 sub_reset($conn);
 $GLOBALS['pp_routes']['POST /v1/billing/plans'] = ['status' => 201, 'json' => ['id' => 'bad id!']];
 ok('malformed plan id rejected', palette_sub_setup($conn)['ok'] === false);
