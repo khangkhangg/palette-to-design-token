@@ -11,6 +11,8 @@ foreach (['DB_HOST_LOCAL' => '127.0.0.1', 'DB_HOST_REMOTE' => '127.0.0.1', 'DB_U
     $_ENV[$k] = $v;
     putenv("$k=$v");
 }
+$_ENV['DEEPSEEK_API_KEY'] = '';   // companies' .env holds a real platform AI key; never let ai_key_for() fall back to it
+putenv('DEEPSEEK_API_KEY=');
 if (!getenv('PALETTE_COMPANIES_DIR')) putenv('PALETTE_COMPANIES_DIR=C:\\Projects\\companies');
 $server = dirname(__DIR__);
 $path = (string)parse_url((string)($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH);

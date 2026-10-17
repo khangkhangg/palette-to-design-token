@@ -12,6 +12,8 @@ directory of this folder.
 - `getAdminSetting('resend_api_key')`: Resend API key; mail is sent only via Resend (`POST https://api.resend.com/emails`) using `pp_http`, never PHP `mail()`
 - `includes/paypal.php`: `pp_settings`, `pp_ready`, `pp_api`, `pp_token`, `pp_base`, `pp_http` (test hook `$GLOBALS['pp_http']`; `pp_token` + `pp_base` are used for the two calls that need a raw body or extra headers: capture with `PayPal-Request-Id`, and verify-webhook-signature with the event spliced in byte for byte)
 - `lib/http.php` `palette_http(method, url, headers, body, timeoutSec)`: palette's own HTTP call with a caller-chosen timeout (companies' `pp_http` hard-codes 25 s). Same `['status','json']` shape, status 0 on transport failure; delegates to `$GLOBALS['pp_http']` when that stub is set. Used by the search adapter (8 s).
+- `tools/api/ai-usage.php` + `tools/api/ai-gateway.php` (which require `tools/api/hiring-admin.php` for `hiring_setting`; all three only define constants and functions, nothing runs at include time): `ai_key_for($conn, 0)` (platform key and model from `hiring_settings.deepseek_key` / `ai_cloud_model`, else `DEEPSEEK_API_KEY`), `ai_provider_request` (with `json`, `max_tokens` 1800, `temperature` 0.3), `ai_http_call` (30 s; wrapped by `palette_ai_transport`, test hook `$GLOBALS['palette_ai_transport']`), `ai_provider_parse`, `ai_log($conn, 0, 'palette_ai', usage, meta)` (rows in `hiring_ai_usage`, so calls show in /hiring-admin/ai/reports). Never `ai_chat()`: it applies the per-user monthly cap to user 0, which every subscriber would share. Used by `lib/ai.php`.
+- Tables owned by companies and read/written through those helpers: `hiring_settings`, `hiring_user_ai_keys`, `hiring_ai_models`, `hiring_ai_usage`.
 - Table owned by companies: `admin_settings` (settings key `palette`, JSON). Rate limits do not use companies' `checkRateLimit` (its purge is not scoped per endpoint, ruling S8): see `palette_rate` below.
 
 If any of these change in companies, this add-on must be updated.
@@ -57,6 +59,9 @@ companies repo (`PALETTE_COMPANIES_DIR`, default `C:\Projects\companies`).
 `tests/helpers.php` seeds `$_ENV` (DB_* for the test DB) BEFORE companies'
 `config.php` loads, so its real `.env` credentials are never used, and exits 2 unless
 `SELECT DATABASE()` ends in `_test`. Each `*-test.php` runs in its own php process.
+It also seeds `DEEPSEEK_API_KEY` empty (companies' `.env` holds the real platform AI key, which `ai_key_for` would
+otherwise fall back to), and `companies_ai_tables($conn)` creates the companies AI tables (copied from companies
+migrations 045, 048, 049, 059) in the test database.
 
 ## Known limitations
 

@@ -10,5 +10,9 @@ if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) session_start()
 require_once PALETTE_COMPANIES_DIR . '/config.php';
 require_once PALETTE_COMPANIES_DIR . '/includes/functions.php';
 require_once PALETTE_COMPANIES_DIR . '/includes/paypal.php';
+// AI gateway helpers (ruling A2). Both files and the hiring-admin.php they require define only constants and
+// functions: no output, session, headers or DB access at include time. hiring-admin.php supplies hiring_setting().
+require_once PALETTE_COMPANIES_DIR . '/tools/api/ai-usage.php';
+require_once PALETTE_COMPANIES_DIR . '/tools/api/ai-gateway.php';
 
 foreach (glob(PALETTE_DIR . '/lib/*.php') ?: [] as $f) require_once $f;
