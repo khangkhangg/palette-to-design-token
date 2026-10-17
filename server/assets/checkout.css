@@ -407,6 +407,52 @@ input::placeholder { color: var(--muted); opacity: .7; }
 .aside a { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; text-decoration: none; }
 .aside a:hover { text-decoration: underline; }
 
+/* ---- plan chooser (checkout): two cards with radio semantics */
+.field-label { font-size: 13.5px; font-weight: 600; }
+.plan-pick { display: flex; flex-direction: column; gap: 10px; }
+.plan-pick[aria-disabled='true'] { pointer-events: none; opacity: .75; }
+.plan-card {
+  display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; border-radius: 14px; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line); text-align: start;
+  transition: border-color .15s, box-shadow .15s;
+}
+.plan-card:hover { border-color: var(--muted); }
+.plan-card.is-on { border: 2px solid var(--accent); padding: 13px 15px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 12%, transparent); }
+.plan-card.is-disabled { cursor: not-allowed; opacity: .7; }
+.plan-card.is-disabled:hover { border-color: var(--line); }
+.plan-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.plan-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 15px; font-weight: 700; }
+.plan-badge { padding: 2px 8px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 600; }
+.plan-card.is-disabled .plan-badge { background: var(--warn-bg); color: var(--warn-ink); }
+.plan-price { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.plan-per { margin-inline-start: 4px; font-size: 12px; font-weight: 500; color: var(--muted); }
+.plan-items { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.plan-items li { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.4; color: var(--ink-2); }
+.plan-items .icon { margin-block-start: 2px; color: var(--accent); }
+.pending {
+  display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 10px;
+  background: var(--pass-bg); color: var(--pass-ink); font-size: 14px; line-height: 1.5; font-weight: 500;
+}
+.pending .icon { margin-block-start: 2px; }
+
+/* ---- account: subscription state and the cancel step */
+.keyrow { flex-wrap: wrap; }
+.keyrow-plan { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 13px; color: var(--ink-2); }
+.plan-chip { padding: 1px 9px; border-radius: 999px; background: var(--key-bg); color: var(--key-ink); font-size: 12px; font-weight: 600; }
+.sub-status { font-weight: 600; }
+.sub-status.is-active { color: var(--pass-ink); }
+.sub-status.is-suspended { color: var(--warn-ink); }
+.sub-status.is-cancelled, .sub-status.is-expired { color: var(--fail-ink); }
+.sub-panel { flex: 1 1 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.cancel-confirm { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line-soft); font-size: 14px; }
+.cancel-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn-danger { background: var(--fail-ink); color: var(--surface); }
+.btn-danger:hover:not(:disabled) { opacity: .9; color: var(--surface); }
+.sub-msg:empty { display: none; }
+.sub-msg.is-ok { color: var(--pass-ink); font-weight: 500; }
+.sub-msg.is-error { color: var(--fail-ink); }
+.claim .hint { margin-block-start: -6px; }
+
 /* ---- privacy */
 .policy { display: flex; flex-direction: column; gap: 20px; }
 .policy-list { display: flex; flex-direction: column; gap: 0; padding-block: 8px; }

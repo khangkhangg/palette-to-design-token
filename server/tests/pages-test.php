@@ -2,6 +2,9 @@
 // Checkout, account and privacy pages rendered to strings (lib/pages.php), plus one include of each thin page file.
 require __DIR__ . '/helpers.php';
 require __DIR__ . '/pp-stub.php';
+// CLI has no session; start one (output buffered) so companies' CSRF helpers use $_SESSION as-is.
+ob_start();
+session_start();
 
 const LANGS = ['en', 'zh-CN', 'hi', 'es', 'ar', 'fr', 'bn'];
 const FR_PRICE = "1,49\u{a0}\$ US";   // French price, no-break space before $
@@ -367,3 +370,144 @@ foreach (LANGS as $l) {
 ok('data FAQ names vietnamcos.com and does not claim "none"; lead says export is Pro: ' . implode(', ', $missing), $missing === []);
 ok('en data FAQ mentions email and order', str_contains(palette_t('en', 'lp_faq_data_a'), 'we keep your email and order'));
 ok('DESIGN.md sample is a labelled scroll region candidate', str_contains($lp, '<pre class="md-sample" dir="ltr" lang="en" data-scroll-label="' . h(palette_t('en', 'lp_ai_h')) . '">'));
+
+// ---- Task 8: plan chooser
+// palette_settings_put replaces everything with defaults + the given keys: merge over the stored settings.
+function cfg(mysqli $c, array $a): void
+{
+    palette_settings_put($c, $a + palette_settings($c));
+}
+// Task 8 - on the checkout page (mockup J)
+$AI_KEYS = ['co_plan_h', 'co_plan_best', 'co_plan_once', 'co_plan_month', 'co_plan_soon', 'co_pro_i1', 'co_pro_i2', 'co_pro_i3', 'co_ai_i1', 'co_ai_i2',
+    'co_ai_i3', 'co_ai_i4', 'co_ai_i5', 'co_item_ai', 'co_refund_ai', 'co_note_ai', 'co_sub_pending', 'co_success_title_ai', 'pp_get_ai', 'acct_plan',
+    'acct_one_time', 'acct_renews', 'acct_st_active', 'acct_st_cancelled', 'acct_st_suspended', 'acct_st_expired', 'acct_cancel', 'acct_cancel_ask',
+    'acct_cancel_yes', 'acct_cancel_keep', 'acct_cancel_by_h', 'acct_cancel_by_text', 'acct_sub_email'];
+$missing = [];
+foreach (LANGS as $l) foreach ($AI_KEYS as $k) {
+    $v = palette_strings($l)[$k] ?? '';
+    if (trim($v) === '' || preg_match(EMOJI_RE, $v) || ($l !== 'en' && $v === palette_t('en', $k) && !in_array($k, ['acct_plan', 'co_plan_once'], true))) $missing[] = "$l:$k";
+}
+ok('plan + subscription strings in all 7 languages, translated, no emoji: ' . implode(', ', array_slice($missing, 0, 10)), $missing === []);
+$cancelSentence = 'Cancel any time; Pro and AI stay on until the end of the month you paid for.';
+ok('co_note_ai carries the cancel sentence', str_contains(palette_t('en', 'co_note_ai'), $cancelSentence));
+$frAi = '';
+foreach ($AI_KEYS as $k) $frAi .= palette_t('fr', $k) . ' | ';
+ok('new fr strings contain no literal price', preg_match('/\d[.,]\d\d/', $frAi) === 0);
+
+function checkoutData(string $html): array
+{
+    preg_match('#id="palette-data">(.*?)</script>#s', $html, $m);
+    return json_decode($m[1] ?? '{}', true) ?: [];
+}
+
+// AI not set up: the Pro + AI card says coming soon and cannot be chosen; ?plan=ai falls back to Pro
+cfg($conn, ['ai_paypal_plan_id' => '', 'ai_paypal_plan_mode' => '', 'ai_price_usd' => '3.99']);
+$off = checkout(['lang' => 'en', 'plan' => 'ai']);
+ok('ai off: two plan cards in a radiogroup', str_contains($off, 'role="radiogroup"') && substr_count($off, 'role="radio"') === 2);
+ok('ai off: Pro card selected', preg_match('/<div[^>]*role="radio"[^>]*data-plan="pro"[^>]*aria-checked="true"/', $off) === 1);
+ok('ai off: Pro + AI card is coming soon and disabled', preg_match('/<div[^>]*role="radio"[^>]*data-plan="ai"[^>]*aria-disabled="true"/', $off) === 1
+    && str_contains($off, h(palette_t('en', 'co_plan_soon'))));
+ok('ai off: page data says so', (checkoutData($off)['ai_enabled'] ?? null) === false && (checkoutData($off)['plan'] ?? null) === 'pro');
+
+// AI set up for this PayPal mode (stub_paypal uses sandbox)
+cfg($conn, ['ai_paypal_plan_id' => 'P-TESTPLAN1', 'ai_paypal_plan_mode' => 'sandbox']);
+$pro = checkout(['lang' => 'en']);
+$ai = checkout(['lang' => 'en', 'plan' => 'ai']);
+ok('default plan is Pro', preg_match('/<div[^>]*role="radio"[^>]*data-plan="pro"[^>]*aria-checked="true"/', $pro) === 1
+    && preg_match('/<div[^>]*role="radio"[^>]*data-plan="ai"[^>]*aria-checked="false"/', $pro) === 1 && (checkoutData($pro)['plan'] ?? null) === 'pro');
+ok('?plan=ai selects Pro + AI', preg_match('/<div[^>]*role="radio"[^>]*data-plan="ai"[^>]*aria-checked="true"/', $ai) === 1
+    && preg_match('/<div[^>]*role="radio"[^>]*data-plan="pro"[^>]*aria-checked="false"/', $ai) === 1 && (checkoutData($ai)['plan'] ?? null) === 'ai');
+ok('?plan=junk is Pro', (checkoutData(checkout(['lang' => 'en', 'plan' => '"><b>']))['plan'] ?? null) === 'pro');
+ok('only the selected card is in the tab order', preg_match('/data-plan="ai"[^>]*tabindex="0"/', $ai) === 1 && preg_match('/data-plan="pro"[^>]*tabindex="-1"/', $ai) === 1);
+ok('cards: prices from settings, monthly wording', str_contains($ai, '$3.99') && str_contains($ai, h(palette_t('en', 'co_plan_month'))) && str_contains($ai, '$1.49')
+    && str_contains($ai, h(palette_t('en', 'co_plan_once'))));
+ok('cards: feature lists with the analyses limit', str_contains($ai, h(palette_t('en', 'co_ai_i1'))) && str_contains($ai, '100 AI analyses a month')
+    && str_contains($ai, h(palette_t('en', 'co_pro_i1'))) && str_contains($ai, h(palette_t('en', 'co_plan_best'))));
+ok('ai plan: summary, refund line and cancel sentence', str_contains($ai, h(palette_t('en', 'co_item_ai'))) && str_contains($ai, h(palette_t('en', 'co_refund_ai')))
+    && str_contains($ai, h($cancelSentence)) && !str_contains($ai, '<p class="refund" id="refund">' . h($refundEn)));
+ok('ai plan: consent checkbox still required', preg_match('/<input[^>]*type="checkbox"[^>]*id="consent"[^>]*required/', $ai) === 1);
+ok('ai plan: no pro-only card note', !str_contains($ai, '<p class="hint hint-center" id="pay-note">' . h(palette_t('en', 'co_card_note'))));
+ok('pro plan: unchanged refund line and card note', str_contains($pro, '<p class="refund" id="refund">' . h($refundEn)) && str_contains($pro, h(palette_t('en', 'co_card_note'))));
+$d = checkoutData($ai);
+ok('page data: both totals and the strings the script swaps', ($d['total'] ?? '') === '$1.49' && ($d['total_ai'] ?? '') === '$3.99' && ($d['ai_enabled'] ?? null) === true
+    && ($d['t']['co_sub_pending'] ?? '') === palette_t('en', 'co_sub_pending') && ($d['t']['co_note_ai'] ?? '') === palette_t('en', 'co_note_ai')
+    && ($d['t']['co_success_title_ai'] ?? '') === palette_t('en', 'co_success_title_ai'));
+cfg($conn, ['ai_price_usd' => '5.49']);
+ok('ai price follows the setting', str_contains(checkout(['lang' => 'en', 'plan' => 'ai']), '$5.49') && (checkoutData(checkout(['lang' => 'en']))['total_ai'] ?? '') === '$5.49');
+cfg($conn, ['ai_price_usd' => '3.99']);
+ok('language links keep the plan', str_contains($ai, 'href="/palette/checkout?lang=fr&amp;plan=ai"') && !str_contains($pro, 'plan=ai') && !str_contains($pro, ';plan='));
+ok('csp unchanged by the plan chooser', palette_page_headers()['Content-Security-Policy'] === "default-src 'self'; script-src 'self' https://www.paypal.com https://*.paypal.com https://*.paypalobjects.com; "
+    . "frame-src https://*.paypal.com; connect-src 'self' https://*.paypal.com https://*.paypalobjects.com; "
+    . "img-src 'self' data: https://*.paypal.com https://*.paypalobjects.com; style-src 'self' 'unsafe-inline'; "
+    . "base-uri 'none'; form-action 'self'; object-src 'none'; frame-ancestors 'none'");
+foreach (LANGS as $l) {
+    $html = checkout(['lang' => $l, 'plan' => 'ai']);
+    ok("checkout $l plan=ai: strings, price, dir, no emoji", str_contains($html, h(palette_t($l, 'co_refund_ai'))) && str_contains($html, h(palette_t($l, 'co_note_ai')))
+        && str_contains($html, h(palette_t($l, 'co_plan_h'))) && str_contains($html, h(palette_t($l, 'co_ai_i2', ['n' => 100])))
+        && str_contains($html, $l === 'fr' ? "3,99\u{a0}\$ US" : '$3.99') && str_contains($html, '<html lang="' . $l . '" dir="' . ($l === 'ar' ? 'rtl' : 'ltr') . '">')
+        && preg_match(EMOJI_RE, $html) === 0 && preg_match('/<script(?![^>]*\bsrc=)(?![^>]*type="application\/json")[^>]*>/', $html) === 0);
+}
+$lpAi = landing(['lang' => 'en']);
+ok('landing: Get Pro + AI links to plan=ai when AI is on', preg_match('~<a[^>]*href="/palette/checkout\?lang=en&amp;plan=ai\#buy"[^>]*>Get Pro \+ AI — \$3\.99/month</a>~', $lpAi) === 1);
+cfg($conn, ['ai_paypal_plan_id' => '']);
+ok('landing: no Pro + AI link while AI is off', !str_contains(landing(['lang' => 'en']), 'plan=ai'));
+cfg($conn, ['ai_paypal_plan_id' => 'P-TESTPLAN1']);
+
+// ---- Task 8: account subscription panel
+$_SESSION = [];
+$mk = function (string $email, string $order, string $status, string $paidThrough) use ($conn): string {
+    $k = palette_issue_license($conn, $email, $order, 'en', ['subscription_id' => 'I-' . $order, 'paid_through' => $paidThrough, 'period_start' => date('Y-m-d H:i:s', time() - 3600)]);
+    $st = $conn->prepare('UPDATE palette_licenses SET sub_status = ?, user_id = 21 WHERE id = ?');
+    $st->bind_param('si', $status, $k['id']);
+    $st->execute();
+    return $k['key'];
+};
+$future = date('Y-m-d H:i:s', time() + 20 * 86400);
+$futureDay = substr($future, 0, 10);
+$kAct = $mk('s1@studio.vn', 'SUBACT1', 'active', $future);
+$kCan = $mk('s2@studio.vn', 'SUBCAN1', 'cancelled', $future);
+$kSus = $mk('s3@studio.vn', 'SUBSUS1', 'suspended', $future);
+$kExp = $mk('s4@studio.vn', 'SUBEXP1', 'active', date('Y-m-d H:i:s', time() - 86400));
+$kPro = palette_issue_license($conn, 's5@studio.vn', 'SUBPRO1', 'en')['key'];
+palette_claim($conn, $kPro, 21);
+$acct = fn(string $l = 'en', int $uid = 21) => palette_render_account(['query' => ['lang' => $l], 'accept_language' => '', 'session' => ['user_id' => $uid]]);
+$out = $acct();
+$row = function (string $html, string $key): string {
+    preg_match('#<li class="keyrow[^"]*"[^>]*data-key="' . preg_quote($key, '#') . '".*?</li>#s', $html, $m);
+    return $m[0] ?? '';
+};
+$rAct = $row($out, $kAct);
+ok('account ai key: plan, status and renewal date', str_contains($rAct, 'Pro + AI') && str_contains($rAct, h(palette_t('en', 'acct_st_active')))
+    && str_contains($rAct, palette_t_html('en', 'acct_renews', ['date' => palette_ltr($futureDay)])));
+ok('account ai key: Cancel button and an in-page confirm step', str_contains($rAct, 'data-cancel-open') && str_contains($rAct, h(palette_t('en', 'acct_cancel')))
+    && preg_match('/<div[^>]*class="cancel-confirm"[^>]*hidden/', $rAct) === 1 && str_contains($rAct, palette_t_html('en', 'acct_cancel_ask', ['date' => palette_ltr($futureDay)]))
+    && str_contains($rAct, 'data-cancel-yes') && str_contains($rAct, 'data-cancel-keep'));
+$rCan = $row($out, $kCan);
+ok('account cancelled key: ends on the date, no Cancel button', str_contains($rCan, palette_t_html('en', 'acct_st_cancelled', ['date' => palette_ltr($futureDay)])) && !str_contains($rCan, 'data-cancel-open'));
+$rSus = $row($out, $kSus);
+ok('account suspended key: status shown, Cancel offered', str_contains($rSus, h(palette_t('en', 'acct_st_suspended'))) && str_contains($rSus, 'data-cancel-open'));
+$rExp = $row($out, $kExp);
+ok('account lapsed key: expired, no Cancel button', str_contains($rExp, h(palette_t('en', 'acct_st_expired'))) && !str_contains($rExp, 'data-cancel-open'));
+$rPro = $row($out, $kPro);
+ok('account pro key: Pro, one-time, no Cancel', str_contains($rPro, h(palette_t('en', 'acct_one_time'))) && !str_contains($rPro, 'data-cancel-open') && !str_contains($rPro, 'Pro + AI'));
+ok('account issues the palette_account CSRF token (A10d)', preg_match('#id="palette-data">(.*?)</script>#s', $out, $m) === 1
+    && ($tok = json_decode($m[1], true)['csrf'] ?? '') !== '' && $tok === ($_SESSION['csrf_tokens']['palette_account'] ?? null) && preg_match('/^[0-9a-f]{64}$/', $tok) === 1
+    && verifyCSRFToken($tok, 'palette_account'));
+generateCSRFToken('palette_account');
+$_SESSION['csrf_tokens']['palette_account'] = $tok1 = str_repeat('ab', 32);
+$acct();
+ok('account token is reused, not rotated, across renders', ($_SESSION['csrf_tokens']['palette_account'] ?? '') === $tok1);
+ok('account page data carries the sub strings', preg_match('#id="palette-data">(.*?)</script>#s', $out, $m) === 1
+    && (json_decode($m[1], true)['t']['acct_st_cancelled'] ?? '') === palette_t('en', 'acct_st_cancelled'));
+$_SESSION = [];
+$outOff = palette_render_account(['query' => ['lang' => 'en'], 'accept_language' => '', 'session' => []]);
+ok('signed out: cancel-by-key form (key + email) and a token', preg_match('/<form[^>]*id="cancel-by"/', $outOff) === 1 && preg_match('/<input[^>]*name="key"[^>]*>/', $outOff) === 1
+    && preg_match('/<input[^>]*type="email"[^>]*name="email"/', $outOff) === 1 && str_contains($outOff, h(palette_t('en', 'acct_cancel_by_h')))
+    && preg_match('/^[0-9a-f]{64}$/', (string)(checkoutData($outOff)['csrf'] ?? '')) === 1);
+ok('signed in also has the cancel-by-key form', preg_match('/<form[^>]*id="cancel-by"/', $out) === 1);
+foreach (LANGS as $l) {
+    $a = $acct($l);
+    ok("account $l: sub panel strings, no emoji", str_contains($a, palette_t_html($l, 'acct_cancel_ask', ['date' => palette_ltr($futureDay)])) && str_contains($a, h(palette_t($l, 'acct_cancel_by_h')))
+        && preg_match(EMOJI_RE, $a) === 0);
+}
+ok('checkout.js never uses window.confirm', !preg_match('/\bconfirm\s*\(/', (string)file_get_contents(PALETTE_DIR . '/assets/checkout.js')));

@@ -186,6 +186,14 @@ function palette_sub_paypal_cancel(mysqli $c, string $subId, string $reason): bo
     return false;
 }
 
+// True when Pro + AI can be sold: PayPal is ready and the plan was created for the current PayPal mode
+// (a plan made in sandbox does not exist in live, and vice versa).
+function palette_ai_plan_ready(array $settings, array $pp): bool
+{
+    return pp_ready($pp) && preg_match(PALETTE_PAYPAL_ID_RE, (string)$settings['ai_paypal_plan_id']) === 1
+        && $settings['ai_paypal_plan_mode'] === $pp['mode'];
+}
+
 function palette_sub_start(mysqli $c, string $email, string $lang, bool $consent): array
 {
     if (preg_match('/[\r\n]/', $email)) return ['ok' => false, 'error' => 'err_email'];
@@ -195,8 +203,8 @@ function palette_sub_start(mysqli $c, string $email, string $lang, bool $consent
     $pp = pp_settings($c);
     $s = palette_settings($c);
     $plan = (string)$s['ai_paypal_plan_id'];
-    // A plan made in sandbox does not exist in live (and vice versa): paused until setup.php runs for this mode.
-    if (!pp_ready($pp) || !preg_match(PALETTE_PAYPAL_ID_RE, $plan) || $s['ai_paypal_plan_mode'] !== $pp['mode']) return ['ok' => false, 'error' => 'err_paused'];
+    // Paused until setup.php runs for this PayPal mode.
+    if (!palette_ai_plan_ready($s, $pp)) return ['ok' => false, 'error' => 'err_paused'];
     $lang = palette_lang($lang);
     $now = palette_sub_now();
     $price = palette_money(palette_sub_price_cents($s));

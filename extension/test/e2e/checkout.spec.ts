@@ -7,6 +7,7 @@ import { expect, test, type Page } from '@playwright/test';
  */
 const EXT = 'abcdefghijklmnopabcdefghijklmnop';
 const SDK = 'https://www.paypal.com/sdk/js?client-id=dev-client&currency=USD&intent=capture&components=buttons';
+const SDK_AI = 'https://www.paypal.com/sdk/js?client-id=dev-client&currency=USD&vault=true&intent=subscription&components=buttons';
 const KEY_RE = /^SDT-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/;
 
 const FAKE_SDK = `
@@ -29,8 +30,15 @@ window.paypal = {
           const go = opts.onClick ? await opts.onClick({}, { resolve: () => Promise.resolve(true), reject: () => Promise.resolve(false) }) : true;
           if (go === false) return;
           try {
-            const orderID = await opts.createOrder({}, {});
-            await opts.onApprove({ orderID }, {});
+            if (opts.createSubscription) {
+              // Like the subscription SDK: create() returns the subscription id PayPal minted; the dev router knows I-DEVSUB<row id>.
+              const create = async (p) => { window.__subCreate = p; return 'I-DEVSUB' + String(p.custom_id).split(':')[1]; };
+              const subscriptionID = await opts.createSubscription({}, { subscription: { create } });
+              await opts.onApprove({ subscriptionID }, {});
+            } else {
+              const orderID = await opts.createOrder({}, {});
+              await opts.onApprove({ orderID }, {});
+            }
           } catch (e) {
             if (opts.onError) opts.onError(e);
           }
@@ -43,8 +51,8 @@ window.paypal = {
 };`;
 
 /** Resets the palette tables and settings for one test. */
-async function seed(page: Page, paypal: 'ready' | 'paused' = 'ready', tax: 'none' | 'ca' = 'none') {
-  const r = await page.request.get(`/__dev/seed?paypal=${paypal}&tax=${tax}`);
+async function seed(page: Page, paypal: 'ready' | 'paused' = 'ready', tax: 'none' | 'ca' = 'none', ai: 'ready' | 'off' = 'ready') {
+  const r = await page.request.get(`/__dev/seed?paypal=${paypal}&tax=${tax}&ai=${ai}`);
   expect(await r.text()).toBe('seeded');
 }
 
@@ -440,4 +448,279 @@ test('landing at 360px: the DESIGN.md sample scrolls and is a keyboard-reachable
   await expect(pre).toHaveAttribute('aria-label', 'Made for AI coding');
   await page.setViewportSize({ width: 1280, height: 900 });
   await expect(pre).not.toHaveAttribute('tabindex', /.*/);
+});
+
+// ---- Pro + AI: plan chooser, subscription checkout, account management
+
+const AI_REFUND = 'All sales are final. Because Pro and AI unlock instantly, we do not offer refunds after payment.';
+const AI_CANCEL = 'Cancel any time; Pro and AI stay on until the end of the month you paid for.';
+
+test('plan chooser: ?plan=ai selects Pro + AI; switching swaps the URL, summary, copy and reloads the SDK', async ({ page }) => {
+  await seed(page);
+  const sdk = await fakePayPal(page);
+  await page.goto(`/palette/checkout?lang=en&plan=ai&ext=${EXT}`);
+  const ai = page.locator('.plan-card[data-plan="ai"]');
+  const pro = page.locator('.plan-card[data-plan="pro"]');
+  await expect(page.getByRole('radiogroup')).toBeVisible();
+  await expect(ai).toHaveAttribute('aria-checked', 'true');
+  await expect(pro).toHaveAttribute('aria-checked', 'false');
+  await expect(page.getByTestId('fake-paypal')).toBeVisible();
+  expect(sdk).toEqual([SDK_AI]);
+  await expect(page.locator('#paypal-sdk')).toHaveAttribute('src', SDK_AI);
+  await expect(page.locator('#sum-item')).toHaveText('Site to Design Token Pro + AI, monthly');
+  await expect(page.locator('#total')).toHaveText('$3.99');
+  await expect(page.locator('#refund')).toHaveText(AI_REFUND);
+  await expect(page.locator('#pay-note')).toContainText(AI_CANCEL);
+  await expect(ai).toContainText('100 AI analyses a month');
+  await expect(ai).toContainText('/month');
+
+  await pro.click();
+  await expect(pro).toHaveAttribute('aria-checked', 'true');
+  await expect(ai).toHaveAttribute('aria-checked', 'false');
+  await expect(page).toHaveURL(`/palette/checkout?lang=en&plan=pro&ext=${EXT}`);
+  await expect(page.locator('#paypal-sdk')).toHaveAttribute('src', SDK);
+  await expect(page.locator('#paypal-sdk')).toHaveCount(1);
+  await expect(page.getByTestId('fake-paypal')).toHaveCount(1);
+  expect(sdk).toEqual([SDK_AI, SDK]);
+  await expect(page.locator('#sum-item')).toHaveText('Site to Design Token Pro, lifetime');
+  await expect(page.locator('#total')).toHaveText('$1.49');
+  await expect(page.locator('#refund')).toHaveText('All sales are final. Because Pro unlocks instantly and costs $1.49, we do not offer refunds after purchase.');
+  await expect(page.locator('#pay-note')).toHaveText('PayPal also takes debit and credit cards, no PayPal account needed.');
+
+  // keyboard: arrows move and select, like a radio group; language links keep the plan
+  await pro.focus();
+  await page.keyboard.press('ArrowUp');
+  await expect(ai).toHaveAttribute('aria-checked', 'true');
+  await expect(ai).toBeFocused();
+  await expect(page).toHaveURL(/plan=ai/);
+  await expect(page.locator('#paypal-sdk')).toHaveAttribute('src', SDK_AI);
+  await page.locator('details.lang summary').click();
+  await expect(page.getByRole('link', { name: 'Français' })).toHaveAttribute('href', `/palette/checkout?lang=fr&ext=${EXT}&plan=ai`);
+});
+
+test('plan chooser: Pro is the default, and Pro + AI says coming soon when no PayPal plan exists', async ({ page }) => {
+  await seed(page);
+  const sdk = await fakePayPal(page);
+  await page.goto('/palette/checkout?lang=en');
+  await expect(page.locator('.plan-card[data-plan="pro"]')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByTestId('fake-paypal')).toBeVisible();
+  expect(sdk).toEqual([SDK]);
+
+  await seed(page, 'ready', 'none', 'off');
+  await page.goto('/palette/checkout?lang=en&plan=ai');
+  const ai = page.locator('.plan-card[data-plan="ai"]');
+  await expect(ai).toHaveAttribute('aria-disabled', 'true');
+  await expect(ai).toContainText('Coming soon');
+  await expect(page.locator('.plan-card[data-plan="pro"]')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByTestId('fake-paypal')).toBeVisible();
+  await ai.click({ force: true });   // aria-disabled: Playwright would wait for it forever
+  await expect(page.locator('.plan-card[data-plan="pro"]')).toHaveAttribute('aria-checked', 'true');
+  await expect(page).not.toHaveURL(/plan=pro/);
+  expect(sdk).toEqual([SDK, SDK]);
+  const cfg = await (await page.request.get('/palette/api.php?action=config')).json();
+  expect(cfg).toMatchObject({ ai_enabled: false, ai_price: '3.99' });
+});
+
+test('Pro + AI: subscribing shows the key and hands it to the extension', async ({ page }) => {
+  await seed(page);
+  await fakePayPal(page);
+  await fakeExtension(page);
+  await page.goto(`/palette/checkout?lang=en&plan=ai&ext=${EXT}`);
+  const pay = page.getByTestId('fake-paypal');
+  await expect(pay).toBeDisabled();
+  await page.locator('#email').fill('sub@studio.vn');
+  await page.locator('#consent').check();
+  await expect(pay).toBeEnabled();
+
+  const start = page.waitForRequest((r) => r.url().includes('action=subscribe_start'));
+  const confirm = page.waitForResponse((r) => r.url().includes('action=subscribe_confirm'));
+  await pay.click();
+  expect((await start).postDataJSON()).toMatchObject({ email: 'sub@studio.vn', consent: '1', lang: 'en' });
+  expect((await confirm).status()).toBe(200);
+  const created = await page.evaluate(() => (window as unknown as { __subCreate: { plan_id: string; custom_id: string } }).__subCreate);
+  expect(created.plan_id).toBe('P-DEVPLAN001');
+  expect(created.custom_id).toMatch(/^palette-sub:\d+$/);
+
+  await expect(page.locator('#done')).toBeVisible();
+  await expect(page.locator('#buy')).toBeHidden();
+  const key = (await page.locator('#key').textContent()) ?? '';
+  expect(key).toMatch(KEY_RE);
+  await expect(page.locator('#done-title')).toHaveText("You're Pro + AI. Thank you.");
+  await expect(page.locator('#ext-status')).toHaveText('Your extension is now Pro.');
+  expect(await page.evaluate(() => (window as unknown as { __sent: unknown[] }).__sent)).toEqual([[EXT, { type: 'license', key }]]);
+  await expect(page.locator('#emailed')).toContainText('s***@studio.vn');
+});
+
+test('Pro + AI: a first payment PayPal has not reported yet shows the pending message and locks the form', async ({ page }) => {
+  await seed(page);
+  await fakePayPal(page);
+  await page.goto('/palette/checkout?lang=en&plan=ai');
+  await fillForm(page, 'pending@studio.vn');
+  const confirm = page.waitForResponse((r) => r.url().includes('action=subscribe_confirm'));
+  await page.getByTestId('fake-paypal').click();
+  expect((await confirm).status()).toBe(202);
+  await expect(page.locator('#pending')).toBeVisible();
+  await expect(page.locator('#pending-text')).toHaveText('Payment received — your key will arrive by email in a few minutes.');
+  await expect(page.locator('#done')).toBeHidden();
+  await expect(page.locator('#paypal')).toBeHidden();
+  await expect(page.locator('#email')).toBeDisabled();
+  // no second subscription: the plan cards no longer react
+  await page.locator('.plan-card[data-plan="pro"]').click({ force: true });
+  await expect(page.locator('.plan-card[data-plan="ai"]')).toHaveAttribute('aria-checked', 'true');
+});
+
+test('Pro + AI: PayPal 503 while confirming says the key is not ready yet', async ({ page }) => {
+  await seed(page);
+  await fakePayPal(page);
+  await page.goto('/palette/checkout?lang=en&plan=ai');
+  await fillForm(page, 'retry@studio.vn');
+  const confirm = page.waitForResponse((r) => r.url().includes('action=subscribe_confirm'));
+  await page.getByTestId('fake-paypal').click();
+  expect((await confirm).status()).toBe(503);
+  await expect(page.locator('#buy-error')).toHaveText("Payment received but your key isn't ready yet. Check your email in a few minutes.");
+  await expect(page.locator('#paypal')).toBeHidden();
+  await expect(page.locator('#done')).toBeHidden();
+});
+
+test('Pro + AI: the consent checkbox gates the subscribe button too', async ({ page }) => {
+  await seed(page);
+  await fakePayPal(page);
+  await page.goto('/palette/checkout?lang=en&plan=ai');
+  const pay = page.getByTestId('fake-paypal');
+  await expect(pay).toBeDisabled();
+  await page.locator('#consent').check();
+  await expect(pay).toBeEnabled();
+  let started = false;
+  page.on('request', (r) => { if (r.url().includes('action=subscribe_start')) started = true; });
+  await page.locator('#email').fill('not-an-email');
+  await pay.click();
+  await expect(page.locator('#buy-error')).toHaveText('Enter a valid email address.');
+  expect(started).toBe(false);
+});
+
+test('Pro + AI with California tax on: the subscription shows no tax lines, Pro gets them back', async ({ page }) => {
+  await seed(page, 'ready', 'ca');
+  await fakePayPal(page);
+  await page.goto('/palette/checkout?lang=en&plan=ai');
+  await expect(page.locator('#tax-fields')).toBeHidden();
+  await expect(page.locator('#total')).toHaveText('$3.99');
+  await page.locator('.plan-card[data-plan="pro"]').click();
+  await expect(page.locator('#tax-fields')).toBeVisible();
+  await page.locator('#country').selectOption('US');
+  await page.locator('#region').selectOption('CA');
+  await expect(page.locator('#total')).toHaveText('$1.60');
+  await page.locator('.plan-card[data-plan="ai"]').click();
+  await expect(page.locator('#total')).toHaveText('$3.99');
+  await expect(page.locator('#tax-row')).toBeHidden();
+  await expect(page.locator('#sum-note')).toBeHidden();
+});
+
+test('Pro + AI fits a phone in Arabic, Bengali and French', async ({ page }) => {
+  await seed(page);
+  await fakePayPal(page);
+  await page.setViewportSize({ width: 360, height: 780 });
+  for (const lang of ['ar', 'bn', 'fr']) {
+    await page.goto(`/palette/checkout?lang=${lang}&plan=ai`);
+    await expect(page.locator('.plan-card[data-plan="ai"]')).toHaveAttribute('aria-checked', 'true');
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+    expect(overflow, lang).toBe(false);
+  }
+  await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
+  await expect(page.locator('#total')).toHaveText('3,99 $ US');
+});
+
+test('landing: Get Pro + AI goes to the checkout with the Pro + AI plan selected', async ({ page }) => {
+  await seed(page);
+  await fakePayPal(page);
+  await page.goto('/palette/?lang=en');
+  const link = page.getByRole('link', { name: 'Get Pro + AI — $3.99/month' });
+  await expect(link).toHaveAttribute('href', '/palette/checkout?lang=en&plan=ai#buy');
+  await link.click();
+  await expect(page.locator('.plan-card[data-plan="ai"]')).toHaveAttribute('aria-checked', 'true');
+  await seed(page, 'ready', 'none', 'off');
+  await page.goto('/palette/?lang=en');
+  await expect(page.getByRole('link', { name: /Get Pro \+ AI/ })).toHaveCount(0);
+});
+
+test('account: an AI subscription shows plan, status and renewal; cancelling asks in the page and posts sub_cancel', async ({ page }) => {
+  await seed(page);
+  const key = await (await page.request.get('/__dev/license?email=acct@studio.vn&plan=ai')).text();
+  expect(key).toMatch(KEY_RE);
+  await page.request.get('/__dev/login?user_id=7');
+  await page.goto(`/palette/account?key=${key}&lang=en`);
+  await page.getByRole('button', { name: 'Add key' }).click();
+  await expect(page).toHaveURL('/palette/account?lang=en');
+
+  page.on('dialog', (d) => { throw new Error('unexpected native dialog: ' + d.message()); });
+  const row = page.locator(`.keyrow[data-key="${key}"]`);
+  await expect(row.locator('.plan-chip')).toHaveText('Pro + AI');
+  await expect(row.locator('[data-sub-status]')).toHaveText('Active');
+  await expect(row.locator('[data-sub-renews]')).toContainText(/^Renews \d{4}-\d{2}-\d{2}$/);
+
+  const open = row.getByRole('button', { name: 'Cancel subscription' });
+  await open.click();
+  const box = row.locator('.cancel-confirm');
+  await expect(box).toBeVisible();
+  await expect(box).toContainText('Cancel this subscription? Pro and AI stay on until');
+  await expect(row.getByRole('button', { name: 'Keep subscription' })).toBeFocused();
+  // keep: nothing is sent, the button comes back
+  let cancels = 0;
+  page.on('request', (r) => { if (r.url().includes('action=sub_cancel')) cancels++; });
+  await row.getByRole('button', { name: 'Keep subscription' }).click();
+  await expect(box).toBeHidden();
+  await expect(open).toBeVisible();
+  expect(cancels).toBe(0);
+
+  await open.click();
+  const cancel = page.waitForRequest((r) => r.url().includes('action=sub_cancel'));
+  const reply = page.waitForResponse((r) => r.url().includes('action=sub_cancel'));
+  await row.getByRole('button', { name: 'Yes, cancel subscription' }).click();
+  const body = (await cancel).postDataJSON() as Record<string, string>;
+  expect(body).toMatchObject({ key, lang: 'en' });
+  expect(body.csrf).toMatch(/^[0-9a-f]{64}$/);
+  expect(body.email).toBeUndefined();
+  expect((await reply).status()).toBe(200);
+  await expect(row.locator('.sub-msg')).toContainText('Your subscription is cancelled. Pro and AI stay on until');
+  await expect(row.locator('[data-sub-status]')).toContainText('Cancelled, ends');
+  await expect(row.locator('[data-sub-renews]')).toHaveCount(0);
+  await expect(open).toBeHidden();
+  // the server agrees after a reload
+  await page.reload();
+  await expect(row.locator('[data-sub-status]')).toContainText('Cancelled, ends');
+  await expect(row.getByRole('button', { name: 'Cancel subscription' })).toHaveCount(0);
+  await page.request.get('/__dev/login?user_id=0');
+});
+
+test('account: a lapsed subscription is shown as expired with no Cancel button', async ({ page }) => {
+  await seed(page);
+  const key = await (await page.request.get('/__dev/license?email=old@studio.vn&plan=ai&ended=1')).text();
+  await page.request.get('/__dev/login?user_id=7');
+  await page.goto(`/palette/account?key=${key}&lang=en`);
+  await page.getByRole('button', { name: 'Add key' }).click();
+  await expect(page).toHaveURL('/palette/account?lang=en');
+  const row = page.locator(`.keyrow[data-key="${key}"]`);
+  await expect(row.locator('[data-sub-status]')).toHaveText('Expired');
+  await expect(row.getByRole('button', { name: 'Cancel subscription' })).toHaveCount(0);
+  await page.request.get('/__dev/login?user_id=0');
+});
+
+test('account: cancel by key while signed out needs the subscribing email', async ({ page }) => {
+  await seed(page);
+  const key = await (await page.request.get('/__dev/license?email=who@studio.vn&plan=ai')).text();
+  await page.request.get('/__dev/login?user_id=0');
+  await page.goto('/palette/account?lang=en');
+  const form = page.locator('#cancel-by');
+  await expect(form.getByRole('heading', { name: 'Cancel by key' })).toBeVisible();
+  await form.locator('input[name="key"]').fill(key);
+  await form.locator('input[name="email"]').fill('someone-else@studio.vn');
+  await form.getByRole('button', { name: 'Cancel subscription' }).click();
+  await expect(page.locator('#cancel-by-status')).toContainText('Only the owner of this key can cancel its subscription');
+  await expect(page.locator('#cancel-by-status')).toHaveClass(/is-error/);
+
+  await form.locator('input[name="email"]').fill('WHO@studio.vn');
+  const body = page.waitForRequest((r) => r.url().includes('action=sub_cancel'));
+  await form.getByRole('button', { name: 'Cancel subscription' }).click();
+  expect(((await body).postDataJSON() as Record<string, string>).csrf).toMatch(/^[0-9a-f]{64}$/);
+  await expect(page.locator('#cancel-by-status')).toContainText('Your subscription is cancelled. Pro and AI stay on until');
+  await expect(page.locator('#cancel-by-status')).toHaveClass(/is-ok/);
 });

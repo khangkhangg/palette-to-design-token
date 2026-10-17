@@ -127,13 +127,14 @@ function palette_claim(mysqli $c, string $rawKey, int $userId): bool
 
 function palette_keys_for_user(mysqli $c, int $userId): array
 {
-    $st = $c->prepare('SELECT license_key, email, created_at, revoked_at FROM palette_licenses WHERE user_id = ? ORDER BY id');
+    $st = $c->prepare('SELECT license_key, email, created_at, revoked_at, plan, sub_status, paid_through FROM palette_licenses WHERE user_id = ? ORDER BY id');
     $st->bind_param('i', $userId);
     $st->execute();
     $out = [];
     foreach ($st->get_result() as $r) {
         $out[] = ['key' => $r['license_key'], 'email_masked' => palette_mask_email($r['email']),
-                  'created_at' => $r['created_at'], 'revoked' => $r['revoked_at'] !== null];
+                  'created_at' => $r['created_at'], 'revoked' => $r['revoked_at'] !== null,
+                  'plan' => $r['plan'] === 'ai' ? 'ai' : 'pro', 'sub_status' => $r['sub_status'], 'paid_through' => $r['paid_through']];
     }
     $st->close();
     return $out;

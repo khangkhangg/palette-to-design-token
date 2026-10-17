@@ -144,6 +144,10 @@
     var region = $('region');
     var lastError = '';
     var buttons = null;
+    var plan = data.plan === 'ai' ? 'ai' : 'pro';   // 'ai' = Pro + AI monthly subscription, 'pro' = one-time
+    var locked = false;                              // a payment may have gone through: the plan can no longer change
+    var sdkSeq = 0;                                  // which SDK load is current (a stale load must not render)
+    var slotLoading = slot ? slot.innerHTML : '';
 
     var invalid = null;   // the field currently marked aria-invalid
 
@@ -169,6 +173,9 @@
 
     // After a payment that may have gone through: no second button, nothing to edit, the message stays.
     function lock(msg) {
+      locked = true;
+      var pick = $('plan-pick');
+      if (pick) pick.setAttribute('aria-disabled', 'true');
       show(slot, false);
       show(document.querySelector('.buy .hint-center'), false);
       Array.prototype.forEach.call(form.querySelectorAll('input, select'), function (el) { el.disabled = true; });
@@ -184,6 +191,7 @@
         var us = country.value === 'US';
         show($('region-wrap'), us);
         if (!us) region.value = '';
+        if (plan === 'ai') return;   // a subscription carries no sales-tax lines
         $('total').textContent = caTax() ? data.total_ca : data.total;
         show($('tax-row'), caTax());
         if (err.textContent === T.co_err_region && region.value) showError('');
@@ -196,7 +204,7 @@
     // The first thing stopping a purchase, with the field to focus; null when ready.
     function problem() {
       if (!email.value.trim() || !email.checkValidity()) return { msg: T.err_email, field: email };
-      if (country && country.value === 'US' && !region.value) return { msg: T.co_err_region, field: region };
+      if (plan === 'pro' && country && country.value === 'US' && !region.value) return { msg: T.co_err_region, field: region };
       if (!consent.checked) return { msg: T.err_consent, field: consent };
       return null;
     }
@@ -239,6 +247,14 @@
       tellExtension(r.key);
     }
 
+    // PayPal took the subscription but the first payment is not settled yet: the key comes by email.
+    function pending() {
+      busy(false);
+      lock('');
+      $('pending-text').textContent = T.co_sub_pending;
+      show($('pending'), true);
+    }
+
     // Hands the key to the extension that opened this page (?ext=<id>, externally_connectable).
     function tellExtension(key) {
       var status = $('ext-status');
@@ -279,13 +295,13 @@
       show(document.querySelector('.buy .hint-center'), false);
       slot.outerHTML = '<div class="notice" role="status"></div>';
       document.querySelector('.buy .notice').textContent = T.err_paused;
+      slot = null;   // gone: a later plan switch has nothing to reload
     }
 
-    function renderButtons(csrf) {
-      slot.innerHTML = '';
-      slot.removeAttribute('aria-busy');
-      window.paypal.Buttons({
-        style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'pay', height: 48 },
+    var STYLE = { layout: 'vertical', color: 'gold', shape: 'rect', height: 48 };
+
+    function common(extra) {
+      var o = {
         onInit: function (_d, actions) {
           buttons = actions;
           gate();
@@ -300,6 +316,20 @@
           showError('');
           return actions.resolve();
         },
+        onCancel: function () { showError(''); },
+        onError: function () {
+          busy(false);
+          showError(lastError || T.err_paypal);
+          lastError = '';
+        },
+      };
+      for (var k in extra) o[k] = extra[k];
+      return o;
+    }
+
+    function proButtons(csrf) {
+      return common({
+        style: Object.assign({ label: 'pay' }, STYLE),
         createOrder: function () {
           lastError = '';
           var body = { email: email.value.trim(), consent: consent.checked ? '1' : '', csrf: csrf };
@@ -321,30 +351,151 @@
             else showError(r.message);
           });
         },
-        onCancel: function () { showError(''); },
-        onError: function () {
-          busy(false);
-          showError(lastError || T.err_paypal);
-          lastError = '';
-        },
-      }).render(slot).catch(function () { unavailable(T.co_load_failed); });
+      });
     }
 
-    if (slot) {
+    function subButtons(csrf) {
+      return common({
+        style: Object.assign({ label: 'subscribe' }, STYLE),
+        // subscribe_start answers our PayPal plan id and the custom_id that ties the subscription to this checkout
+        createSubscription: function (_d, actions) {
+          lastError = '';
+          var body = { email: email.value.trim(), consent: consent.checked ? '1' : '', csrf: csrf };
+          return api('subscribe_start', body).then(function (r) {
+            if (!r.ok) { lastError = r.message; throw new Error(r.error || 'subscribe_start'); }
+            return actions.subscription.create({ plan_id: r.plan_id, custom_id: r.custom_id });
+          });
+        },
+        onApprove: function (d) {
+          busy(true);
+          showError('');
+          return api('subscribe_confirm', { subscription_id: d.subscriptionID, csrf: csrf }).then(function (r) {
+            if (r.ok && r.pending) { pending(); return; }
+            if (r.ok) { success(r); return; }
+            busy(false);
+            // approved, but we could not confirm it: do not offer a second subscription; the key comes by email
+            if (r.error === 'network' || r.status === 502) lock(T.co_err_confirm);
+            else if (r.status === 503) lock(r.message);        // err_retry: paid, key not ready yet
+            else showError(r.message);
+          });
+        },
+      });
+    }
+
+    function renderButtons(csrf) {
+      slot.innerHTML = '';
+      slot.removeAttribute('aria-busy');
+      window.paypal.Buttons(plan === 'ai' ? subButtons(csrf) : proButtons(csrf))
+        .render(slot).catch(function () { unavailable(T.co_load_failed); });
+    }
+
+    // (Re)loads the PayPal SDK for the current plan: capture for Pro, vault + subscription for Pro + AI. The old script
+    // and its buttons are removed first; a load that finishes after another switch is ignored.
+    function loadSdk() {
+      if (!slot) return;
+      var seq = ++sdkSeq;
+      var old = $('paypal-sdk');
+      if (old) old.parentNode.removeChild(old);
+      try { delete window.paypal; } catch (e) { window.paypal = undefined; }
+      buttons = null;
+      show(slot, true);
+      show($('pay-note'), true);
+      slot.innerHTML = slotLoading;
+      slot.setAttribute('aria-busy', 'true');
+      slot.classList.add('is-locked');
       config().then(function (c) {
+        if (seq !== sdkSeq) return;
         if (!c.ok) { unavailable(c.message); return; }
         if (!c.enabled || !c.client_id) { paused(); return; }
         var s = document.createElement('script');
-        s.src = 'https://www.paypal.com/sdk/js?client-id=' + encodeURIComponent(c.client_id) + '&currency=USD&intent=capture&components=buttons';
+        s.id = 'paypal-sdk';
+        s.src = 'https://www.paypal.com/sdk/js?client-id=' + encodeURIComponent(c.client_id) + '&currency=USD'
+          + (plan === 'ai' ? '&vault=true&intent=subscription' : '&intent=capture') + '&components=buttons';
         s.async = true;
         s.onload = function () {
+          if (seq !== sdkSeq) return;
           if (window.paypal && window.paypal.Buttons) renderButtons(c.csrf);
           else unavailable(T.co_load_failed);
         };
-        s.onerror = function () { unavailable(T.co_load_failed); };
+        s.onerror = function () { if (seq === sdkSeq) unavailable(T.co_load_failed); };
         document.head.appendChild(s);
       });
     }
+
+    // ---- plan cards (radio semantics): swap the summary, copy, URL and PayPal button for the chosen plan
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.plan-card'));
+
+    function setText(id, text) { var el = $(id); if (el) el.textContent = text; }
+
+    function applyPlan() {
+      var ai = plan === 'ai';
+      cards.forEach(function (c) {
+        var on = c.getAttribute('data-plan') === plan;
+        c.setAttribute('aria-checked', on ? 'true' : 'false');
+        c.setAttribute('tabindex', on ? '0' : '-1');
+        c.classList.toggle('is-on', on);
+      });
+      setText('sum-item', ai ? T.co_item_ai : T.co_item);
+      setText('sum-price', ai ? data.total_ai : data.total);
+      setText('refund', ai ? T.co_refund_ai : T.co_refund);
+      setText('pay-note', ai ? T.co_note_ai : T.co_card_note);
+      setText('done-title', ai ? T.co_success_title_ai : T.co_success_title);
+      show($('tax-fields'), !ai);
+      show($('sum-note'), !ai);
+      if (ai) {
+        setText('total', data.total_ai);
+        show($('tax-row'), false);
+      } else if (country) {
+        syncTax();   // restores the Pro total and the California line
+      } else {
+        setText('total', data.total);
+      }
+      if (err.textContent === T.co_err_region) showError('');
+    }
+
+    // Keeps ?plan= in the address bar and in the language links, without adding a history entry.
+    function syncUrl() {
+      try {
+        var u = new URL(location.href);
+        u.searchParams.set('plan', plan);
+        history.replaceState(null, '', u.pathname + u.search + u.hash);
+        document.querySelectorAll('.lang-menu a').forEach(function (a) {
+          var l = new URL(a.getAttribute('href'), location.href);
+          l.searchParams.set('plan', plan);
+          a.setAttribute('href', l.pathname + l.search);
+        });
+      } catch (e) { /* the address bar is a nicety */ }
+    }
+
+    function choose(id) {
+      var c = cards.filter(function (x) { return x.getAttribute('data-plan') === id; })[0];
+      if (!c || locked || c.getAttribute('aria-disabled') === 'true' || id === plan) return false;
+      plan = id;
+      applyPlan();
+      syncUrl();
+      showError('');
+      loadSdk();
+      return true;
+    }
+
+    cards.forEach(function (c) {
+      c.addEventListener('click', function () { choose(c.getAttribute('data-plan')); });
+      c.addEventListener('keydown', function (e) {
+        var rtl = document.documentElement.dir === 'rtl';
+        var step = { ArrowRight: rtl ? -1 : 1, ArrowDown: 1, ArrowLeft: rtl ? 1 : -1, ArrowUp: -1 }[e.key];
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          choose(c.getAttribute('data-plan'));
+        } else if (step) {
+          e.preventDefault();
+          var next = cards[(cards.indexOf(c) + step + cards.length) % cards.length];
+          if (choose(next.getAttribute('data-plan'))) next.focus();
+        }
+      });
+    });
+
+    applyPlan();
+    loadSdk();
   }
 
   // ---- lost key: always the same confirmation
@@ -395,7 +546,76 @@
     });
   }
 
+  // ---- account: cancel a subscription (confirm step is in the page, not window.confirm)
+  function initCancel() {
+    var csrf = data.csrf || '';
+
+    function ended(row, endsOn) {
+      var st = row.querySelector('[data-sub-status]');
+      if (st) {
+        fillWithLtr(st, T.acct_st_cancelled, '{date}', endsOn || '');
+        st.className = 'sub-status is-cancelled';
+      }
+      var renews = row.querySelector('[data-sub-renews]');
+      if (renews) renews.parentNode.removeChild(renews);
+    }
+
+    document.addEventListener('click', function (e) {
+      var t = e.target.closest ? e.target.closest('[data-cancel-open], [data-cancel-keep], [data-cancel-yes]') : null;
+      if (!t) return;
+      var panel = t.closest('.sub-panel');
+      var open = panel.querySelector('[data-cancel-open]');
+      var confirmBox = panel.querySelector('.cancel-confirm');
+      var msg = panel.querySelector('.sub-msg');
+      if (t.hasAttribute('data-cancel-open')) {
+        msg.textContent = '';
+        show(open, false);
+        show(confirmBox, true);
+        panel.querySelector('[data-cancel-keep]').focus();   // the safe choice has focus
+      } else if (t.hasAttribute('data-cancel-keep')) {
+        show(confirmBox, false);
+        show(open, true);
+        open.focus();
+      } else {
+        var row = t.closest('.keyrow');
+        var yes = t;
+        yes.disabled = true;
+        api('sub_cancel', { key: row.getAttribute('data-key'), csrf: csrf }).then(function (r) {
+          yes.disabled = false;
+          show(confirmBox, false);
+          msg.textContent = r.message || '';
+          msg.className = 'sub-msg ' + (r.ok ? 'is-ok' : 'is-error');
+          if (r.ok) ended(row, r.ends_on); else { show(open, true); open.focus(); }
+        });
+      }
+    });
+
+    var form = $('cancel-by');
+    if (!form) return;
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var key = $('cancel-key');
+      var mail = $('cancel-email');
+      var status = $('cancel-by-status');
+      if (!key.value.trim()) { key.focus(); return; }
+      if (!mail.value.trim() || !mail.checkValidity()) {
+        status.textContent = T.err_email;
+        status.className = 'claim-status is-error';
+        mail.focus();
+        return;
+      }
+      var btn = form.querySelector('button');
+      btn.disabled = true;
+      api('sub_cancel', { key: key.value.trim(), email: mail.value.trim(), csrf: csrf }).then(function (r) {
+        btn.disabled = false;
+        status.textContent = r.message || '';
+        status.className = 'claim-status ' + (r.ok ? 'is-ok' : 'is-error');
+      });
+    });
+  }
+
   initCheckout();
   initResend();
   initClaim();
+  initCancel();
 })();

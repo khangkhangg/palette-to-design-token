@@ -84,10 +84,12 @@ function palette_api_handle(array $req): array
 
     if ($action === 'config') {
         $pp = pp_settings($conn);
-        $m = palette_money_settings(palette_settings($conn));
+        $s = palette_settings($conn);
+        $m = palette_money_settings($s);
         $ready = pp_ready($pp);
         return palette_api_reply(200, ['ok' => true, 'enabled' => $ready] + ($ready ? ['client_id' => $pp['client_id']] : [])
-            + ['price' => palette_money($m['price']), 'tax_mode' => $m['tax_mode'], 'csrf' => palette_api_csrf_token()]);
+            + ['price' => palette_money($m['price']), 'tax_mode' => $m['tax_mode'], 'ai_enabled' => palette_ai_plan_ready($s, $pp),
+               'ai_price' => palette_money(palette_sub_price_cents($s)), 'csrf' => palette_api_csrf_token()]);
     }
 
     if ($action === 'verify') {

@@ -4,8 +4,12 @@
 // the cli-server SAPI it reads DB_HOST_REMOTE), refuses to serve unless the database name ends in _test, and maps
 // /palette/* onto server/*.
 // PALETTE_DEV_PP_STUB=1 (honoured only on a *_test database) replaces PayPal REST and Resend with a local stub and
-// enables /__dev/seed?paypal=ready|paused&tax=none|ca (resets the palette tables), /__dev/login?user_id=N and
-// /__dev/license?email=… for the e2e.
+// enables /__dev/seed?paypal=ready|paused&tax=none|ca&ai=ready|off (resets the palette tables; ai=ready, the default,
+// stores a Pro + AI plan id for the sandbox), /__dev/login?user_id=N and /__dev/license?email=… for the e2e.
+// Subscriptions: the e2e's fake SDK answers subscription ids "I-DEVSUB<row id>" (the row action=subscribe_start made);
+// GET /v1/billing/subscriptions/I-DEVSUB<n> answers that row ACTIVE with a first payment at its price, except for
+// buyers whose address starts with "pending@" (ACTIVE, no payment yet -> the page's pending message) or "retry@"
+// (PayPal 503 -> err_retry). Any subscription's cancel answers 204.
 // PALETTE_DEV_AI_STUB=1 (also only on a *_test database) answers web search (Brave/Tavily) and the AI model locally so
 // action=analyse runs end to end: canned search results (a query containing "dev-search-down" gets HTTP 500), and a
 // canned valid answer that uses the first two sent hexes (a title containing "dev-ai-fail" gets HTTP 503). With it,
@@ -75,6 +79,18 @@ if ($stub) {
                 'purchase_units' => [['payments' => ['captures' => [['id' => 'CAP' . $o['id'], 'status' => $capStatus,
                     'amount' => ['currency_code' => 'USD', 'value' => (string)$o['amount_usd']]]]]]]]];
         }
+        if ($method === 'GET' && preg_match('#^/v1/billing/subscriptions/(I-DEVSUB(\d+))$#', $p, $m)) {
+            $row = palette_sub_row($conn, 'id', (int)$m[2]);
+            if (!$row) return ['status' => 404, 'json' => ['name' => 'RESOURCE_NOT_FOUND']];
+            if (str_starts_with((string)$row['email'], 'retry@')) return ['status' => 503, 'json' => ['name' => 'SERVICE_UNAVAILABLE']];
+            $sub = ['id' => $m[1], 'status' => 'ACTIVE', 'plan_id' => $row['plan_id'], 'custom_id' => 'palette-sub:' . $row['id'],
+                'billing_info' => ['next_billing_time' => gmdate('Y-m-d\TH:i:s\Z', time() + 30 * 86400)]];
+            if (!str_starts_with((string)$row['email'], 'pending@')) {
+                $sub['billing_info']['last_payment'] = ['amount' => ['currency_code' => 'USD', 'value' => (string)$row['price_usd']], 'time' => gmdate('Y-m-d\TH:i:s\Z')];
+            }
+            return ['status' => 200, 'json' => $sub];
+        }
+        if ($method === 'POST' && preg_match('#^/v1/billing/subscriptions/I-[A-Z0-9]+/cancel$#', $p)) return ['status' => 204, 'json' => null];
         return ['status' => 500, 'json' => ['message' => 'dev stub: unrouted ' . $method . ' ' . $p]];
     };
 }
@@ -127,11 +143,14 @@ if ($dev && $path === '/__dev/seed') {
     palette_migrate($conn);
     $conn->query('DELETE FROM palette_orders');
     $conn->query('DELETE FROM palette_licenses');
+    $conn->query('DELETE FROM palette_subscriptions');
+    $conn->query('DELETE FROM palette_sub_payments');
     $conn->query('DELETE FROM palette_rate');
     $conn->query("DELETE FROM admin_settings WHERE setting_key IN ('palette', 'paypal', 'resend_api_key')");
     $conn->query("INSERT INTO admin_settings (setting_key, setting_value) VALUES ('resend_api_key', 're_dev')");
     pp_settings_put($conn, ['enabled' => ($_GET['paypal'] ?? 'ready') === 'ready', 'mode' => 'sandbox', 'client_id' => 'dev-client', 'secret' => 'dev-secret', 'error' => '']);
     $settings = ['tax_mode' => ($_GET['tax'] ?? 'none') === 'ca' ? 'ca' : 'none'];
+    if (($_GET['ai'] ?? 'ready') === 'ready') $settings += ['ai_paypal_plan_id' => 'P-DEVPLAN001', 'ai_paypal_plan_mode' => 'sandbox'];
     if ($aiStub) {
         foreach (['palette_ai_usage', 'palette_ai_cache', 'palette_sites', 'palette_site_links'] as $t) $conn->query("DELETE FROM $t");
         companies_ai_tables($conn);
@@ -156,11 +175,20 @@ if ($dev && $path === '/__dev/login') {   // pretend to be signed in to companie
 }
 if ($dev && $path === '/__dev/license') {   // issue a key as if bought by ?email=
     $lic = palette_issue_license($conn, (string)($_GET['email'] ?? 'dev@studio.vn'), 'DEV-' . bin2hex(random_bytes(4)), 'en');
-    if ($aiStub && ($_GET['plan'] ?? '') === 'ai') {
+    if (($_GET['plan'] ?? '') === 'ai') {
+        // A subscription licence with its palette_subscriptions row, so the account page can show and cancel it.
         $paid = date('Y-m-d H:i:s', ($_GET['ended'] ?? '') === '1' ? time() - 86400 : time() + 30 * 86400);
         $start = date('Y-m-d H:i:s', time() - 60);
-        $st = $conn->prepare("UPDATE palette_licenses SET plan = 'ai', sub_status = 'active', paid_through = ?, period_start = ? WHERE id = ?");
-        $st->bind_param('ssi', $paid, $start, $lic['id']);
+        $sid = 'I-DEVLIC' . $lic['id'];
+        $st = $conn->prepare("UPDATE palette_licenses SET plan = 'ai', sub_status = 'active', paid_through = ?, period_start = ?, subscription_id = ? WHERE id = ?");
+        $st->bind_param('sssi', $paid, $start, $sid, $lic['id']);
+        $st->execute();
+        $st->close();
+        $email = strtolower((string)($_GET['email'] ?? 'dev@studio.vn'));
+        $now = date('Y-m-d H:i:s');
+        $st = $conn->prepare("INSERT INTO palette_subscriptions (subscription_id, email, lang, status, plan_id, license_id, price_usd, consent_at, created_at, updated_at)
+                              VALUES (?, ?, 'en', 'active', 'P-DEVPLAN001', ?, '3.99', ?, ?, ?)");
+        $st->bind_param('ssisss', $sid, $email, $lic['id'], $now, $now, $now);
         $st->execute();
         $st->close();
     }

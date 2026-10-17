@@ -27,7 +27,9 @@ const PALETTE_US_STATES = [
 ];
 // Strings checkout.js needs at runtime.
 const PALETTE_SCRIPT_STRINGS = ['err_email', 'err_paused', 'err_consent', 'err_paypal', 'err_retry', 'err_csrf', 'co_err_region', 'co_err_network',
-    'co_err_confirm', 'co_load_failed', 'co_copy', 'co_copied', 'co_copy_failed', 'co_ext_ok', 'co_ext_paste', 'co_emailed', 'co_key_emailed', 'api_resend_ok', 'acct_added'];
+    'co_err_confirm', 'co_load_failed', 'co_copy', 'co_copied', 'co_copy_failed', 'co_ext_ok', 'co_ext_paste', 'co_emailed', 'co_key_emailed', 'api_resend_ok', 'acct_added',
+    // plan chooser (swapped in by checkout.js when the plan changes) and the account subscription panel
+    'co_item', 'co_item_ai', 'co_refund', 'co_refund_ai', 'co_card_note', 'co_note_ai', 'co_sub_pending', 'co_success_title', 'co_success_title_ai', 'acct_st_cancelled'];
 
 // ?lang= when it is one of the 7; else the best Accept-Language match; else en.
 // The escaped string with {name} placeholders replaced by trusted HTML.
@@ -212,14 +214,65 @@ function palette_price_label(string $lang): string
     return palette_usd($lang, palette_money(palette_money_settings(palette_settings($GLOBALS['conn']))['price']));
 }
 
+// The Pro + AI monthly price as this language writes it.
+function palette_ai_price_label(string $lang): string
+{
+    return palette_usd($lang, palette_money(palette_sub_price_cents(palette_settings($GLOBALS['conn']))));
+}
+
+// Whether Pro + AI can be bought right now (plan exists for the current PayPal mode).
+function palette_ai_on(): bool
+{
+    $conn = $GLOBALS['conn'];
+    return palette_ai_plan_ready(palette_settings($conn), pp_settings($conn));
+}
+
+// ?plan=ai|pro; Pro unless AI is on and asked for.
+function palette_page_plan(array $query, bool $aiOn): string
+{
+    return $aiOn && ($query['plan'] ?? null) === 'ai' ? 'ai' : 'pro';
+}
+
+// The session's account-page token ('palette_account', used by sub_cancel): created once, never rotated, so a second tab keeps working.
+function palette_account_csrf_token(): string
+{
+    $tok = $_SESSION['csrf_tokens']['palette_account'] ?? null;
+    return is_string($tok) && preg_match('/^[0-9a-f]{64}$/', $tok) ? $tok : generateCSRFToken('palette_account');
+}
+
+// Two plan cards, radio semantics (mockup J): Pro + AI first, Pro second. Pro + AI is not selectable until its PayPal plan exists.
+function palette_plan_cards(string $lang, string $plan, bool $aiOn, string $proPrice, string $aiPrice, int $analyses): string
+{
+    $card = function (string $id, string $name, string $price, string $per, string $badge, array $items) use ($plan, $aiOn, $lang): string {
+        $disabled = $id === 'ai' && !$aiOn;
+        $on = $plan === $id;
+        $list = '';
+        foreach ($items as $it) $list .= '<li>' . palette_icon('check', 14) . '<span>' . palette_h($it) . '</span></li>';
+        return '<div class="plan-card' . ($on ? ' is-on' : '') . ($disabled ? ' is-disabled' : '') . '" role="radio" data-plan="' . $id . '"'
+            . ' aria-checked="' . ($on ? 'true' : 'false') . '"' . ($disabled ? ' aria-disabled="true"' : '') . ' tabindex="' . ($on ? '0' : '-1') . '"'
+            . ' aria-labelledby="plan-' . $id . '-name plan-' . $id . '-price" aria-describedby="plan-' . $id . '-items">'
+            . '<div class="plan-head"><span class="plan-name"><span id="plan-' . $id . '-name">' . palette_h($name) . '</span>'
+            . ($badge !== '' ? '<span class="plan-badge">' . palette_h($badge) . '</span>' : '') . '</span>'
+            . '<span class="plan-price" id="plan-' . $id . '-price"><span class="num" dir="ltr">' . palette_h($price) . '</span><span class="plan-per">' . palette_h($per) . '</span></span></div>'
+            . '<ul class="plan-items" id="plan-' . $id . '-items">' . $list . '</ul></div>';
+    };
+    $t = fn(string $k, array $v = []) => palette_t($lang, $k, $v);
+    return '<div class="plan-pick" id="plan-pick" role="radiogroup" aria-labelledby="plan-h">'
+        . $card('ai', 'Pro + AI', $aiPrice, $t('co_plan_month'), $aiOn ? $t('co_plan_best') : $t('co_plan_soon'),
+            [$t('co_ai_i1'), $t('co_ai_i2', ['n' => $analyses]), $t('co_ai_i3'), $t('co_ai_i4'), $t('co_ai_i5')])
+        . $card('pro', 'Pro', $proPrice, $t('co_plan_once'), '', [$t('co_pro_i1'), $t('co_pro_i2'), $t('co_pro_i3')])
+        . '</div>';
+}
+
 // ---- sections shared by the landing and checkout pages
 
 // Download (free) + Get Pro, and the version / browsers line. $proHref: '#buy' on checkout, the checkout URL elsewhere.
-function palette_section_hero_actions(string $lang, string $price, string $proHref): string
+function palette_section_hero_actions(string $lang, string $price, string $proHref, ?string $aiHref = null, string $aiPrice = ''): string
 {
     return '<div class="hero-actions" id="hero-actions">'
         . '<a class="btn btn-accent btn-lg" href="' . PALETTE_DOWNLOAD_URL . '" download>' . palette_icon('download', 17) . '<span>' . palette_h(palette_t($lang, 'pp_download')) . '</span></a>'
         . '<a class="btn btn-quiet btn-lg" href="' . palette_h($proHref) . '">' . palette_h(palette_t($lang, 'pp_get_pro', ['price' => $price])) . '</a>'
+        . ($aiHref !== null ? '<a class="btn btn-quiet btn-lg" href="' . palette_h($aiHref) . '">' . palette_h(palette_t($lang, 'pp_get_ai', ['price' => $aiPrice])) . '</a>' : '')
         . '</div>'
         . '<p class="works-in">' . palette_t_html($lang, 'pp_works_in', ['version' => palette_ltr(PALETTE_EXT_VERSION)]) . '</p>';
 }
@@ -295,7 +348,8 @@ function palette_render_landing(array $ctx): string
     $hero = '<section class="hero lp-hero">'
         . '<h1>' . $t('lp_h1') . '</h1>'
         . '<p class="lead">' . $t('lp_lead') . '</p>'
-        . palette_section_hero_actions($lang, $price, palette_page_url('checkout', $lang) . '#buy')
+        . palette_section_hero_actions($lang, $price, palette_page_url('checkout', $lang) . '#buy',
+            palette_ai_on() ? palette_page_url('checkout', $lang, ['plan' => 'ai']) . '#buy' : null, palette_ai_price_label($lang))
         . '</section>';
 
     $shots = '';
@@ -368,23 +422,31 @@ function palette_render_checkout(array $ctx): string
     $query = is_array($ctx['query'] ?? null) ? $ctx['query'] : [];
     $lang = palette_page_lang($query, (string)($ctx['accept_language'] ?? ''));
     $keep = array_intersect_key(palette_page_keep($query), ['ext' => 1]);
+    if (in_array($query['plan'] ?? null, ['ai', 'pro'], true)) $keep['plan'] = $query['plan'];
     $t = fn(string $k) => palette_h(palette_t($lang, $k));
 
     $settings = palette_settings($conn);
     $money = palette_money_settings($settings);
-    $ready = pp_ready(pp_settings($conn));
+    $pp = pp_settings($conn);
+    $ready = pp_ready($pp);
+    $aiOn = palette_ai_plan_ready($settings, $pp);
+    $plan = palette_page_plan($query, $aiOn);
+    $isAi = $plan === 'ai';
     $ca = $money['tax_mode'] === 'ca';
     $fr = $lang === 'fr';
     $usd = fn(string $amount): string => palette_usd($lang, $amount);
     $price = $usd(palette_money($money['price']));
+    $aiPrice = $usd(palette_money(palette_sub_price_cents($settings)));
     $withTax = palette_total($settings, 'US', 'CA');
+    $shown = $isAi ? $aiPrice : $price;
 
+    // Pro + AI is a subscription: no sales-tax lines for it (the selects and the CA row only apply to Pro).
     $summary = '<div class="summary">'
-        . '<div class="sum-row"><span>' . $t('co_item') . '</span><span class="num" dir="ltr">' . $price . '</span></div>'
+        . '<div class="sum-row"><span id="sum-item">' . $t($isAi ? 'co_item_ai' : 'co_item') . '</span><span class="num" dir="ltr" id="sum-price">' . $shown . '</span></div>'
         . ($ca ? '<div class="sum-row sum-tax" id="tax-row" hidden><span>' . $t('co_tax') . '</span><span class="num" dir="ltr">' . palette_h($usd($withTax['tax'])) . '</span></div>' : '')
         . '<div class="sum-rule"></div>'
-        . '<div class="sum-row sum-total"><span>' . $t('co_total') . '</span><span class="num" dir="ltr"><span id="total">' . $price . '</span>' . ($fr ? '' : ' USD') . '</span></div>'
-        . ($ca ? '<p class="sum-note">' . $t('co_tax_note') . '</p>' : '')
+        . '<div class="sum-row sum-total"><span>' . $t('co_total') . '</span><span class="num" dir="ltr"><span id="total">' . $shown . '</span>' . ($fr ? '' : ' USD') . '</span></div>'
+        . ($ca ? '<p class="sum-note" id="sum-note"' . ($isAi ? ' hidden' : '') . '>' . $t('co_tax_note') . '</p>' : '')
         . '</div>';
 
     $hero = '<section class="hero">'
@@ -409,7 +471,7 @@ function palette_render_checkout(array $ctx): string
     if ($ca) {
         $states = '<option value="">' . $t('co_region_pick') . '</option>';
         foreach (PALETTE_US_STATES as $code => $name) $states .= '<option value="' . $code . '">' . palette_h($name) . '</option>';
-        $tax = '<div class="field-row">'
+        $tax = '<div class="field-row" id="tax-fields"' . ($isAi ? ' hidden' : '') . '>'
             . '<div class="field"><label for="country">' . $t('co_country') . '</label>'
             . '<select id="country" name="country"><option value="US">' . $t('co_country_us') . '</option>'
             . '<option value="ZZ" selected>' . $t('co_country_other') . '</option></select></div>'
@@ -420,26 +482,29 @@ function palette_render_checkout(array $ctx): string
 
     $pay = $ready
         ? '<div id="paypal" class="paypal is-locked" aria-busy="true"><div class="pp-loading"><span class="spinner" aria-hidden="true"></span>' . $t('co_loading') . '</div></div>'
-          . '<p class="hint hint-center">' . $t('co_card_note') . '</p>'
+          . '<p class="hint hint-center" id="pay-note">' . $t($isAi ? 'co_note_ai' : 'co_card_note') . '</p>'
         : '<div class="notice" role="status">' . palette_icon('alert', 18) . '<span>' . $t('err_paused') . '</span></div>';
 
     $form = '<form id="buy" class="buy" novalidate>'
         . '<h2 id="buy-title">' . $t('co_form_title') . '</h2>'
+        . '<div class="field"><span class="field-label" id="plan-h">' . $t('co_plan_h') . '</span>'
+        . palette_plan_cards($lang, $plan, $aiOn, $price, $aiPrice, palette_usage_limit($settings)) . '</div>'
         . '<div class="field"><label for="email">' . $t('co_email_label') . '</label>'
         . '<input type="email" id="email" name="email" autocomplete="email" inputmode="email" spellcheck="false" maxlength="190" required aria-describedby="email-hint">'
         . '<p class="hint" id="email-hint">' . $t('co_email_hint') . '</p></div>'
         . $tax
-        . '<div class="terms"><p class="refund">' . $t('co_refund') . '</p>'
+        . '<div class="terms"><p class="refund" id="refund">' . $t($isAi ? 'co_refund_ai' : 'co_refund') . '</p>'
         . '<label class="consent" for="consent"><input type="checkbox" id="consent" name="consent" value="1" required>'
         . '<span>' . $t('co_consent') . '</span></label></div>'
         . '<p class="error" id="buy-error" role="alert" hidden></p>'
+        . '<p class="pending" id="pending" role="status" hidden>' . palette_icon('check', 18) . '<span id="pending-text"></span></p>'
         . $pay
         . '</form>'
         . '<div class="busy" id="busy" role="status" hidden><span class="spinner" aria-hidden="true"></span>' . $t('co_finishing') . '</div>';
 
     $done = '<div id="done" class="done" hidden>'
         . '<div class="done-badge">' . palette_icon('check', 22) . '</div>'
-        . '<h2 id="done-title" tabindex="-1">' . $t('co_success_title') . '</h2>'
+        . '<h2 id="done-title" tabindex="-1">' . $t($isAi ? 'co_success_title_ai' : 'co_success_title') . '</h2>'
         . '<div class="keybox"><code id="key" dir="ltr" aria-label="' . $t('co_key_label') . '"></code>'
         . '<button type="button" id="copy-key" class="btn btn-accent" data-copy-from="key">' . palette_icon('copy', 15) . '<span>' . $t('co_copy') . '</span></button></div>'
         . '<p class="copy-status" id="copy-status" role="status"></p>'
@@ -465,7 +530,7 @@ function palette_render_checkout(array $ctx): string
     $strings = [];
     foreach (PALETTE_SCRIPT_STRINGS as $k) $strings[$k] = palette_t($lang, $k);
     return palette_page_shell('checkout', $lang, $keep, palette_t($lang, 'co_title'), $main,
-        ['t' => $strings, 'total' => $price, 'total_ca' => $usd($withTax['amount'])]);
+        ['t' => $strings, 'plan' => $plan, 'ai_enabled' => $aiOn, 'total' => $price, 'total_ca' => $usd($withTax['amount']), 'total_ai' => $aiPrice]);
 }
 
 function palette_session_user(array $session): int
@@ -497,12 +562,14 @@ function palette_render_account(array $ctx): string
     } else {
         $rows = '';
         foreach (palette_keys_for_user($conn, $uid) as $k) {
-            $rows .= '<li class="keyrow' . ($k['revoked'] ? ' is-revoked' : '') . '">'
+            $rows .= '<li class="keyrow' . ($k['revoked'] ? ' is-revoked' : '') . '" data-key="' . palette_h($k['key']) . '">'
                 . '<div class="keyrow-main"><code dir="ltr">' . palette_h($k['key']) . '</code>'
                 . '<span class="keyrow-meta"><span dir="ltr">' . palette_h($k['email_masked']) . '</span>'
                 . '<span>' . palette_t_html($lang, 'acct_bought', ['date' => palette_ltr(substr((string)$k['created_at'], 0, 10))]) . '</span>'
-                . ($k['revoked'] ? '<span class="badge">' . $t('acct_revoked') . '</span>' : '') . '</span></div>'
+                . ($k['revoked'] ? '<span class="badge">' . $t('acct_revoked') . '</span>' : '') . '</span>'
+                . palette_account_plan_line($lang, $k) . '</div>'
                 . '<button type="button" class="btn btn-quiet btn-sm" data-copy="' . palette_h($k['key']) . '">' . palette_icon('copy', 14) . '<span>' . $t('co_copy') . '</span></button>'
+                . palette_account_cancel_panel($lang, $k)
                 . '</li>';
         }
         $pending = is_string($session['palette_pending_key'] ?? null) ? palette_normalise_key($session['palette_pending_key']) : null;
@@ -517,12 +584,56 @@ function palette_render_account(array $ctx): string
             . '<p class="claim-status" id="claim-status" role="status"></p>'
             . '</form>';
     }
+    // Cancel by key: for a subscriber who is not signed in (key + the subscribing email); signed-in owners can use it too.
+    $body .= '<form id="cancel-by" class="card claim" novalidate>'
+        . '<h2>' . $t('acct_cancel_by_h') . '</h2><p class="hint">' . $t('acct_cancel_by_text') . '</p>'
+        . '<div class="inline"><label class="sr-only" for="cancel-key">' . $t('acct_key_label') . '</label>'
+        . '<input type="text" id="cancel-key" name="key" placeholder="SDT-XXXX-XXXX-XXXX" dir="ltr" autocomplete="off" spellcheck="false" maxlength="40" required>'
+        . '<label class="sr-only" for="cancel-email">' . $t('acct_sub_email') . '</label>'
+        . '<input type="email" id="cancel-email" name="email" placeholder="' . $t('acct_sub_email') . '" autocomplete="email" inputmode="email" spellcheck="false" maxlength="190" required>'
+        . '<button type="submit" class="btn btn-quiet">' . $t('acct_cancel') . '</button></div>'
+        . '<p class="claim-status" id="cancel-by-status" role="status"></p></form>';
     $body .= '<p class="aside"><a href="' . palette_h(palette_page_url('checkout', $lang)) . '">' . $t('acct_buy') . palette_icon('arrow', 14) . '</a></p>';
 
     $strings = [];
     foreach (PALETTE_SCRIPT_STRINGS as $k) $strings[$k] = palette_t($lang, $k);
     return palette_page_shell('account', $lang, $keep, palette_t($lang, 'acct_title') . ' | Site to Design Token',
-        '<main class="wrap narrow">' . $head . $body . '</main>', ['t' => $strings]);
+        '<main class="wrap narrow">' . $head . $body . '</main>', ['t' => $strings, 'csrf' => palette_account_csrf_token()]);
+}
+
+// What a stored subscription state means right now: active|cancelled|suspended|expired. A lapsed paid_through is expired
+// whatever PayPal's last word was; cancelled keeps access until paid_through.
+function palette_account_sub_state(array $k): string
+{
+    $pt = is_string($k['paid_through'] ?? null) ? strtotime($k['paid_through']) : false;
+    if ($pt === false || $pt < time()) return 'expired';
+    return in_array($k['sub_status'], ['active', 'cancelled', 'suspended'], true) ? $k['sub_status'] : 'expired';
+}
+
+function palette_account_plan_line(string $lang, array $k): string
+{
+    $chip = fn(string $name) => '<span class="plan-chip">' . palette_h($name) . '</span>';
+    if ($k['plan'] !== 'ai') return '<span class="keyrow-plan">' . $chip('Pro') . '<span>' . palette_h(palette_t($lang, 'acct_one_time')) . '</span></span>';
+    $state = palette_account_sub_state($k);
+    $date = palette_ltr(substr((string)$k['paid_through'], 0, 10));
+    $status = $state === 'cancelled' ? palette_t_html($lang, 'acct_st_cancelled', ['date' => $date]) : palette_h(palette_t($lang, 'acct_st_' . $state));
+    return '<span class="keyrow-plan">' . $chip('Pro + AI') . '<span class="sub-status is-' . $state . '" data-sub-status>' . $status . '</span>'
+        . ($state === 'active' ? '<span data-sub-renews>' . palette_t_html($lang, 'acct_renews', ['date' => $date]) . '</span>' : '') . '</span>';
+}
+
+// Cancel button + in-page confirm step (no window.confirm); only for a live subscription that is not already cancelled.
+function palette_account_cancel_panel(string $lang, array $k): string
+{
+    if ($k['revoked'] || $k['plan'] !== 'ai' || !in_array(palette_account_sub_state($k), ['active', 'suspended'], true)) return '';
+    $t = fn(string $key) => palette_h(palette_t($lang, $key));
+    $date = substr((string)$k['paid_through'], 0, 10);
+    return '<div class="sub-panel">'
+        . '<button type="button" class="btn btn-quiet btn-sm" data-cancel-open>' . $t('acct_cancel') . '</button>'
+        . '<div class="cancel-confirm" role="group" aria-label="' . $t('acct_cancel') . '" hidden>'
+        . '<p>' . palette_t_html($lang, 'acct_cancel_ask', ['date' => palette_ltr($date)]) . '</p>'
+        . '<div class="cancel-actions"><button type="button" class="btn btn-danger btn-sm" data-cancel-yes>' . $t('acct_cancel_yes') . '</button>'
+        . '<button type="button" class="btn btn-quiet btn-sm" data-cancel-keep>' . $t('acct_cancel_keep') . '</button></div></div>'
+        . '<p class="sub-msg" role="status"></p></div>';
 }
 
 function palette_render_privacy(array $ctx): string
