@@ -235,6 +235,7 @@ return [
     'acct_st_cancelled' => 'Résilié, se termine le {date}',
     'acct_st_suspended' => 'Suspendu, dernier paiement échoué',
     'acct_st_expired' => 'Expiré',
+    'acct_st_revoked' => 'Révoquée',
     'acct_cancel' => 'Résilier l\'abonnement',
     'acct_cancel_ask' => 'Résilier cet abonnement ? Pro et AI restent actifs jusqu\'au {date}.',
     'acct_cancel_yes' => 'Oui, résilier',

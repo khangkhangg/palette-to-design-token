@@ -235,6 +235,7 @@ return [
     'acct_st_cancelled' => '已取消，{date} 到期',
     'acct_st_suspended' => '已暂停，上次付款失败',
     'acct_st_expired' => '已过期',
+    'acct_st_revoked' => '已撤销',
     'acct_cancel' => '取消订阅',
     'acct_cancel_ask' => '要取消此订阅吗？Pro 和 AI 会保持开启，直到 {date}。',
     'acct_cancel_yes' => '是，取消订阅',

@@ -235,6 +235,7 @@ return [
     'acct_st_cancelled' => 'रद्द, {date} को समाप्त',
     'acct_st_suspended' => 'निलंबित, पिछला भुगतान विफल',
     'acct_st_expired' => 'समाप्त',
+    'acct_st_revoked' => 'निरस्त',
     'acct_cancel' => 'सदस्यता रद्द करें',
     'acct_cancel_ask' => 'यह सदस्यता रद्द करें? {date} तक Pro और AI चालू रहेंगे।',
     'acct_cancel_yes' => 'हाँ, रद्द करें',

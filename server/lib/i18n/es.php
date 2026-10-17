@@ -235,6 +235,7 @@ return [
     'acct_st_cancelled' => 'Cancelada, termina el {date}',
     'acct_st_suspended' => 'Suspendida, falló el último pago',
     'acct_st_expired' => 'Caducada',
+    'acct_st_revoked' => 'Revocada',
     'acct_cancel' => 'Cancelar suscripción',
     'acct_cancel_ask' => '¿Cancelar esta suscripción? Pro y AI siguen activos hasta el {date}.',
     'acct_cancel_yes' => 'Sí, cancelar',

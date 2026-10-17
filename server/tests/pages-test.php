@@ -495,6 +495,14 @@ $rSus = $row($out, $kSus);
 ok('account suspended key: status shown, Cancel offered', str_contains($rSus, h(palette_t('en', 'acct_st_suspended'))) && str_contains($rSus, 'data-cancel-open'));
 $rExp = $row($out, $kExp);
 ok('account lapsed key: expired, no Cancel button', str_contains($rExp, h(palette_t('en', 'acct_st_expired'))) && !str_contains($rExp, 'data-cancel-open'));
+// a refunded key whose PayPal cancel failed still has sub_status active and a future paid_through: revoked wins
+$kRev = $mk('s6@studio.vn', 'SUBREV1', 'active', $future);
+$conn->query("UPDATE palette_licenses SET revoked_at = NOW() WHERE license_key = '$kRev'");
+$rRev = $row($acct(), $kRev);
+ok('account revoked ai key: "Revoked", never "Active · Renews", no Cancel panel', str_contains($rRev, h(palette_t('en', 'acct_st_revoked')))
+    && str_contains($rRev, 'is-revoked') && !str_contains($rRev, h(palette_t('en', 'acct_st_active'))) && !str_contains($rRev, 'data-sub-renews')
+    && !str_contains($rRev, 'data-cancel-open'));
+foreach (LANGS as $l) ok("acct_st_revoked in $l", trim(palette_t($l, 'acct_st_revoked')) !== '' && ($l === 'en' || palette_t($l, 'acct_st_revoked') !== palette_t('en', 'acct_st_revoked')));
 $rPro = $row($out, $kPro);
 ok('account pro key: Pro, one-time, no Cancel', str_contains($rPro, h(palette_t('en', 'acct_one_time'))) && !str_contains($rPro, 'data-cancel-open') && !str_contains($rPro, 'Pro + AI'));
 ok('account issues the palette_account CSRF token (A10d)', preg_match('#id="palette-data">(.*?)</script>#s', $out, $m) === 1

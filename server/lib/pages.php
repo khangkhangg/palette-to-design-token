@@ -628,10 +628,12 @@ function palette_render_account(array $ctx): string
         '<main class="wrap narrow">' . $head . $body . '</main>', ['t' => $strings, 'csrf' => palette_account_csrf_token()]);
 }
 
-// What a stored subscription state means right now: active|cancelled|suspended|expired. A lapsed paid_through is expired
-// whatever PayPal's last word was; cancelled keeps access until paid_through.
+// What a stored subscription state means right now: revoked|active|cancelled|suspended|expired. Revoked (refunded) is
+// checked first: its sub_status may still say active when the post-refund PayPal cancel failed. A lapsed paid_through
+// is expired whatever PayPal's last word was; cancelled keeps access until paid_through.
 function palette_account_sub_state(array $k): string
 {
+    if (!empty($k['revoked'])) return 'revoked';
     $pt = is_string($k['paid_through'] ?? null) ? strtotime($k['paid_through']) : false;
     if ($pt === false || $pt < time()) return 'expired';
     return in_array($k['sub_status'], ['active', 'cancelled', 'suspended'], true) ? $k['sub_status'] : 'expired';

@@ -447,7 +447,7 @@ input::placeholder { color: var(--muted); opacity: .7; }
 .sub-status { font-weight: 600; }
 .sub-status.is-active { color: var(--pass-ink); }
 .sub-status.is-suspended { color: var(--warn-ink); }
-.sub-status.is-cancelled, .sub-status.is-expired { color: var(--fail-ink); }
+.sub-status.is-cancelled, .sub-status.is-expired, .sub-status.is-revoked { color: var(--fail-ink); }
 .sub-panel { flex: 1 1 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .cancel-confirm { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line-soft); font-size: 14px; }
 .cancel-actions { display: flex; flex-wrap: wrap; gap: 8px; }

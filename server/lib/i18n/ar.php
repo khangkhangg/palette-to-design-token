@@ -235,6 +235,7 @@ return [
     'acct_st_cancelled' => 'ملغى، ينتهي في {date}',
     'acct_st_suspended' => 'معلّق، فشلت آخر دفعة',
     'acct_st_expired' => 'منتهي',
+    'acct_st_revoked' => 'مُبطَل',
     'acct_cancel' => 'إلغاء الاشتراك',
     'acct_cancel_ask' => 'هل تريد إلغاء هذا الاشتراك؟ يبقى Pro وAI يعملان حتى {date}.',
     'acct_cancel_yes' => 'نعم، ألغِ الاشتراك',

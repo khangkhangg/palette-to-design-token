@@ -235,6 +235,7 @@ return [
     'acct_st_cancelled' => 'বাতিল, {date} তারিখে শেষ',
     'acct_st_suspended' => 'স্থগিত, শেষ পেমেন্ট ব্যর্থ',
     'acct_st_expired' => 'মেয়াদ শেষ',
+    'acct_st_revoked' => 'প্রত্যাহার করা হয়েছে',
     'acct_cancel' => 'সাবস্ক্রিপশন বাতিল করুন',
     'acct_cancel_ask' => 'এই সাবস্ক্রিপশন বাতিল করবেন? {date} পর্যন্ত Pro ও AI চালু থাকবে।',
     'acct_cancel_yes' => 'হ্যাঁ, বাতিল করুন',
