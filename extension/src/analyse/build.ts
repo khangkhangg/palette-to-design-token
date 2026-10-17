@@ -16,5 +16,6 @@ export function buildTokens(s: Samples, now: Date = new Date()): Tokens {
     radius: analyseRadius(s.radius),
     shadows: analyseShadows(s.shadows),
     contrast: analyseContrast(s.pairs),
+    ...(s.page ? { page: s.page } : {}),
   };
 }

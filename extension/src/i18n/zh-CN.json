@@ -213,33 +213,6 @@
     "zipBuilding": "正在打包…"
   },
   "unlock": {
-    "title": "把整套设计系统带走",
-    "price": "1.49 美元",
-    "priceNote": "一次付款 · 永久使用",
-    "perks": {
-      "export": {
-        "title": "导出 Token",
-        "text": "支持 CSS、Tailwind、Figma 或 JSON"
-      },
-      "designMd": {
-        "title": "DESIGN.md",
-        "text": "让 Claude、Cursor 或 Copilot 按品牌风格生成代码"
-      },
-      "system": {
-        "title": "完整设计系统",
-        "text": "字体、间距、圆角、阴影"
-      },
-      "contrast": {
-        "title": "对比度修复",
-        "text": "不只告诉你是否通过"
-      },
-      "scans": {
-        "title": "无限保存网站",
-        "text": "不再只保留最近 3 个"
-      }
-    },
-    "paypal": "使用 PayPal 付款",
-    "alreadyPaid": "已经付过款？",
     "keyLabel": "许可密钥",
     "keyPlaceholder": "SDT-XXXX-XXXX-XXXX",
     "activate": "激活",
@@ -253,5 +226,115 @@
     "errNetwork": "无法连接服务器，请重试。",
     "errRateLimited": "尝试次数过多，请等待一分钟后重试。",
     "refund": "所有销售均为最终交易。由于 Pro 即时解锁且价格仅为 1.49 美元，购买后恕不退款。"
+  },
+  "ai": {
+    "title": "AI 洞察",
+    "lockedSub": "让 AI 评价这个网站的设计",
+    "readySub": "竞争对手、评价和配色含义",
+    "features": {
+      "sites": {
+        "title": "竞争对手和相似网站",
+        "text": "通过网络搜索找到，看看同行业的其他网站长什么样"
+      },
+      "verdict": {
+        "title": "它有竞争力吗？",
+        "text": "与同行业相比，哪些做得好，哪些不够好"
+      },
+      "colours": {
+        "title": "配色传达了什么",
+        "text": "以及是否适合这类业务"
+      }
+    },
+    "planLine": "Pro + AI · 每月 100 次分析",
+    "seePlan": "查看 Pro + AI",
+    "includes": "包含 Pro 的全部功能。可随时取消。",
+    "ended": "你的 Pro + AI 套餐已于 {date} 结束。",
+    "endedNoDate": "你的 Pro + AI 套餐已结束。",
+    "renew": "续订 Pro + AI",
+    "left": "剩余 {left} / {limit} 次分析",
+    "resets": "{date} 重置",
+    "leftShort_other": "剩余 {n} 次分析",
+    "sentTitle": "会发送哪些内容",
+    "sentBody": "此页面的地址和标题，以及上方的设计摘要（颜色、字体、间距、对比度）。不含你输入的任何内容，也不含其他标签页。数据会发送到 vietnamcos.com、一个网络搜索服务和我们的 AI 服务商（DeepSeek）。",
+    "privacy": "隐私政策",
+    "hideNote": "不再显示此说明",
+    "analyse": "分析 {host}",
+    "usesOne": "使用 1 次分析，约需 15 秒。",
+    "unsupported": "只能分析公开网站，不能分析 localhost 或 IP 地址等本地地址。",
+    "quota": "本月的 {limit} 次分析已用完。{date} 重置。",
+    "searching": "正在搜索网络…",
+    "asking": "正在询问 AI…",
+    "runningNote": "约需 15 秒。",
+    "cancel": "取消",
+    "runAgain": "重新分析",
+    "retry": "重试",
+    "errors": {
+      "network": "无法连接服务器。请检查网络后重试。",
+      "timeout": "分析耗时过长。未扣除分析次数。",
+      "unavailable": "AI 暂时不可用。未扣除分析次数。",
+      "rateLimited": "短时间内分析次数过多。请等一分钟后重试。"
+    },
+    "tags": "行业",
+    "verdict": "评价",
+    "forSector": "在同行业中",
+    "verdicts": {
+      "behind": "落后",
+      "on_par": "持平",
+      "competitive": "有竞争力"
+    },
+    "scale": "等级：落后、持平、有竞争力。此网站：{verdict}。",
+    "coloursSay": "配色传达了什么",
+    "fit": {
+      "strong": "非常契合",
+      "ok": "基本契合",
+      "weak": "不太契合"
+    },
+    "fitFor": "{fit}：{sector}",
+    "works": "做得好的",
+    "improve": "可以改进的",
+    "sites": "看看这些网站",
+    "sourceWeb": "Web",
+    "sourceAi": "AI",
+    "sourcesNote": "“Web”网站来自搜索结果。“AI”建议来自模型的记忆，请自行核实。",
+    "searchDown": "网络搜索不可用；建议仅来自 AI。",
+    "noSites": "未找到相似网站。",
+    "newTab": "（在新标签页中打开）",
+    "footer": "AI 可能出错。分析于 {date} · 已用 {used} / {limit}",
+    "footerNoUsage": "AI 可能出错。分析于 {date}",
+    "cached": "过去 7 天内的共享结果：未扣除分析次数。"
+  },
+  "plans": {
+    "title": "选择套餐",
+    "back": "返回套餐",
+    "best": "最实用",
+    "ai": {
+      "name": "Pro + AI",
+      "price": "3.99 美元",
+      "per": "/月",
+      "items": {
+        "pro": "Pro 的全部功能",
+        "analyses": "每月 100 次 AI 分析",
+        "search": "通过网络搜索找到竞争对手",
+        "verdict": "任意网站的评价和配色含义",
+        "cancel": "可随时在账户中取消"
+      }
+    },
+    "pro": {
+      "name": "Pro",
+      "price": "1.49 美元",
+      "per": "一次性",
+      "items": {
+        "exports": "全部导出格式和 DESIGN.md",
+        "contrast": "对比度修正",
+        "scans": "无限保存网站"
+      }
+    },
+    "subscribe": "使用 PayPal 订阅",
+    "payPro": "使用 PayPal 支付 1.49 美元",
+    "aiNote": "每月通过 PayPal 扣费。可随时取消；Pro 和 AI 会保留到已付月份结束。",
+    "haveKey": "已有密钥？",
+    "enterIt": "输入密钥",
+    "keyTitle": "输入许可证密钥",
+    "keyText": "粘贴购买邮件中的密钥。Pro 和 Pro + AI 密钥都可以在这里使用。"
   }
 }

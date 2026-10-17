@@ -133,7 +133,7 @@ export function App({ onExport }: AppProps) {
         }}
         pro={settings.pro}
         licenseKey={licenseKey}
-        onEnterKey={() => openPanel('unlock')}
+        onEnterKey={() => openPanel('key')}
         ai={aiInfo}
         onManage={() => { void chrome.tabs.create({ url: accountUrl() }); }}
         onRenew={() => { void chrome.tabs.create({ url: checkoutUrl(renderedLang(), 'ai') }); }}

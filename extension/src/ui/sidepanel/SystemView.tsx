@@ -3,6 +3,7 @@ import { Icon } from '../components/Icon';
 import { RadiusChips, ShadowChips, SpacingBars, TypeRow } from '../components/TokenViews';
 import { orderedColours, ROLE_ORDER } from '../popup/ColoursTab';
 import { t } from '../i18n';
+import { AiSection } from './AiSection';
 
 /** First (heaviest) colour of each role, in role order. */
 function roleLeaders(colours: ColourToken[]): { role: Role; colour: ColourToken }[] {
@@ -75,6 +76,7 @@ export function SystemView({ tokens, onExport }: SystemViewProps) {
             )}
           </div>
         )}
+        <AiSection key={tokens.site} tokens={tokens} />
       </div>
       <footer class="sp-footer">
         <button type="button" class="sp-export" onClick={onExport}>

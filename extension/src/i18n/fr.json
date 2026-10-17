@@ -219,33 +219,6 @@
     "zipBuilding": "Création de l’archive…"
   },
   "unlock": {
-    "title": "Emportez le design system",
-    "price": "1,49 $ US",
-    "priceNote": "paiement unique · à vous pour toujours",
-    "perks": {
-      "export": {
-        "title": "Export des tokens",
-        "text": "en CSS, Tailwind, Figma ou JSON"
-      },
-      "designMd": {
-        "title": "DESIGN.md",
-        "text": "pour que Claude, Cursor ou Copilot codent dans le style de la marque"
-      },
-      "system": {
-        "title": "Design system complet",
-        "text": "typo, espacements, arrondis, ombres"
-      },
-      "contrast": {
-        "title": "Corrections de contraste",
-        "text": "pas seulement conforme ou non"
-      },
-      "scans": {
-        "title": "Sites enregistrés illimités",
-        "text": "au lieu des 3 derniers"
-      }
-    },
-    "paypal": "Payer avec PayPal",
-    "alreadyPaid": "déjà payé ?",
     "keyLabel": "Clé de licence",
     "keyPlaceholder": "SDT-XXXX-XXXX-XXXX",
     "activate": "Activer",
@@ -259,5 +232,117 @@
     "errNetwork": "Impossible de joindre le serveur — réessayez.",
     "errRateLimited": "Trop de tentatives — patientez une minute, puis réessayez.",
     "refund": "Toutes les ventes sont définitives. Pro se débloque instantanément et coûte 1,49 $ US, nous ne proposons donc aucun remboursement après l'achat."
+  },
+  "ai": {
+    "title": "Analyses IA",
+    "lockedSub": "Demandez à l'IA ce que vaut le design de ce site",
+    "readySub": "Concurrents, verdict et sens des couleurs",
+    "features": {
+      "sites": {
+        "title": "Concurrents et sites proches",
+        "text": "trouvés par une recherche web, pour voir à quoi ressemble le reste du secteur"
+      },
+      "verdict": {
+        "title": "Est-il compétitif ?",
+        "text": "ce qui marche et ce qui ne marche pas, par rapport à son secteur"
+      },
+      "colours": {
+        "title": "Ce que disent les couleurs",
+        "text": "et si elles conviennent à ce type d'activité"
+      }
+    },
+    "planLine": "Pro + AI · 100 analyses par mois",
+    "seePlan": "Voir Pro + AI",
+    "includes": "Tout Pro est inclus. Résiliable à tout moment.",
+    "ended": "Votre formule Pro + AI a pris fin le {date}.",
+    "endedNoDate": "Votre formule Pro + AI a pris fin.",
+    "renew": "Renouveler Pro + AI",
+    "left": "{left} analyses restantes sur {limit}",
+    "resets": "remise à zéro le {date}",
+    "leftShort_one": "{n} analyse restante",
+    "leftShort_many": "{n} d'analyses restantes",
+    "leftShort_other": "{n} analyses restantes",
+    "sentTitle": "Ce qui est envoyé",
+    "sentBody": "L'adresse et le titre de cette page, et le résumé du design ci-dessus (couleurs, polices, espacements, contraste). Rien de ce que vous tapez, aucun autre onglet. Ces données vont à vietnamcos.com, à une recherche web et à notre fournisseur d'IA (DeepSeek).",
+    "privacy": "Politique de confidentialité",
+    "hideNote": "Ne plus afficher cette note",
+    "analyse": "Analyser {host}",
+    "usesOne": "Utilise 1 analyse. Environ 15 secondes.",
+    "unsupported": "Seuls les sites web publics peuvent être analysés, pas les adresses locales comme localhost ou une adresse IP.",
+    "quota": "Vous avez utilisé vos {limit} analyses ce mois-ci. Remise à zéro le {date}.",
+    "searching": "Recherche sur le web…",
+    "asking": "Interrogation de l'IA…",
+    "runningNote": "Cela prend environ 15 secondes.",
+    "cancel": "Annuler",
+    "runAgain": "Relancer",
+    "retry": "Réessayer",
+    "errors": {
+      "network": "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez.",
+      "timeout": "L'analyse a pris trop de temps. Aucune analyse n'a été décomptée.",
+      "unavailable": "L'IA n'est pas disponible pour le moment. Aucune analyse n'a été décomptée.",
+      "rateLimited": "Trop d'analyses en peu de temps. Attendez une minute et réessayez."
+    },
+    "tags": "Secteur",
+    "verdict": "Verdict",
+    "forSector": "pour son secteur",
+    "verdicts": {
+      "behind": "En retard",
+      "on_par": "Au niveau",
+      "competitive": "Compétitif"
+    },
+    "scale": "Échelle : en retard, au niveau, compétitif. Ce site : {verdict}.",
+    "coloursSay": "Ce que disent les couleurs",
+    "fit": {
+      "strong": "Très adapté",
+      "ok": "Assez adapté",
+      "weak": "Peu adapté"
+    },
+    "fitFor": "{fit} pour : {sector}",
+    "works": "Ce qui marche",
+    "improve": "À améliorer",
+    "sites": "Sites à regarder",
+    "sourceWeb": "Web",
+    "sourceAi": "IA",
+    "sourcesNote": "Les sites « Web » ont été trouvés par la recherche. Les suggestions « IA » viennent de la mémoire du modèle : vérifiez-les.",
+    "searchDown": "Recherche web indisponible ; les suggestions viennent uniquement de l'IA.",
+    "noSites": "Aucun site similaire trouvé.",
+    "newTab": "(s'ouvre dans un nouvel onglet)",
+    "footer": "L'IA peut se tromper. Analysé le {date} · {used} sur {limit} utilisées",
+    "footerNoUsage": "L'IA peut se tromper. Analysé le {date}",
+    "cached": "Résultat partagé des 7 derniers jours : aucune analyse décomptée."
+  },
+  "plans": {
+    "title": "Choisissez votre formule",
+    "back": "Retour aux formules",
+    "best": "La plus utile",
+    "ai": {
+      "name": "Pro + AI",
+      "price": "3,99 $ US",
+      "per": "/mois",
+      "items": {
+        "pro": "Tout ce qu'offre Pro",
+        "analyses": "100 analyses IA par mois",
+        "search": "Concurrents trouvés par recherche web",
+        "verdict": "Verdict et sens des couleurs pour n'importe quel site",
+        "cancel": "Résiliable à tout moment depuis votre compte"
+      }
+    },
+    "pro": {
+      "name": "Pro",
+      "price": "1,49 $ US",
+      "per": "une fois",
+      "items": {
+        "exports": "Tous les exports et DESIGN.md",
+        "contrast": "Corrections de contraste",
+        "scans": "Sites enregistrés illimités"
+      }
+    },
+    "subscribe": "S'abonner avec PayPal",
+    "payPro": "Payer 1,49 $ US avec PayPal",
+    "aiNote": "Facturé chaque mois via PayPal. Résiliable à tout moment ; Pro et l'IA restent actifs jusqu'à la fin du mois payé.",
+    "haveKey": "Vous avez déjà une clé ?",
+    "enterIt": "Saisissez-la",
+    "keyTitle": "Saisissez votre clé de licence",
+    "keyText": "Collez la clé reçue dans l'e-mail d'achat. Les clés Pro et Pro + AI fonctionnent toutes les deux ici."
   }
 }

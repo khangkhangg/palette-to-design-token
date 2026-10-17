@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { exportAll, exportFile, type Part } from '../../src/export';
 import type { Settings } from '../../src/store';
 import { Header } from '../../src/ui/components/Header';
-import { UnlockSheet } from '../../src/ui/components/UnlockSheet';
+import { PlanSheet } from '../../src/ui/components/PlanSheet';
 import { ExportScreen } from '../../src/ui/sidepanel/ExportScreen';
 import { brewline } from './export/brewline.tokens';
 
@@ -148,13 +148,13 @@ describe('ExportScreen', () => {
   });
 });
 
-describe('UnlockSheet', () => {
+describe('PlanSheet', () => {
   it('overlay has dialog semantics, moves focus in, closes on Escape and returns focus', async () => {
     const trigger = document.createElement('button');
     document.body.append(trigger);
     trigger.focus();
     const onClose = vi.fn();
-    const { unmount } = render(<UnlockSheet variant="overlay" onClose={onClose} />);
+    const { unmount } = render(<PlanSheet variant="overlay" onClose={onClose} />);
     const dialog = screen.getByRole('dialog');
     expect(dialog.getAttribute('aria-modal')).toBe('true');
     expect(dialog.getAttribute('aria-labelledby')).toBeTruthy();
@@ -168,33 +168,34 @@ describe('UnlockSheet', () => {
 
   it('overlay close button and backdrop click close it', () => {
     const onClose = vi.fn();
-    render(<UnlockSheet variant="overlay" onClose={onClose} />);
+    render(<PlanSheet variant="overlay" onClose={onClose} />);
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     fireEvent.click(document.querySelector('.sheet-backdrop')!);
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 
-  it('shows price, five perks, a live PayPal button, key entry and the refund line', () => {
-    render(<UnlockSheet variant="overlay" onClose={() => {}} />);
+  it('shows both plans with prices, a live PayPal button, the refund line and key entry', () => {
+    render(<PlanSheet variant="overlay" onClose={() => {}} />);
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText('$1.49')).toBeTruthy();
-    expect(within(dialog).getByText('once · yours forever')).toBeTruthy();
-    expect(dialog.querySelectorAll('.perk').length).toBe(5);
-    const paypal = within(dialog).getByRole('button', { name: /Pay with PayPal/ }) as HTMLButtonElement;
+    expect(within(dialog).getByText('$3.99')).toBeTruthy();
+    expect(dialog.querySelectorAll('.plan-card').length).toBe(2);
+    expect(dialog.querySelectorAll('.plan-items li').length).toBe(8);
+    const paypal = within(dialog).getByRole('button', { name: /Pay \$1\.49 with PayPal/ }) as HTMLButtonElement;
     expect(paypal.disabled).toBe(false);
-    expect(within(dialog).getByText('already paid?')).toBeTruthy();
+    expect(within(dialog).getByText(
+      'All sales are final. Because Pro unlocks instantly and costs $1.49, we do not offer refunds after purchase.',
+    )).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Enter it' }));
     const key = within(dialog).getByLabelText('License key') as HTMLInputElement;
     expect(key.placeholder).toBe('SDT-XXXX-XXXX-XXXX');
     expect(key.disabled).toBe(false);
     expect(within(dialog).getByRole('button', { name: 'Activate' })).toBeTruthy();
-    expect(within(dialog).getByText(
-      'All sales are final. Because Pro unlocks instantly and costs $1.49, we do not offer refunds after purchase.',
-    )).toBeTruthy();
   });
 
   it('page variant is not a dialog and has a Back button', () => {
     const onClose = vi.fn();
-    render(<UnlockSheet variant="page" onClose={onClose} />);
+    render(<PlanSheet variant="page" onClose={onClose} />);
     expect(screen.queryByRole('dialog')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Back to design system' }));
     expect(onClose).toHaveBeenCalled();

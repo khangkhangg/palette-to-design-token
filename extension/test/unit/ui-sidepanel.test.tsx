@@ -168,10 +168,11 @@ describe('side panel App', () => {
     await waitFor(() => expect(mocks.recheckIfDue).toHaveBeenCalledTimes(1));
   });
 
-  it('renders the unlock sheet full-panel for view=unlock, and Back returns to the system view', async () => {
+  it('renders the plan chooser full-panel for view=unlock, on Pro, and Back returns to the system view', async () => {
     mocks.listScans.mockResolvedValue([brewline()]);
     render(<App initialView="unlock" />);
-    expect(await screen.findByText('Take the design system with you')).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Choose your plan' })).toBeTruthy();
+    expect((screen.getByRole('radio', { name: /^Pro\s*\$1\.49/ }) as HTMLInputElement).checked).toBe(true);
     expect(screen.queryByRole('dialog')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Back to design system' }));
     expect((await screen.findAllByText('#1F5E4B')).length).toBeGreaterThan(0);
@@ -181,15 +182,35 @@ describe('side panel App', () => {
     mocks.listScans.mockResolvedValue([brewline()]);
     mocks.activate.mockResolvedValue({ ok: true });
     render(<App initialView="unlock" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Enter it' }));
     fireEvent.input(await screen.findByLabelText('License key'), { target: { value: 'SDT-ABCD-2345-6789' } });
     fireEvent.click(screen.getByRole('button', { name: 'Activate' }));
     expect(await screen.findByText('Pro unlocked')).toBeTruthy();
     expect(await screen.findByRole('heading', { name: 'Export tokens' }, { timeout: 3000 })).toBeTruthy();
   });
 
-  it('parses ?view= for export and unlock', () => {
+  it('ends the system view with the AI insights section, above the export footer', async () => {
+    mocks.listScans.mockResolvedValue([brewline()]);
+    render(<App />);
+    const heading = await screen.findByRole('heading', { name: 'AI insights' });
+    const body = document.querySelector('.sp-body')!;
+    expect(body.lastElementChild!.contains(heading)).toBe(true);
+    expect(screen.getByRole('button', { name: 'See Pro + AI' })).toBeTruthy();
+  });
+
+  it('view=key opens straight on the license key form', async () => {
+    mocks.listScans.mockResolvedValue([brewline()]);
+    render(<App initialView="key" />);
+    expect(await screen.findByRole('heading', { name: 'Enter your license key' })).toBeTruthy();
+    expect(screen.getByLabelText('License key')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to design system' }));
+    expect((await screen.findAllByText('#1F5E4B')).length).toBeGreaterThan(0);
+  });
+
+  it('parses ?view= for export, unlock and key', () => {
     expect(viewFromSearch('?view=export')).toBe('export');
     expect(viewFromSearch('?view=unlock')).toBe('unlock');
+    expect(viewFromSearch('?view=key')).toBe('key');
     expect(viewFromSearch('?view=nope')).toBe('system');
     expect(viewFromSearch('')).toBe('system');
   });
@@ -351,13 +372,13 @@ describe('popup opens the side panel', () => {
     err.mockRestore();
   });
 
-  it('Enter license key in the settings menu opens the unlock view inside the click', async () => {
+  it('Enter license key in the settings menu opens the key view inside the click', async () => {
     render(<PopupApp />);
     fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
     await clickWhenReady('Enter license key');
     expect(tabsQuery).not.toHaveBeenCalled();
     expect(sidePanel.open).toHaveBeenCalledWith({ tabId: 7 });
-    expect(sidePanel.setOptions).toHaveBeenCalledWith({ tabId: 7, path: 'sidepanel.html?view=unlock', enabled: true });
+    expect(sidePanel.setOptions).toHaveBeenCalledWith({ tabId: 7, path: 'sidepanel.html?view=key', enabled: true });
   });
 
   it('Enter license key says so when the panel fails to open', async () => {

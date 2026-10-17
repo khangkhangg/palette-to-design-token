@@ -265,6 +265,12 @@ export function currentAiLicense(): Promise<AiLicense | null> {
   return readAiLicense();
 }
 
+/** Keeps the usage an analyse answer reported on the stored Pro + AI licence, so aiState() shows it. */
+export async function storeAiUsage(usage: AiUsage): Promise<void> {
+  const lic = await readAiLicense();
+  if (lic) await chrome.storage.local.set({ [AI_KEY]: { ...lic, usage } satisfies AiLicense });
+}
+
 /** "Remove key from this browser": forget one licence and recompute Pro. The key itself stays valid. */
 export async function removeLicense(plan: 'pro' | 'ai' = 'pro'): Promise<void> {
   await chrome.storage.local.remove(plan === 'ai' ? AI_KEY : LICENSE_KEY);

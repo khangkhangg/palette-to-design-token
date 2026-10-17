@@ -1,4 +1,5 @@
-export type PanelView = 'system' | 'export' | 'unlock';
+/** `unlock` is the plan chooser; `key` opens straight on the license key form. */
+export type PanelView = 'system' | 'export' | 'unlock' | 'key';
 
 export async function activeTabId(): Promise<number | null> {
   try {
@@ -22,5 +23,5 @@ export async function openSidePanel(tabId: number, view: PanelView): Promise<voi
 
 export function viewFromSearch(search: string): PanelView {
   const view = new URLSearchParams(search).get('view');
-  return view === 'export' || view === 'unlock' ? view : 'system';
+  return view === 'export' || view === 'unlock' || view === 'key' ? view : 'system';
 }
