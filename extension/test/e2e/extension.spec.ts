@@ -392,13 +392,16 @@ test.describe('AI insights', () => {
 
       await expect(panel.getByText('Deep tone: grounded, trustworthy')).toBeVisible();
       await expect(panel.locator('.ai-fit')).toContainText('Strong fit for Specialty coffee');
+      // Only web-found sites are links; the model-only suggestion is plain text (ruling A13).
+      await expect(panel.locator('.ai-site')).toHaveCount(3);
       const links = panel.locator('a.ai-site');
-      await expect(links).toHaveCount(3);
+      await expect(links).toHaveCount(2);
       for (const a of await links.all()) {
         await expect(a).toHaveAttribute('target', '_blank');
         await expect(a).toHaveAttribute('rel', 'noopener noreferrer');
       }
-      await expect(links.nth(2).locator('.ai-badge')).toHaveText('AI');
+      await expect(panel.locator('.ai-site').nth(2).locator('.ai-badge')).toHaveText('AI · check it');
+      await expect(panel.locator('.ai-site').nth(2)).not.toHaveAttribute('href', /.*/);
       await expect(panel.locator('.ai-footer').first()).toContainText('used 38 of 100');
       expect(await aiOverflow(panel)).toEqual([]);
       await panel.locator('.ai-results').screenshot({ path: test.info().outputPath('ai-results.png') });
