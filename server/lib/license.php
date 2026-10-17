@@ -57,7 +57,7 @@ function palette_verify(mysqli $c, string $rawKey, string $ip): array
     $none = ['valid' => false, 'revoked' => false, 'email_masked' => null];
     $key = palette_normalise_key($rawKey);
     if ($key === null) return $none;
-    $st = $c->prepare('SELECT id, email, revoked_at, plan, paid_through FROM palette_licenses WHERE license_key = ?');
+    $st = $c->prepare('SELECT id, email, revoked_at, plan, paid_through, period_start, created_at FROM palette_licenses WHERE license_key = ?');
     $st->bind_param('s', $key);
     $st->execute();
     $row = $st->get_result()->fetch_assoc();
@@ -75,6 +75,8 @@ function palette_verify(mysqli $c, string $rawKey, string $ip): array
         $out['plan'] = 'ai';
         $out['ai_active'] = $acc['ai'];
         $out['paid_through'] = $row['paid_through'] === null ? null : date('c', strtotime($row['paid_through']));
+        $u = palette_usage_get($c, $row, palette_settings($c));
+        $out['usage'] = ['used' => $u['used'], 'limit' => $u['limit'], 'resets_on' => $u['resets_on']];
     }
     return $out;
 }
