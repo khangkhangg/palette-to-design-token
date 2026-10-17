@@ -524,7 +524,7 @@ ok('privacy en: AI insights only on Analyse, with the address minus its query st
     && str_contains(palette_t('en', 'priv_ai'), 'without anything after the ?') && str_contains(palette_t('en', 'priv_ai'), 'title') && str_contains(palette_t('en', 'priv_ai'), 'description')
     && str_contains(palette_t('en', 'priv_ai'), 'summary of the design') && str_contains($pen, h(palette_t('en', 'priv_ai'))));
 ok('privacy en: scrubbing, Brave Search, DeepSeek, 7-day shared cache, aggregate list, PayPal and what we keep',
-    str_contains(palette_t('en', 'priv_ai'), 'email addresses, web addresses, @handles and long digit runs such as phone numbers') && str_contains(palette_t('en', 'priv_ai'), 'other words in the title are sent as they are') && !str_contains(palette_t('en', 'priv_ai'), 'personal details') && str_contains(palette_t('en', 'priv_ai'), 'Brave Search')
+    str_contains(palette_t('en', 'priv_ai'), 'email addresses, links (anything starting with http, https or www, or containing a path), @handles and long digit runs such as phone numbers') && str_contains(palette_t('en', 'priv_ai'), 'other words in the title are sent as they are') && !str_contains(palette_t('en', 'priv_ai'), 'personal details') && str_contains(palette_t('en', 'priv_ai'), 'Brave Search')
     && str_contains(palette_t('en', 'priv_ai'), 'DeepSeek, an AI provider') && str_contains(palette_t('en', 'priv_ai'), 'cached for 7 days')
     && str_contains(palette_t('en', 'priv_ai'), 'other people who analyse the same site') && str_contains(palette_t('en', 'priv_ai'), 'without any user identifiers')
     && str_contains(palette_t('en', 'priv_ai'), 'billed monthly by PayPal') && str_contains(palette_t('en', 'priv_ai'), 'email, subscription id and payment dates'));
@@ -650,9 +650,17 @@ foreach (LANGS as $l) {
 $scrubSample = palette_scrub_text('Jane Smith, 12 Oak St - dentist jane@x.com @jane https://x.com/a 0912345678', 200);
 ok('the scrubber leaves other words of a title alone (what the policy now says)', str_contains($scrubSample, 'Jane Smith, 12 Oak St') && !str_contains($scrubSample, '@') && !str_contains($scrubSample, '0912345678') && !str_contains($scrubSample, 'x.com'));
 $listingEn = (string)file_get_contents(PALETTE_DIR . '/../docs/store/listing.en.md');
-ok('en listing and disclosure use the narrow wording', substr_count($listingEn, 'web addresses, @handles and long digit runs such as phone numbers') === 2 && !str_contains($listingEn, 'Personal details such as'));
+ok('en listing and disclosure use the narrow wording', substr_count($listingEn, 'links (anything starting with http, https or www, or containing a path), @handles and long digit runs such as phone numbers') === 2 && !str_contains($listingEn, 'web addresses') && !str_contains($listingEn, 'personally identifiable information') && !str_contains($listingEn, 'Personal details such as'));
 cfg($conn, ['ai_paypal_plan_id' => '']);
 preg_match('#id="faq".*?</section>#s', landing(['lang' => 'en']), $fq);
 ok('FAQ: what Pro + AI is says Coming soon while AI is off', str_contains($fq[0], h(palette_t('en', 'co_plan_soon')) . '. ' . h(palette_t('en', 'lp_faq_ai_a', ['price' => '$3.99', 'n' => 100]))));
 cfg($conn, ['ai_paypal_plan_id' => 'P-TESTPLAN1']);
 ok('FAQ: no Coming soon prefix while AI is on', !str_contains(landing(['lang' => 'en']), h(palette_t('en', 'co_plan_soon')) . '. ' . h(palette_t('en', 'lp_faq_ai_a'))));
+
+// ---- Task 11 fix 2: the copy says "links", the scrubber leaves bare domains alone
+ok('the scrubber leaves a bare domain in a title (so the copy must not promise to remove web addresses)', palette_scrub_text('Shop example.com - dentist', 200) === 'Shop example.com - dentist');
+ok('the scrubber removes http, https and www links and host/path forms', palette_scrub_text('A https://x.com B www.y.com C z.com/a D', 200) === 'A B C D');
+$webAddr = [];
+foreach (LANGS as $l) if (str_contains(palette_t($l, 'priv_ai'), 'web addresses') || str_contains(palette_t($l, 'priv_ai'), 'http')  === false) $webAddr[] = $l;
+ok('priv_ai: no "web addresses" in en and every language names http/https/www links: ' . implode(',', $webAddr), $webAddr === []);
+ok('en privacy page no longer says "web addresses"', !str_contains(palette_render_privacy(['query' => ['lang' => 'en'], 'accept_language' => '']), 'web addresses'));
