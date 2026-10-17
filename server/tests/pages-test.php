@@ -650,7 +650,8 @@ foreach (LANGS as $l) {
 $scrubSample = palette_scrub_text('Jane Smith, 12 Oak St - dentist jane@x.com @jane https://x.com/a 0912345678', 200);
 ok('the scrubber leaves other words of a title alone (what the policy now says)', str_contains($scrubSample, 'Jane Smith, 12 Oak St') && !str_contains($scrubSample, '@') && !str_contains($scrubSample, '0912345678') && !str_contains($scrubSample, 'x.com'));
 $listingEn = (string)file_get_contents(PALETTE_DIR . '/../docs/store/listing.en.md');
-ok('en listing and disclosure use the narrow wording', substr_count($listingEn, 'links (anything starting with http, https or www, or containing a path), @handles and long digit runs such as phone numbers') === 2 && !str_contains($listingEn, 'web addresses') && !str_contains($listingEn, 'personally identifiable information') && !str_contains($listingEn, 'Personal details such as'));
+ok('en listing and disclosure use the narrow wording', substr_count($listingEn, 'links (anything starting with http, https or www, or containing a path), @handles and long digit runs such as phone numbers') === 2 && !str_contains($listingEn, 'web addresses') && !str_contains($listingEn, 'personally identifiable information') && !str_contains($listingEn, 'account details')
+    && preg_match('/^- Personal communications\/contact: the buyer\'s email address, only when buying Pro or Pro \+ AI on vietnamcos\.com, used to deliver and resend licence keys and for billing \(sent via Resend; payment via PayPal\)\./m', $listingEn) === 1 && !str_contains($listingEn, 'Personal details such as'));
 cfg($conn, ['ai_paypal_plan_id' => '']);
 preg_match('#id="faq".*?</section>#s', landing(['lang' => 'en']), $fq);
 ok('FAQ: what Pro + AI is says Coming soon while AI is off', str_contains($fq[0], h(palette_t('en', 'co_plan_soon')) . '. ' . h(palette_t('en', 'lp_faq_ai_a', ['price' => '$3.99', 'n' => 100]))));
@@ -661,6 +662,6 @@ ok('FAQ: no Coming soon prefix while AI is on', !str_contains(landing(['lang' =>
 ok('the scrubber leaves a bare domain in a title (so the copy must not promise to remove web addresses)', palette_scrub_text('Shop example.com - dentist', 200) === 'Shop example.com - dentist');
 ok('the scrubber removes http, https and www links and host/path forms', palette_scrub_text('A https://x.com B www.y.com C z.com/a D', 200) === 'A B C D');
 $webAddr = [];
-foreach (LANGS as $l) if (str_contains(palette_t($l, 'priv_ai'), 'web addresses') || str_contains(palette_t($l, 'priv_ai'), 'http')  === false) $webAddr[] = $l;
+foreach (LANGS as $l) if (str_contains(palette_t($l, 'priv_ai'), 'web addresses') || !str_contains(palette_t($l, 'priv_ai'), 'http') || !str_contains(palette_t($l, 'priv_ai'), 'www')) $webAddr[] = $l;
 ok('priv_ai: no "web addresses" in en and every language names http/https/www links: ' . implode(',', $webAddr), $webAddr === []);
 ok('en privacy page no longer says "web addresses"', !str_contains(palette_render_privacy(['query' => ['lang' => 'en'], 'accept_language' => '']), 'web addresses'));

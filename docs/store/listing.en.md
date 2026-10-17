@@ -75,10 +75,11 @@ For the Privacy practices tab. Declare these data types as collected. The first 
 - Website content: the page title and description, and a summary of the design (colours, fonts, sizes, spacing). Used to write the AI analysis. On our server, before anything else happens, email addresses, links (anything starting with http, https or www, or containing a path), @handles and long digit runs such as phone numbers are removed from the title and description. Other words in the title are sent as they are.
 - Web history: the address of the analysed page, without its query string. Used to look up similar and competitor sites and to cache the result for 7 days. It is user-initiated: nothing is sent unless the user presses Analyse.
 - Authentication information: the licence key, to check that Pro or Pro + AI is active.
+- Personal communications/contact: the buyer's email address, only when buying Pro or Pro + AI on vietnamcos.com, used to deliver and resend licence keys and for billing (sent via Resend; payment via PayPal).
 
 Third parties that process the analysis request on our behalf: Brave Search (web search) and DeepSeek (AI provider).
 
-Not collected: account details, passwords, form contents, browsing history (only the address of the page the user analyses is sent, see Web history), or page content beyond what the user sends with Analyse (the title and description may contain whatever the site put there). Also not collected: health, financial or payment information (PayPal handles payments on the website), location, or user activity such as clicks and keystrokes.
+Not collected: passwords, form contents, browsing history (only the address of the page the user analyses is sent, see Web history), or page content beyond what the user sends with Analyse (the title and description may contain whatever the site put there). Also not collected: health, financial or payment information (PayPal handles payments on the website), location, or user activity such as clicks and keystrokes.
 
 Certifications to tick: the data is not sold to third parties outside the approved use cases; it is not used or transferred for purposes unrelated to the item's single purpose; it is not used or transferred to determine creditworthiness or for lending.
 
