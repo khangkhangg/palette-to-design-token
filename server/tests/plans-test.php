@@ -84,6 +84,10 @@ $conn->query("UPDATE palette_licenses SET plan='ai', sub_status='active', paid_t
 $v = palette_verify($conn, $ai['key'], '10.1.0.1');
 ok('ai verify: plan, ai_active, paid_through ISO', $v['valid'] === true && $v['plan'] === 'ai' && $v['ai_active'] === true
     && $v['paid_through'] === date('c', strtotime($pt)) && $v['email_masked'] === 'a***@studio.vn');
+ok('ai verify: sub_status active', $v['sub_status'] === 'active');
+$conn->query("UPDATE palette_licenses SET sub_status='cancelled' WHERE id={$ai['id']}");
+ok('ai verify: sub_status cancelled', palette_verify($conn, $ai['key'], '10.1.0.1')['sub_status'] === 'cancelled');
+$conn->query("UPDATE palette_licenses SET sub_status='active' WHERE id={$ai['id']}");
 $conn->query("UPDATE palette_licenses SET paid_through='" . $fmt($now - $day) . "' WHERE id={$ai['id']}");
 $v = palette_verify($conn, $ai['key'], '10.1.0.1');
 ok('lapsed ai: ai_active false, valid false for Pro', $v['plan'] === 'ai' && $v['ai_active'] === false && $v['valid'] === false && $v['revoked'] === false);

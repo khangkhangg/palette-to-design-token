@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { activate, aiState, checkoutUrl, currentAiLicense, currentLicense, lostKeyUrl, recheckIfDue, removeLicense } from '../../src/license';
 import { getSettings, setSettings } from '../../src/store';
+import type { AiLicense } from '../../src/license';
 import { installFakeChrome, uninstallFakeChrome } from './fake-chrome';
 
 const KEY = 'SDT-ABCD-2345-6789';
@@ -208,16 +209,17 @@ describe('Pro + AI licences', () => {
     usage: { used: 1, limit: 100, resetsOn: '2026-11-01' }, lastCheck: 'ok', ...over,
   });
 
+  const aiRec = () => data.licenseAi as AiLicense;
   beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(now); });
 
   it('activating an ai key stores licenseAi, keeps an existing pro licence and turns Pro on', async () => {
     data.license = lic('2026-10-01T00:00:00.000Z');
     fetchMock.mockReturnValue(aiOk(iso(20 * DAY)));
     expect(await activate(AI_KEY)).toEqual({ ok: true });
-    expect((data.licenseAi as any).key).toBe(AI_KEY);
-    expect((data.licenseAi as any).plan).toBe('ai');
-    expect((data.licenseAi as any).paidThrough).toBe(iso(20 * DAY));
-    expect((data.licenseAi as any).usage).toEqual({ used: 4, limit: 100, resetsOn: '2026-11-01' });
+    expect(aiRec().key).toBe(AI_KEY);
+    expect(aiRec().plan).toBe('ai');
+    expect(aiRec().paidThrough).toBe(iso(20 * DAY));
+    expect(aiRec().usage).toEqual({ used: 4, limit: 100, resetsOn: '2026-11-01' });
     expect(data.license).toEqual(lic('2026-10-01T00:00:00.000Z'));
     expect((await getSettings()).pro).toBe(true);
     expect(await aiState()).toEqual({ active: true, paidThrough: iso(20 * DAY), usage: { used: 4, limit: 100, resetsOn: '2026-11-01' } });
@@ -280,7 +282,7 @@ describe('Pro + AI licences', () => {
       data.licenseAi = aiLic({ verifiedAt: iso(-2 * DAY), lastCheck: 'network' });
       fetchMock.mockReturnValue(aiOk(iso(30 * DAY)));
       await recheckIfDue(now);
-      const l = data.licenseAi as any;
+      const l = aiRec();
       expect(l.paidThrough).toBe(iso(30 * DAY));
       expect(l.verifiedAt).toBe(now.toISOString());
       expect(l.usage).toEqual({ used: 4, limit: 100, resetsOn: '2026-11-01' });
@@ -291,8 +293,8 @@ describe('Pro + AI licences', () => {
       await setSettings({ pro: true });
       fetchMock.mockReturnValue(lapsed());
       await recheckIfDue(now);
-      expect((data.licenseAi as any).key).toBe(AI_KEY);
-      expect((data.licenseAi as any).paidThrough).toBe(iso(-DAY));
+      expect(aiRec().key).toBe(AI_KEY);
+      expect(aiRec().paidThrough).toBe(iso(-DAY));
       expect((await aiState()).active).toBe(false);
       expect((await getSettings()).pro).toBe(false);
     });
@@ -361,5 +363,67 @@ describe('Pro + AI licences', () => {
   it('checkoutUrl takes an optional plan', () => {
     expect(checkoutUrl('fr', 'ai')).toBe('https://vietnamcos.com/palette/checkout?lang=fr&ext=abcdefghijklmnopabcdefghijklmnop&plan=ai');
     expect(checkoutUrl('fr', 'pro')).toBe('https://vietnamcos.com/palette/checkout?lang=fr&ext=abcdefghijklmnopabcdefghijklmnop&plan=pro');
+  });
+
+  describe('boundary and renewal lag', () => {
+    it('clock skew: paidThrough 5 s ago with a fresh verifiedAt is still active, and a recheck runs', async () => {
+      data.licenseAi = aiLic({ verifiedAt: iso(-60_000), paidThrough: iso(-5_000) });
+      await setSettings({ pro: true });
+      expect((await aiState()).active).toBe(true);
+      fetchMock.mockReturnValue(aiOk(iso(30 * DAY)));
+      await recheckIfDue(now);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(aiRec().paidThrough).toBe(iso(30 * DAY));
+      expect((await getSettings()).pro).toBe(true);
+    });
+    it('the ok grace is one hour', async () => {
+      data.licenseAi = aiLic({ paidThrough: iso(-30 * 60_000) });
+      expect((await aiState()).active).toBe(true);
+      data.licenseAi = aiLic({ paidThrough: iso(-2 * 3600_000) });
+      expect((await aiState()).active).toBe(false);
+    });
+    it('throttles the past-paidThrough recheck to once per 30 minutes', async () => {
+      data.licenseAi = aiLic({ verifiedAt: iso(-60_000), paidThrough: iso(-5_000) });
+      fetchMock.mockRejectedValue(new TypeError('offline'));
+      await recheckIfDue(now);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(aiRec().lastCheck).toBe('network');
+      await recheckIfDue(new Date(now.getTime() + 10 * 60_000));
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      await recheckIfDue(new Date(now.getTime() + 31 * 60_000));
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+    it('an ended record is retried within 3 days of paidThrough and returns to ok when renewed', async () => {
+      data.licenseAi = aiLic({ verifiedAt: iso(-3600_000), paidThrough: iso(-DAY), lastCheck: 'ended', lastAttemptAt: iso(-3600_000) });
+      fetchMock.mockReturnValue(aiOk(iso(30 * DAY)));
+      await recheckIfDue(now);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(aiRec().lastCheck).toBe('ok');
+      expect((await aiState()).active).toBe(true);
+      expect((await getSettings()).pro).toBe(true);
+    });
+    it('an ended record is not retried once paidThrough is more than 3 days old', async () => {
+      data.licenseAi = aiLic({ verifiedAt: iso(-3600_000), paidThrough: iso(-4 * DAY), lastCheck: 'ended', lastAttemptAt: iso(-3600_000) });
+      await recheckIfDue(now);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+    it('an ended record that is then revoked is removed', async () => {
+      data.licenseAi = aiLic({ verifiedAt: iso(-3600_000), paidThrough: iso(-DAY), lastCheck: 'ended', lastAttemptAt: iso(-3600_000) });
+      await setSettings({ pro: false });
+      fetchMock.mockReturnValue(reply(200, { ok: true, valid: false, revoked: true, plan: 'ai' }));
+      await recheckIfDue(now);
+      expect(data.licenseAi).toBeUndefined();
+    });
+    it('keeps the previous subStatus when the server omits it', async () => {
+      data.licenseAi = aiLic({ verifiedAt: iso(-2 * DAY), subStatus: 'cancelled' });
+      fetchMock.mockReturnValue(aiOk(iso(30 * DAY)));
+      await recheckIfDue(now);
+      expect(aiRec().subStatus).toBe('cancelled');
+    });
+    it('leaves Settings.pro alone when no licence is stored (dev toggle, seeded state)', async () => {
+      await setSettings({ pro: true });
+      await recheckIfDue(now);
+      expect((await getSettings()).pro).toBe(true);
+    });
   });
 });
