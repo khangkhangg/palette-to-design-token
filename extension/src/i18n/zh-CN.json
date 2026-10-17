@@ -254,6 +254,7 @@
     "renew": "续订 Pro + AI",
     "left": "剩余 {left} / {limit} 次分析",
     "resets": "{date} 重置",
+    "ends": "{date} 结束",
     "leftShort_other": "剩余 {n} 次分析",
     "sentTitle": "会发送哪些内容",
     "sentBody": "此页面的地址、标题和描述，以及上方的设计摘要（颜色、字体、间距、对比度）。不含你输入的任何内容，也不含其他标签页。数据会发送到 vietnamcos.com、一个网络搜索服务和我们的 AI 服务商（DeepSeek）。",

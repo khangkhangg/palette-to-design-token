@@ -260,6 +260,7 @@
     "renew": "Renovar Pro + AI",
     "left": "Quedan {left} de {limit} análisis",
     "resets": "se renueva el {date}",
+    "ends": "termina el {date}",
     "leftShort_one": "queda {n} análisis",
     "leftShort_many": "quedan {n} de análisis",
     "leftShort_other": "quedan {n} análisis",

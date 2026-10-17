@@ -269,6 +269,7 @@
     "renew": "جدّد Pro + AI",
     "left": "متبقٍّ {left} من {limit} تحليل",
     "resets": "يُعاد الضبط في {date}",
+    "ends": "ينتهي في {date}",
     "leftShort_zero": "لم يتبقَّ أي تحليل",
     "leftShort_one": "متبقٍّ تحليل واحد",
     "leftShort_two": "متبقٍّ تحليلان",

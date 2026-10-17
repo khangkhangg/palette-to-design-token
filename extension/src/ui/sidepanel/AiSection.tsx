@@ -44,7 +44,8 @@ type Plan =
   | { kind: 'loading' }
   | { kind: 'locked' }
   | { kind: 'ended'; endedOn: string | null }
-  | { kind: 'active'; usage: AiUsage | null };
+  /** cancelled: the subscription will not renew, so its date is when the plan ends, not when usage resets. */
+  | { kind: 'active'; usage: AiUsage | null; cancelled: boolean };
 
 async function readNoteHidden(): Promise<boolean> {
   try {
@@ -58,7 +59,7 @@ async function loadPlan(): Promise<Plan> {
   const [lic, state] = await Promise.all([currentAiLicense(), aiState()]);
   if (!lic) return { kind: 'locked' };
   if (!state.active) return { kind: 'ended', endedOn: lic.paidThrough };
-  return { kind: 'active', usage: state.usage };
+  return { kind: 'active', usage: state.usage, cancelled: lic.subStatus === 'cancelled' };
 }
 
 /** Fills {name} in a translated string with markup, keeping the translation's word order. */
@@ -91,7 +92,7 @@ function Head({ sub, children }: { sub: ComponentChildren; children?: ComponentC
   );
 }
 
-function UsageBar({ usage }: { usage: AiUsage }) {
+function UsageBar({ usage, cancelled }: { usage: AiUsage; cancelled: boolean }) {
   const left = Math.max(0, usage.limit - usage.used);
   const pct = usage.limit > 0 ? Math.round((left / usage.limit) * 100) : 0;
   return (
@@ -99,7 +100,7 @@ function UsageBar({ usage }: { usage: AiUsage }) {
       <div class="ai-usage-text">
         <span class="ai-usage-left">{ltr('ai.left', { left, limit: usage.limit })}</span>
         {formatDate(usage.resetsOn, false) && (
-          <span class="ai-usage-reset">{ltr('ai.resets', { date: formatDate(usage.resetsOn, false) })}</span>
+          <span class="ai-usage-reset">{ltr(cancelled ? 'ai.ends' : 'ai.resets', { date: formatDate(usage.resetsOn, false) })}</span>
         )}
       </div>
       <div class="ai-bar" aria-hidden="true"><div class="ai-bar-fill" style={{ inlineSize: `${pct}%` }} /></div>
@@ -383,7 +384,7 @@ export function AiSection({ tokens }: AiSectionProps) {
     setAnnounce('');
     if (r.ok) {
       setEntry({ result: r.result, usage: r.usage, analysedAt: new Date().toISOString(), lang: renderedLang(), cached: r.cached });
-      showPlan({ kind: 'active', usage: r.usage });
+      showPlan({ kind: 'active', usage: r.usage, cancelled: plan.kind === 'active' && plan.cancelled });
       setAnnounce(t('ai.resultsReady'));
       setFocus('results');
       return;
@@ -464,7 +465,7 @@ export function AiSection({ tokens }: AiSectionProps) {
   return (
     <section class="ai-card" aria-labelledby="ai-title">
       <Head sub={t('ai.readySub')} />
-      {usage && <UsageBar usage={usage} />}
+      {usage && <UsageBar usage={usage} cancelled={plan.cancelled} />}
       {!noteHidden && (
         <>
           <div class="ai-sent">

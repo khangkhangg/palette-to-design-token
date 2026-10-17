@@ -257,6 +257,7 @@
     "renew": "Renew Pro + AI",
     "left": "{left} of {limit} analyses left",
     "resets": "resets {date}",
+    "ends": "ends {date}",
     "leftShort_one": "{n} analysis left",
     "leftShort_other": "{n} analyses left",
     "sentTitle": "What gets sent",

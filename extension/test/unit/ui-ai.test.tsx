@@ -120,6 +120,14 @@ describe('AI section: ready (H)', () => {
     expect(screen.getByText('Uses 1 analysis. Takes about 15 seconds.')).toBeTruthy();
   });
 
+  it('a cancelled subscription says the plan ends on the date, not that usage resets', async () => {
+    data.licenseAi = aiLicense({ subStatus: 'cancelled' });
+    render(<AiSection tokens={brewline()} />);
+    await ready();
+    expect(screen.getByText(text(`ends ${formatDate('2026-11-01', false)}`))).toBeTruthy();
+    expect(screen.queryByText(text(/^resets /))).toBeNull();
+  });
+
   it('"Don\'t show this note again" is stored and respected next time', async () => {
     const { unmount } = render(<AiSection tokens={brewline()} />);
     await ready();
