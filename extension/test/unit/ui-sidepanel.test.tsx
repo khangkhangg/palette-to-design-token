@@ -138,15 +138,12 @@ describe('side panel App', () => {
     expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual(['Colours']);
   });
 
-  it('shows View only for free users, not for pro', async () => {
+  it('shows no View only badge: free users can copy every export', async () => {
     mocks.listScans.mockResolvedValue([brewline()]);
-    const { unmount } = render(<App />);
-    expect(await screen.findByText('View only')).toBeTruthy();
-    unmount();
-    mocks.settings = { ...mocks.settings, pro: true };
     render(<App />);
-    await screen.findAllByText('#1F5E4B');
+    expect(await screen.findByRole('button', { name: 'Have a key?' })).toBeTruthy();
     expect(screen.queryByText('View only')).toBeNull();
+    expect(document.querySelector('.sp-badge')).toBeNull();
   });
 
   it('switches to the export view from the footer and honours initialView', async () => {
@@ -283,7 +280,7 @@ describe('side panel App', () => {
     act(() => mocks.listeners.forEach((l) => l({ ...mocks.settings, theme: 'dark' })));
     expect(document.documentElement.dataset.theme).toBe('dark');
     act(() => mocks.listeners.forEach((l) => l({ ...mocks.settings, theme: 'dark', pro: true })));
-    await waitFor(() => expect(screen.queryByText('View only')).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Have a key?' })).toBeNull());
   });
 
   it('offers Have a key? in the header to free users on the system and export views, opening the unlock view', async () => {

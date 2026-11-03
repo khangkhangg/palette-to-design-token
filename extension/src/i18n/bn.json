@@ -60,7 +60,7 @@
   },
   "popup": {
     "scanning": "পেজ স্ক্যান হচ্ছে…",
-    "copyHexList": "হেক্স তালিকা কপি করুন",
+    "copyDesignSystem": "ডিজাইন সিস্টেম কপি করুন",
     "exportTokens": "টোকেন এক্সপোর্ট করুন",
     "pro": "PRO",
     "restrictedTitle": "এই পেজ স্ক্যান করা যাবে না",
@@ -150,7 +150,6 @@
   "panel": {
     "title": "ডিজাইন সিস্টেম",
     "scanned": "{site} · স্ক্যান করা হয়েছে {when}",
-    "viewOnly": "শুধু দেখার জন্য",
     "colours": "রং",
     "colourRoles": "রঙের ভূমিকা",
     "typography": "টাইপোগ্রাফি",
@@ -338,7 +337,7 @@
       "price": "$1.49",
       "per": "একবারই",
       "items": {
-        "exports": "সব এক্সপোর্ট ও DESIGN.md",
+        "exports": "সব এক্সপোর্ট ডাউনলোড, DESIGN.md ও .zip সহ",
         "contrast": "কনট্রাস্ট সংশোধন",
         "scans": "সীমাহীন সংরক্ষিত সাইট"
       }

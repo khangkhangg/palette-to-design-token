@@ -58,7 +58,7 @@
   },
   "popup": {
     "scanning": "正在扫描页面…",
-    "copyHexList": "复制色值列表",
+    "copyDesignSystem": "复制设计系统",
     "exportTokens": "导出 Token",
     "pro": "PRO",
     "restrictedTitle": "无法扫描此页面",
@@ -147,7 +147,6 @@
   "panel": {
     "title": "设计系统",
     "scanned": "{site} · 扫描于 {when}",
-    "viewOnly": "仅查看",
     "colours": "颜色",
     "colourRoles": "颜色角色",
     "typography": "排版",
@@ -334,7 +333,7 @@
       "price": "1.49 美元",
       "per": "一次性",
       "items": {
-        "exports": "全部导出格式和 DESIGN.md",
+        "exports": "下载所有导出文件，包括 DESIGN.md 和 .zip",
         "contrast": "对比度修正",
         "scans": "无限保存网站"
       }

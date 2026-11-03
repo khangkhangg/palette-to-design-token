@@ -125,26 +125,49 @@ describe('ExportScreen', () => {
     expect(mime).toBe('application/zip');
   });
 
-  it('free users: Copy, Download and the zip open the unlock sheet and do nothing else', () => {
+  it('free users: Copy is free and writes the preview to the clipboard, with no plan sheet', async () => {
     render(<ExportScreen tokens={brewline} pro={false} onBack={() => {}} />);
-    expect(preview()).toBe(exportFile(brewline, 'md', { parts: ALL_PARTS }).text);
-    expect(screen.queryByRole('dialog')).toBeNull();
+    for (const name of ['DESIGN.md', 'CSS', 'Tailwind', 'Figma', 'JSON']) {
+      pick(name);
+      writeText.mockClear();
+      fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(writeText).toHaveBeenCalledWith(preview());
+    }
+    expect(await screen.findByText('Copied')).toBeTruthy();
+    expect(mocks.download).not.toHaveBeenCalled();
+  });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
-    expect(screen.getByRole('dialog')).toBeTruthy();
+  it('free users: Download and the zip open the plan sheet on Pro and download nothing', () => {
+    render(<ExportScreen tokens={brewline} pro={false} onBack={() => {}} />);
+    const dl = screen.getByRole('button', { name: /Download DESIGN\.md/ });
+    expect(within(dl).getByText('PRO')).toBeTruthy();
+    fireEvent.click(dl);
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: 'Choose your plan' })).toBeTruthy();
+    expect((within(dialog).getByRole('radio', { name: /^Pro\s*\$1\.49/ }) as HTMLInputElement).checked).toBe(true);
     expect(writeText).not.toHaveBeenCalled();
-    expect(preview()).toBeTruthy();
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).toBeNull();
-
-    fireEvent.click(screen.getByRole('button', { name: /Download DESIGN\.md/ }));
-    expect(screen.getByRole('dialog')).toBeTruthy();
-    fireEvent.keyDown(document, { key: 'Escape' });
 
     pick('All');
+    expect((screen.getByRole('button', { name: 'Copy' }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: /Download brewline-co-tokens\.zip/ }));
     expect(screen.getByRole('dialog')).toBeTruthy();
     expect(mocks.download).not.toHaveBeenCalled();
+  });
+
+  it('pro users: Download downloads with no plan sheet and no PRO marker', async () => {
+    render(<ExportScreen tokens={brewline} pro onBack={() => {}} />);
+    const dl = screen.getByRole('button', { name: /Download DESIGN\.md/ });
+    expect(within(dl).queryByText('PRO')).toBeNull();
+    fireEvent.click(dl);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(mocks.download).toHaveBeenCalledWith('DESIGN.md', exportFile(brewline, 'md', { parts: ALL_PARTS }).text, expect.any(String));
+    pick('All');
+    fireEvent.click(screen.getByRole('button', { name: /Download brewline-co-tokens\.zip/ }));
+    await waitFor(() => expect(mocks.download).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
 
@@ -181,6 +204,7 @@ describe('PlanSheet', () => {
     expect(within(dialog).getByText('$3.99')).toBeTruthy();
     expect(dialog.querySelectorAll('.plan-card').length).toBe(2);
     expect(dialog.querySelectorAll('.plan-items li').length).toBe(8);
+    expect(within(dialog).getByText('Download every export, including DESIGN.md and the .zip')).toBeTruthy();
     const paypal = within(dialog).getByRole('button', { name: /Pay \$1\.49 with PayPal/ }) as HTMLButtonElement;
     expect(paypal.disabled).toBe(false);
     expect(within(dialog).getByText(

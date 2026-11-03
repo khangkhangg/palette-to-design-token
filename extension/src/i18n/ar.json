@@ -68,7 +68,7 @@
   },
   "popup": {
     "scanning": "جارٍ فحص الصفحة…",
-    "copyHexList": "نسخ رموز hex",
+    "copyDesignSystem": "نسخ نظام التصميم",
     "exportTokens": "تصدير رموز التصميم",
     "pro": "PRO",
     "restrictedTitle": "لا يمكن فحص هذه الصفحة",
@@ -162,7 +162,6 @@
   "panel": {
     "title": "نظام التصميم",
     "scanned": "{site} · فُحص في {when}",
-    "viewOnly": "للعرض فقط",
     "colours": "الألوان",
     "colourRoles": "أدوار الألوان",
     "typography": "الخطوط",
@@ -354,7 +353,7 @@
       "price": "1.49 دولار",
       "per": "مرة واحدة",
       "items": {
-        "exports": "كل صيغ التصدير وDESIGN.md",
+        "exports": "تنزيل كل صيغ التصدير، ومنها DESIGN.md وملف zip",
         "contrast": "إصلاحات التباين",
         "scans": "مواقع محفوظة بلا حدود"
       }

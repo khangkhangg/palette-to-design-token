@@ -1,4 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+const VERSION: string = JSON.parse(readFileSync(resolve(import.meta.dirname, '../../public/manifest.json'), 'utf8')).version;
 
 /**
  * Checkout page against the real PHP pages and api.php under `php -S` (playwright.checkout.config.ts).
@@ -334,7 +338,7 @@ test('product page: free download link, Get Pro jumps to the buy card, install a
   const download = page.getByRole('link', { name: 'Download the extension (free)' });
   await expect(download).toHaveAttribute('href', '/palette/download/site-to-design-token-latest.zip');
   await expect(download).toHaveAttribute('download', '');
-  await expect(page.getByText('Works in Chrome, Edge and Brave. Version 0.1.0.')).toBeVisible();
+  await expect(page.getByText(`Works in Chrome, Edge and Brave. Version ${VERSION}.`)).toBeVisible();
   for (const h of ['What it does', 'Free, Pro and Pro + AI', 'Install in 1 minute', 'Already bought Pro?']) {
     await expect(page.getByRole('heading', { name: h })).toBeVisible();
   }

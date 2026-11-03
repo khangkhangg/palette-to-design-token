@@ -56,8 +56,8 @@ export function ExportScreen({ tokens, pro, onBack, onHaveKey }: ExportScreenPro
     setOn((cur) => (cur.includes(p) ? (cur.length > 1 ? cur.filter((x) => x !== p) : cur) : [...cur, p]));
 
   const onCopy = () => {
+    // Copying any single-file export is free; only downloads (and so the .zip) are Pro.
     if (!file) return;
-    if (!pro) return setSheet(true);
     void copy('export', file.text);
   };
   const onDownload = async () => {
@@ -149,7 +149,8 @@ export function ExportScreen({ tokens, pro, onBack, onHaveKey }: ExportScreenPro
         </button>
         <button type="button" class="ex-btn ex-btn-primary" onClick={() => void onDownload()}>
           <Icon name="download" />
-          <span class="ex-btn-label">{t('export.download', { file: filename })}</span>
+          <span class="ex-btn-label" title={t('export.download', { file: filename })}>{t('export.download', { file: filename })}</span>
+          {!pro && <span class="badge">{t('popup.pro')}</span>}
         </button>
       </footer>
 

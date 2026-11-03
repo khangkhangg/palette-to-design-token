@@ -6,7 +6,7 @@ afterEach(() => setLang('en'));
 
 describe('t', () => {
   it('returns the English string for a key', () => {
-    expect(t('popup.copyHexList')).toBe('Copy hex list');
+    expect(t('popup.copyDesignSystem')).toBe('Copy design system');
   });
   it('interpolates variables', () => {
     expect(t('header.counts', { colours: plural('header.colours', 14), fonts: plural('header.fonts', 3) }))
@@ -64,9 +64,9 @@ describe('setLang', () => {
 // These register a test-only 'ru' dictionary, which stays registered for the rest of this file; later tests do not use it.
 describe('partial dictionaries', () => {
   it('fall back to English for a missing key', () => {
-    addDictionary('ru', { popup: { copyHexList: 'Копировать' } });
+    addDictionary('ru', { popup: { copyDesignSystem: 'Копировать' } });
     setLang('ru');
-    expect(t('popup.copyHexList')).toBe('Копировать');
+    expect(t('popup.copyDesignSystem')).toBe('Копировать');
     expect(t('popup.retry')).toBe('Retry');
   });
   it("plural uses the language's _other when its category form is missing", () => {

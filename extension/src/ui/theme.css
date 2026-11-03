@@ -202,7 +202,7 @@ button:focus-visible, .tab:focus-visible, .panel:focus-visible, .seg-opt:has(inp
 
 /* Footer */
 .footer {
-  display: flex; gap: 8px; flex-shrink: 0;
+  display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0;
   padding: 12px 16px 16px; border-block-start: 1px solid var(--line-soft); background: var(--bg);
 }
 .btn {
@@ -214,6 +214,9 @@ button:focus-visible, .tab:focus-visible, .panel:focus-visible, .seg-opt:has(inp
 .btn:hover { border-color: var(--muted-2); }
 .btn:disabled { cursor: default; color: var(--muted); border-color: var(--line); }
 .btn-primary { flex: 1.25; border: 0; background: var(--accent); color: var(--on-accent); }
+/* Footer labels never wrap: when the two do not fit side by side (Bengali, Spanish), each takes a full row. */
+.footer .btn { flex: 1 1 auto; white-space: nowrap; }
+.footer .btn-primary { flex-grow: 1.25; }
 .btn-primary:hover { background: var(--accent-hover); }
 .badge { font-size: 10.5px; font-weight: 600; padding: 2px 6px; border-radius: 999px; background: var(--badge-bg); }
 
@@ -333,10 +336,11 @@ body.sidepanel, body.sidepanel #app { block-size: 100vh; }
   padding: 18px 20px 14px; border-block-end: 1px solid var(--line);
 }
 .sp-header .header-name { font-size: 15px; }
-.sp-badge {
-  flex-shrink: 0; font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 999px;
-  background: var(--note-bg); color: var(--note-ink); border: 1px solid var(--fix-edge);
-}
+/* The title keeps one line: the subtitle gives up its width first (size containment), then "Have a key?" wraps. */
+.sp-header .header-text { min-inline-size: auto; }
+.sp-header .header-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp-header .header-sub { contain: inline-size; }
+.sp-header .link-btn, .export-header .link-btn { flex-shrink: 1; text-align: end; line-height: 1.25; }
 .sp-body { flex-grow: 1; min-block-size: 0; overflow-y: auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 22px; }
 .sp-section { display: flex; flex-direction: column; gap: 10px; min-inline-size: 0; }
 .sp-h { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
@@ -392,9 +396,9 @@ body.sidepanel, body.sidepanel #app { block-size: 100vh; }
 
 /* Export screen (side panel) */
 .export-header { display: flex; align-items: center; gap: 10px; flex-shrink: 0; padding: 18px 20px 6px; }
-.export-title { margin: 0; flex-grow: 1; font-size: 16px; font-weight: 600; }
+.export-title { margin: 0; flex: 1 0 auto; font-size: 16px; font-weight: 600; white-space: nowrap; }
 .pro-badge {
-  display: flex; align-items: center; gap: 5px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 5px; flex-shrink: 1; min-inline-size: 0; line-height: 1.2;
   padding: 4px 9px; border-radius: 999px; background: var(--pass-bg); color: var(--pass-ink);
   font-size: 11px; font-weight: 600;
 }
@@ -441,19 +445,20 @@ body.sidepanel, body.sidepanel #app { block-size: 100vh; }
 }
 .code:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.export-footer { display: flex; gap: 8px; flex-shrink: 0; padding: 14px 20px 20px; }
+.export-footer { display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0; padding: 14px 20px 20px; }
 .ex-btn {
-  flex: 1; min-block-size: 46px; min-inline-size: 0; padding: 4px 14px; cursor: pointer;
+  flex: 1 1 auto; min-block-size: 46px; min-inline-size: 0; padding: 4px 14px; cursor: pointer;
   display: flex; align-items: center; justify-content: center; gap: 8px;
   border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink);
   font-size: 13.5px; font-weight: 600;
 }
 .ex-btn:hover { border-color: var(--muted-2); }
 .ex-btn:disabled { cursor: default; color: var(--muted); border-color: var(--line); }
-.ex-btn-primary { flex: 1.4; border: 0; background: var(--accent); color: var(--on-accent); }
+.ex-btn-primary { flex-grow: 1.4; border: 0; background: var(--accent); color: var(--on-accent); }
 .ex-btn-primary:hover { background: var(--accent-hover); }
-.ex-btn-label { min-inline-size: 0; overflow: hidden; overflow-wrap: break-word; line-height: 1.25; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.ex-btn .icon { flex-shrink: 0; }
+/* One line: the buttons stack when both labels do not fit; a very long file name ends in an ellipsis (full name in title). */
+.ex-btn-label { min-inline-size: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ex-btn .icon, .ex-btn .badge { flex-shrink: 0; }
 
 /* Unlock sheet (overlay and full-panel) */
 .unlock-page { display: flex; flex-direction: column; block-size: 100%; overflow-y: auto; background: var(--bg); }
