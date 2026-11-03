@@ -24,14 +24,14 @@ Gratuit et Pro
 
 Gratuit
 - Couleurs avec leurs rôles, et copie de n’importe quelle valeur.
-- Copie de la liste des valeurs hex.
+- Copie de tout le design system (DESIGN.md, CSS, Tailwind, Figma, JSON).
 - Consultation de la typo, des espacements, des rayons et des ombres.
 - Résultats de contraste : réussite et échec.
 - Sites enregistrés : les 3 derniers.
 
 Pro, un déblocage unique à 1,49 $ US
 - Tout ce que contient la version gratuite.
-- Export en CSS, Tailwind, variables Figma, JSON, DESIGN.md pour les outils de code IA, ou un zip de l’ensemble.
+- Téléchargement de tous les exports en fichiers : CSS, Tailwind, variables Figma, JSON, DESIGN.md pour les outils de code IA, y compris le zip de l’ensemble.
 - Corrections de contraste suggérées.
 - Sites enregistrés : illimité.
 

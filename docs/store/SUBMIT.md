@@ -1,4 +1,4 @@
-# Submitting Site to Design Token 0.2.0 to the Chrome Web Store
+# Submitting Site to Design Token 0.2.1 to the Chrome Web Store
 
 A field-by-field guide for the Chrome Web Store Developer Dashboard, in the order the dashboard shows the tabs and
 fields. The item is already registered: its id is `jknkphgicofbpibajdcjncfdkbbehbgn`.
@@ -7,13 +7,13 @@ All paths are relative to the repository root. Text in code blocks is the exact 
 
 ## 1. Package
 
-Upload `extension/site-to-design-token-0.2.0.zip`.
+Upload `extension/site-to-design-token-0.2.1.zip`.
 
 - This is the Store build: its manifest has no `key` field (the Web Store assigns the id). Do not upload
   `site-to-design-token-0.1.0-direct.zip` or any `-direct` zip; those carry the key and are for loading unpacked.
 - Rebuild it with `npm run package` in `extension/` if the source has changed since 2026-10-17
   (`npm run package:check` verifies it).
-- Version 0.2.0. The title and the short description (summary) come from the package's `_locales/<lang>/messages.json`
+- Version 0.2.1. The title and the short description (summary) come from the package's `_locales/<lang>/messages.json`
   and cannot be edited in the dashboard. They match the "Title" and "Short description" sections of each
   `listing.<lang>.md`.
 
@@ -204,7 +204,7 @@ The extension works without an account, so reviewers can test the free features 
 Pro, give them a licence key here:
 
 ```
-Click the toolbar icon on any website to see its colours, type, spacing and contrast. The side panel button opens the full design system. Pro export: open Settings, Enter license key, and paste <KEY>. AI insights need a Pro + AI key and send the page address, title, description and a design summary to vietnamcos.com only when Analyse is pressed.
+Click the toolbar icon on any website to see its colours, type, spacing and contrast. The side panel button opens the full design system. Copy design system and copying any export are free; downloading export files (and the .zip) needs Pro: open Settings, Enter license key, and paste <KEY>. AI insights need a Pro + AI key and send the page address, title, description and a design summary to vietnamcos.com only when Analyse is pressed.
 ```
 
 ## Before you press Submit
@@ -217,7 +217,7 @@ Click the toolbar icon on any website to see its colours, type, spacing and cont
       setting, which allows that extension's origin to call the licence and analyse API). Nothing to change there.
 - [ ] https://vietnamcos.com/palette/, https://vietnamcos.com/palette/privacy and https://vietnamcos.com/palette/terms
       all load.
-- [ ] Uploaded `extension/site-to-design-token-0.2.0.zip` (no `key` in its manifest).
+- [ ] Uploaded `extension/site-to-design-token-0.2.1.zip` (no `key` in its manifest).
 - [ ] Every language has its description and five screenshots; English has the icon and both promo tiles.
 - [ ] Privacy tab: single purpose, four permission justifications, remote code No, data types ticked, three
       certifications, privacy policy URL.

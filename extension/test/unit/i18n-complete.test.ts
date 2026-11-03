@@ -104,7 +104,7 @@ describe.each(LANGS)('%s dictionary', (lang) => {
   it('is registered and renders through t() and plural()', () => {
     expect(AVAILABLE_LANGS).toContain(lang);
     setLang(lang);
-    expect(t('popup.copyHexList')).toBe(dict['popup.copyHexList']);
+    expect(t('popup.copyDesignSystem')).toBe(dict['popup.copyDesignSystem']);
     const n = 5;
     expect(plural('header.colours', n)).toBe(
       dict[`header.colours_${new Intl.PluralRules(lang).select(n)}`].replace('{n}', String(n)),

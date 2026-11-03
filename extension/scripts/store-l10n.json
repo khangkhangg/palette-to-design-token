@@ -7,7 +7,7 @@
       "2-contrast": "Contrast pass and fail, checked against WCAG AA",
       "3-side-panel-light": "The whole design system in the side panel",
       "4-side-panel-dark": "Light and dark themes",
-      "5-export": "Pro: export CSS, Tailwind, Figma, JSON and DESIGN.md",
+      "5-export": "Copy free, download with Pro: CSS, Tailwind, Figma, JSON and DESIGN.md",
       "6-ai-insights": "Pro + AI: a verdict, what the colours mean, and similar sites"
     },
     "ai": {
@@ -31,7 +31,7 @@
       "2-contrast": "对照 WCAG AA 检查对比度是否达标",
       "3-side-panel-light": "在侧边栏查看完整的设计系统",
       "4-side-panel-dark": "浅色和深色主题",
-      "5-export": "Pro：导出 CSS、Tailwind、Figma、JSON 和 DESIGN.md",
+      "5-export": "免费复制，Pro 可下载：CSS、Tailwind、Figma、JSON 和 DESIGN.md",
       "6-ai-insights": "Pro + AI：给出评价、解读配色含义，并推荐相似网站"
     },
     "ai": {
@@ -55,7 +55,7 @@
       "2-contrast": "WCAG AA के हिसाब से कंट्रास्ट की जाँच: पास या फ़ेल",
       "3-side-panel-light": "साइड पैनल में पूरा डिज़ाइन सिस्टम",
       "4-side-panel-dark": "लाइट और डार्क थीम",
-      "5-export": "Pro: CSS, Tailwind, Figma, JSON और DESIGN.md में एक्सपोर्ट",
+      "5-export": "मुफ़्त कॉपी, Pro से डाउनलोड: CSS, Tailwind, Figma, JSON और DESIGN.md",
       "6-ai-insights": "Pro + AI: निष्कर्ष, रंगों का अर्थ और मिलती-जुलती साइटें"
     },
     "ai": {
@@ -79,7 +79,7 @@
       "2-contrast": "Contraste aprobado o no, según WCAG AA",
       "3-side-panel-light": "Todo el sistema de diseño en el panel lateral",
       "4-side-panel-dark": "Temas claro y oscuro",
-      "5-export": "Pro: exporta a CSS, Tailwind, Figma, JSON y DESIGN.md",
+      "5-export": "Copia gratis, descarga con Pro: CSS, Tailwind, Figma, JSON y DESIGN.md",
       "6-ai-insights": "Pro + AI: un veredicto, qué transmiten los colores y sitios similares"
     },
     "ai": {
@@ -103,7 +103,7 @@
       "2-contrast": "نجاح التباين أو إخفاقه وفق معيار WCAG AA",
       "3-side-panel-light": "نظام التصميم كاملًا في اللوحة الجانبية",
       "4-side-panel-dark": "سمة فاتحة وأخرى داكنة",
-      "5-export": "Pro: التصدير إلى CSS وTailwind وFigma وJSON وDESIGN.md",
+      "5-export": "انسخ مجانًا ونزّل مع Pro ملفات CSS وTailwind وFigma وJSON وDESIGN.md",
       "6-ai-insights": "Pro + AI: تقييم، ومعنى الألوان، ومواقع مشابهة"
     },
     "ai": {
@@ -127,7 +127,7 @@
       "2-contrast": "Contraste réussi ou échoué, selon WCAG AA",
       "3-side-panel-light": "Tout le système de design dans le panneau latéral",
       "4-side-panel-dark": "Thèmes clair et sombre",
-      "5-export": "Pro : export CSS, Tailwind, Figma, JSON et DESIGN.md",
+      "5-export": "Copie gratuite, téléchargement avec Pro : CSS, Tailwind, Figma, JSON et DESIGN.md",
       "6-ai-insights": "Pro + AI : un verdict, le sens des couleurs et des sites similaires"
     },
     "ai": {
@@ -151,7 +151,7 @@
       "2-contrast": "WCAG AA অনুযায়ী কনট্রাস্ট পাস না ফেল, তা যাচাই",
       "3-side-panel-light": "সাইড প্যানেলে পুরো ডিজাইন সিস্টেম",
       "4-side-panel-dark": "লাইট ও ডার্ক থিম",
-      "5-export": "Pro: CSS, Tailwind, Figma, JSON ও DESIGN.md-এ এক্সপোর্ট",
+      "5-export": "ফ্রিতে কপি, Pro দিয়ে ডাউনলোড: CSS, Tailwind, Figma, JSON ও DESIGN.md",
       "6-ai-insights": "Pro + AI: মূল্যায়ন, রংগুলোর অর্থ আর একই রকম সাইট"
     },
     "ai": {

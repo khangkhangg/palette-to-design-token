@@ -24,14 +24,14 @@ Free and Pro
 
 Free
 - Colours with roles, and copy any single value.
-- Copy hex list.
+- Copy the full design system (DESIGN.md, CSS, Tailwind, Figma, JSON).
 - View type, spacing, radius and shadows.
 - Contrast pass and fail results.
 - Saved sites: the last 3.
 
 Pro, a one-time $1.49 unlock
 - Everything in Free.
-- Export to CSS, Tailwind, Figma variables, JSON, DESIGN.md for AI coding tools, or a zip of all of them.
+- Download every export as a file: CSS, Tailwind, Figma variables, JSON, DESIGN.md for AI coding tools, including the .zip of all of them.
 - Suggested contrast fixes.
 - Saved sites: unlimited.
 
@@ -66,7 +66,7 @@ Extract a website's colours, typography, spacing, radius, shadows and contrast r
 
 ## Pricing note
 
-Free to install and use. Pro is a one-time $1.49 unlock and Pro + AI is a subscription at $3.99 a month. Both are paid through PayPal on vietnamcos.com, not through the Chrome Web Store. Pro + AI can be cancelled any time from https://vietnamcos.com/palette/account.
+Free to install and use, including copying the full design system. Pro, which adds file downloads, is a one-time $1.49 unlock and Pro + AI is a subscription at $3.99 a month. Both are paid through PayPal on vietnamcos.com, not through the Chrome Web Store. Pro + AI can be cancelled any time from https://vietnamcos.com/palette/account.
 
 ## Data disclosure
 

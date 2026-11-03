@@ -60,7 +60,7 @@
   },
   "popup": {
     "scanning": "Scanning page…",
-    "copyHexList": "Copy hex list",
+    "copyDesignSystem": "Copy design system",
     "exportTokens": "Export tokens",
     "pro": "PRO",
     "restrictedTitle": "This page can't be scanned",
@@ -150,7 +150,6 @@
   "panel": {
     "title": "Design system",
     "scanned": "{site} · scanned {when}",
-    "viewOnly": "View only",
     "colours": "Colours",
     "colourRoles": "Colour roles",
     "typography": "Typography",
@@ -338,7 +337,7 @@
       "price": "$1.49",
       "per": "once",
       "items": {
-        "exports": "All exports and DESIGN.md",
+        "exports": "Download every export, including DESIGN.md and the .zip",
         "contrast": "Contrast fixes",
         "scans": "Unlimited saved sites"
       }

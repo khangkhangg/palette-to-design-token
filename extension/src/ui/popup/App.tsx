@@ -10,10 +10,14 @@ import { Tabs } from '../components/Tabs';
 import { plural, renderedLang, resolveLang, setLang, t } from '../i18n';
 import { applyTheme } from '../theme';
 import { activeTabId, openSidePanel, type PanelView } from '../sidepanel/open';
-import { ColoursTab, orderedColours, useCopy } from './ColoursTab';
+import { exportFile, type Part } from '../../export';
+import { ColoursTab, useCopy } from './ColoursTab';
 import { ContrastTab } from './ContrastTab';
 import { SpacingTab } from './SpacingTab';
 import { TypeTab } from './TypeTab';
+
+/** Every part, so "Copy design system" copies the same full DESIGN.md the Export screen previews by default. */
+const ALL_PARTS: Part[] = ['colours', 'typography', 'spacing', 'radius', 'shadows'];
 
 type State =
   | { kind: 'scanning' }
@@ -194,12 +198,11 @@ export function App({ onExport }: AppProps) {
             <button
               type="button"
               class="btn"
-              disabled={tokens.colours.length === 0}
-              onClick={() => copy('list', orderedColours(tokens.colours).map((c) => c.hex).join('\n'))}
+              onClick={() => copy('list', exportFile(tokens, 'md', { parts: ALL_PARTS }).text)}
             >
               <Icon name={copied === 'list' ? 'check' : failed === 'list' ? 'alert' : 'copy'} />
               <span aria-live="polite">
-                {copied === 'list' ? t('colours.copied') : failed === 'list' ? t('colours.copyFailed') : t('popup.copyHexList')}
+                {copied === 'list' ? t('colours.copied') : failed === 'list' ? t('colours.copyFailed') : t('popup.copyDesignSystem')}
               </span>
             </button>
             <button type="button" class="btn btn-primary" onClick={() => (onExport ?? (() => openPanel('export')))(tokens, settings)}>

@@ -107,7 +107,7 @@ export function App({ initialView = viewFromSearch(location.search) }: AppProps)
       <header class="sp-header">
         <div class="mark" aria-hidden="true" />
         <div class="header-text">
-          <span class="header-name">{t('panel.title')}</span>
+          <span class="header-name" title={t('panel.title')}>{t('panel.title')}</span>
           {tokens && (
             <span class="header-sub">
               {t('panel.scanned', { site: tokens.site, when: formatDateTime(tokens.scannedAt) })}
@@ -117,7 +117,6 @@ export function App({ initialView = viewFromSearch(location.search) }: AppProps)
         {!settings.pro && (
           <button type="button" class="link-btn" onClick={() => setView('key')}>{t('panel.haveKey')}</button>
         )}
-        {!settings.pro && <span class="sp-badge">{t('panel.viewOnly')}</span>}
         <button type="button" class="icon-btn" aria-label={t('header.rescan')} disabled={busy} onClick={scan}>
           <span class={busy ? 'spin' : undefined}><Icon name="rescan" /></span>
         </button>

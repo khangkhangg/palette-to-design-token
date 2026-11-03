@@ -24,14 +24,14 @@ Gratis y Pro
 
 Gratis
 - Colores con roles, y copia de cualquier valor suelto.
-- Copiar la lista de hex.
+- Copiar el sistema de diseño completo (DESIGN.md, CSS, Tailwind, Figma, JSON).
 - Ver tipografía, espaciado, radios y sombras.
 - Resultados de contraste: cumple y no cumple.
 - Sitios guardados: los últimos 3.
 
 Pro, un desbloqueo único de 1,49 USD
 - Todo lo de la versión gratuita.
-- Exportación a CSS, Tailwind, variables de Figma, JSON, DESIGN.md para herramientas de programación con IA, o un zip con todo.
+- Descarga de todas las exportaciones como archivo: CSS, Tailwind, variables de Figma, JSON, DESIGN.md para herramientas de programación con IA, incluido el .zip con todo.
 - Correcciones de contraste sugeridas.
 - Sitios guardados: sin límite.
 

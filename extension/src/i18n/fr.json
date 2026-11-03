@@ -62,7 +62,7 @@
   },
   "popup": {
     "scanning": "Analyse de la page…",
-    "copyHexList": "Copier les hex",
+    "copyDesignSystem": "Copier le design system",
     "exportTokens": "Exporter les tokens",
     "pro": "PRO",
     "restrictedTitle": "Impossible d’analyser cette page",
@@ -153,7 +153,6 @@
   "panel": {
     "title": "Design system",
     "scanned": "{site} · analysé le {when}",
-    "viewOnly": "Lecture seule",
     "colours": "Couleurs",
     "colourRoles": "Rôles des couleurs",
     "typography": "Typographie",
@@ -342,7 +341,7 @@
       "price": "1,49 $ US",
       "per": "une fois",
       "items": {
-        "exports": "Tous les exports et DESIGN.md",
+        "exports": "Téléchargez tous les exports, y compris DESIGN.md et le .zip",
         "contrast": "Corrections de contraste",
         "scans": "Sites enregistrés illimités"
       }

@@ -120,3 +120,25 @@ describe('store listings', () => {
     }
   });
 });
+
+describe('0.2.1: copying is free, downloads are Pro', () => {
+  const docs = resolve(import.meta.dirname, '../../../docs/store');
+  const l10n = JSON.parse(readFileSync(resolve(import.meta.dirname, '../../scripts/store-l10n.json'), 'utf8'));
+  it('the English export caption says copy free, download with Pro', () => {
+    expect(l10n.en.captions['5-export']).toBe('Copy free, download with Pro: CSS, Tailwind, Figma, JSON and DESIGN.md');
+  });
+  for (const loc of CHROME_LOCALES) {
+    it(`${loc}: the export caption no longer leads with "Pro:" and the listing has no hex-list bullet`, () => {
+      expect(l10n[loc].captions['5-export']).not.toMatch(/^Pro\s*[:：]/);
+      const md = readFileSync(resolve(docs, `listing.${loc}.md`), 'utf8');
+      expect(md).not.toMatch(/hex|हेक्स|হেক্স|十六进制/i);
+      expect(md).toContain('DESIGN.md');
+    });
+  }
+  it('the English listing: Free copies the full design system, Pro downloads every export', () => {
+    const md = readFileSync(resolve(docs, 'listing.en.md'), 'utf8');
+    expect(md).toContain('- Copy the full design system (DESIGN.md, CSS, Tailwind, Figma, JSON).');
+    expect(md).toMatch(/^- Download every export as a file: .*\.zip/m);
+    expect(md).not.toMatch(/^- Export to CSS/m);
+  });
+});

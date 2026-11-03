@@ -226,7 +226,7 @@ ok('co_consent en exact', palette_t('en', 'co_consent') === $consentEn && palett
 const PP_KEYS = ['pp_download', 'pp_get_pro', 'pp_works_in', 'pp_what_h', 'pp_feat_colours_h', 'pp_feat_colours', 'pp_feat_system_h',
     'pp_feat_system', 'pp_feat_contrast_h', 'pp_feat_contrast', 'pp_feat_export_h', 'pp_feat_export', 'pp_plans_h', 'pp_plan_feature',
     'pp_plan_free', 'pp_plan_pro', 'pp_yes', 'pp_no', 'pp_row_scan', 'pp_row_view', 'pp_row_copy', 'pp_row_contrast', 'pp_row_saved',
-    'pp_saved_free', 'pp_saved_pro', 'pp_row_exports', 'pp_row_fixes', 'pp_install_h', 'pp_install_1', 'pp_install_2', 'pp_install_3',
+    'pp_saved_free', 'pp_saved_pro', 'pp_row_copy_export', 'pp_row_exports', 'pp_row_fixes', 'pp_install_h', 'pp_install_1', 'pp_install_2', 'pp_install_3',
     'pp_install_4', 'pp_install_5', 'pp_install_note', 'pp_key_h', 'pp_key_1', 'pp_key_2', 'pp_key_email', 'pp_key_lost'];
 $missing = [];
 foreach (LANGS as $l) foreach (PP_KEYS as $k) {
@@ -249,7 +249,7 @@ ok('sections in order: hero, what, plans, install, key, then the buy card',
 ok('four features with inline SVG icons', preg_match('#id="what".*?</section>#s', $en, $wm) === 1 && substr_count($wm[0], '<li class="feature">') === 4
     && substr_count($wm[0], '<svg') >= 4 && str_contains($wm[0], h(palette_t('en', 'pp_feat_export'))));
 ok('free vs pro table', preg_match('#id="plans".*?</section>#s', $en, $pm) === 1 && str_contains($pm[0], '<table')
-    && str_contains($pm[0], 'Pro, $1.49 once') && substr_count($pm[0], '<tr') === 9 && str_contains($pm[0], h(palette_t('en', 'pp_saved_free'))));
+    && str_contains($pm[0], 'Pro, $1.49 once') && substr_count($pm[0], '<tr') === 10 && str_contains($pm[0], h(palette_t('en', 'pp_saved_free'))));
 ok('install steps: 5, chrome://extensions as copyable code, not a link', preg_match('#id="install".*?</section>#s', $en, $im) === 1
     && substr_count($im[0], '<li') === 5 && str_contains($im[0], '<code dir="ltr">chrome://extensions</code>')
     && str_contains($im[0], 'data-copy="chrome://extensions"') && !str_contains($im[0], 'href="chrome:')
@@ -378,6 +378,30 @@ foreach (LANGS as $l) {
     if (!str_contains(palette_t($l, 'lp_lead'), 'Pro')) $missing[] = "$l:lead";
 }
 ok('data FAQ names vietnamcos.com and does not claim "none"; lead says export is Pro: ' . implode(', ', $missing), $missing === []);
+
+// ---- 0.2.1: copying any export is free, only downloads are Pro
+ok('en Pro bullets say downloads are Pro', palette_t('en', 'co_pro_i1') === 'Download every export, including DESIGN.md and the .zip'
+    && palette_t('en', 'pp_row_copy_export') === 'Copy the full design system (DESIGN.md, CSS, Tailwind, Figma, JSON)'
+    && palette_t('en', 'pp_row_exports') === 'Download every export, including the .zip');
+ok('en lead and FAQ: copy free, download with Pro', palette_t('en', 'lp_lead') === 'Click the icon on any site to get its colours, type, spacing and contrast. Copy the full design system free, download the files with Pro.'
+    && str_contains(palette_t('en', 'lp_faq_free_a'), 'copying values and the full design system (DESIGN.md, CSS, Tailwind, Figma or JSON)')
+    && str_starts_with(palette_t('en', 'lp_faq_pro_a'), 'A one-time {price} unlock: download every export')
+    && str_contains(palette_t('en', 'email_sub_inc_pro'), 'download every export')
+    && !str_contains(palette_t('en', 'lp_shot_5'), 'Pro export screen'));
+$planRow = function (string $html, string $key): ?array {
+    if (!preg_match('#<tr><th scope="row">' . preg_quote(h(palette_t('en', $key)), '#') . '</th>(.*?)</tr>#s', $html, $m)) return null;
+    preg_match_all('#<td>(.*?)</td>#s', $m[1], $cells);
+    return array_map(fn($c) => str_contains($c, 'plan-yes') ? 'yes' : (str_contains($c, 'plan-no') ? 'no' : 'other'), $cells[1]);
+};
+ok('plans table: Copy any export is free; Download exports is Pro', $planRow($lp, 'pp_row_copy_export') === ['yes', 'yes', 'yes']
+    && $planRow($lp, 'pp_row_exports') === ['no', 'yes', 'yes']);
+$stale = [];
+foreach (['zh-CN' => '下载', 'hi' => 'डाउनलोड', 'es' => 'Descarg', 'ar' => 'تنزيل', 'fr' => 'Télécharg', 'bn' => 'ডাউনলোড'] as $l => $word) {
+    foreach (['co_pro_i1', 'pp_row_exports', 'lp_faq_pro_a', 'lp_lead', 'email_sub_inc_pro'] as $k) {
+        if (!str_contains(mb_strtolower(palette_t($l, $k)), mb_strtolower($word))) $stale[] = "$l:$k";
+    }
+}
+ok('every language says downloads (not exports) are Pro: ' . implode(', ', $stale), $stale === []);
 ok('en data FAQ mentions email and order', str_contains(palette_t('en', 'lp_faq_data_a'), 'we keep your email and order'));
 ok('DESIGN.md sample is a labelled scroll region candidate', str_contains($lp, '<pre class="md-sample" dir="ltr" lang="en" data-scroll-label="' . h(palette_t('en', 'lp_ai_h')) . '">'));
 
@@ -626,7 +650,7 @@ preg_match('#id="plans".*?</section>#s', $lp3, $pl);
 ok('plans table: Free, Pro and Pro + AI columns with prices from settings', preg_match('#<thead>(.*?)</thead>#s', $pl[0], $th) === 1
     && substr_count($th[1], '<th scope="col"') === 4 && str_contains($th[1], 'Pro, $1.49 once') && str_contains($th[1], 'Pro + AI, $3.99 a month')
     && !str_contains($th[1], h(palette_t('en', 'co_plan_soon'))));
-ok('plans table: every row has three value cells; AI insights row is Pro + AI only', preg_match_all('#<tr><th scope="row">.*?</tr>#s', $pl[0], $rows) === 8
+ok('plans table: every row has three value cells; AI insights row is Pro + AI only', preg_match_all('#<tr><th scope="row">.*?</tr>#s', $pl[0], $rows) === 9
     && count(array_filter($rows[0], fn($r) => substr_count($r, '<td>') !== 3)) === 0
     && preg_match('#<tr><th scope="row">AI insights</th><td>(.*?)</td><td>(.*?)</td><td>(.*?100 a month.*?)</td></tr>#s', $pl[0], $air) === 1
     && str_contains($air[1], 'Not included') && str_contains($air[2], 'Not included'));
@@ -712,7 +736,7 @@ $scrubSample = palette_scrub_text('Jane Smith, 12 Oak St - dentist jane@x.com @j
 ok('the scrubber leaves other words of a title alone (what the policy now says)', str_contains($scrubSample, 'Jane Smith, 12 Oak St') && !str_contains($scrubSample, '@') && !str_contains($scrubSample, '0912345678') && !str_contains($scrubSample, 'x.com'));
 $listingEn = (string)file_get_contents(PALETTE_DIR . '/../docs/store/listing.en.md');
 ok('en listing and disclosure use the narrow wording', substr_count($listingEn, 'links (anything starting with http, https or www, or containing a path), @handles and long digit runs such as phone numbers') === 2 && !str_contains($listingEn, 'web addresses') && !str_contains($listingEn, 'personally identifiable information') && !str_contains($listingEn, 'account details')
-    && preg_match('/^- Personal communications\/contact: the buyer\'s email address, only when buying Pro or Pro \+ AI on vietnamcos\.com, used to deliver and resend licence keys and for billing \(sent via Resend; payment via PayPal\)\./m', $listingEn) === 1 && !str_contains($listingEn, 'Personal details such as'));
+    && preg_match('/^- Personally identifiable information: the buyer\'s email address, only when buying Pro or Pro \+ AI on vietnamcos\.com, used to deliver and resend licence keys and for billing \(sent via Resend; payment via PayPal\)\./m', $listingEn) === 1 && !str_contains($listingEn, 'Personal details such as'));
 cfg($conn, ['ai_paypal_plan_id' => '']);
 preg_match('#id="faq".*?</section>#s', landing(['lang' => 'en']), $fq);
 ok('FAQ: what Pro + AI is says Coming soon while AI is off', str_contains($fq[0], h(palette_t('en', 'co_plan_soon')) . '. ' . h(palette_t('en', 'lp_faq_ai_a', ['price' => '$3.99', 'n' => 100]))));

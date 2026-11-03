@@ -5,6 +5,7 @@ import type { ColourToken, Tokens } from '../../src/model/tokens';
 import { EMPTY_TOKENS } from '../../src/model/tokens';
 import { ScanError } from '../../src/scan';
 import type { Settings } from '../../src/store';
+import { exportFile } from '../../src/export';
 import { App } from '../../src/ui/popup/App';
 
 const mocks = vi.hoisted(() => ({
@@ -116,24 +117,27 @@ describe('popup App', () => {
     expect(await screen.findByText('Copied')).toBeTruthy();
   });
 
-  it('says Couldn\'t copy when the clipboard write fails (swatch and hex list)', async () => {
+  it('says Couldn\'t copy when the clipboard write fails (swatch and design system)', async () => {
     writeText.mockRejectedValueOnce(new Error('denied')).mockRejectedValueOnce(new Error('denied'));
     mocks.scanActiveTab.mockResolvedValue(brewline());
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: /#1F5E4B/ }));
     expect(await screen.findByText("Couldn't copy")).toBeTruthy();
     expect(screen.queryByText('Copied')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Copy hex list' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy design system' }));
     await waitFor(() => expect(screen.getAllByText("Couldn't copy").length).toBe(2));
   });
 
-  it('copies the full hex list', async () => {
+  it('Copy design system copies the full DESIGN.md (every part), free, and says Copied', async () => {
     mocks.scanActiveTab.mockResolvedValue(brewline());
     render(<App />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Copy hex list' }));
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith(
-      ['#1F5E4B', '#2E7A63', '#E0763A', '#FFFDF8', '#F3EEE4', '#1B1A17', '#5C574E'].join('\n'),
-    ));
+    fireEvent.click(await screen.findByRole('button', { name: 'Copy design system' }));
+    expect(screen.queryByRole('button', { name: 'Copy hex list' })).toBeNull();
+    const md = exportFile(brewline(), 'md', { parts: ['colours', 'typography', 'spacing', 'radius', 'shadows'] }).text;
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(md));
+    for (const hex of ['#1F5E4B', '#2E7A63', '#E0763A', '#FFFDF8', '#F3EEE4', '#1B1A17', '#5C574E']) expect(md).toContain(hex);
+    expect(await screen.findByText('Copied')).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('marks Export tokens as PRO for free users only', async () => {

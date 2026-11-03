@@ -10,7 +10,7 @@ const PALETTE_PRIVACY_UPDATED = '2026-10-17';
 const PALETTE_TERMS_UPDATED = '2026-10-17';
 const PALETTE_SUPPORT_EMAIL = 'support@vietnamcos.com';
 // The extension version the checkout page offers (keep in step with extension/public/manifest.json; pages-test checks).
-const PALETTE_EXT_VERSION = '0.2.0';
+const PALETTE_EXT_VERSION = '0.2.1';
 // Direct download, uploaded to server/download/ at deploy (npm run package:direct); never committed.
 const PALETTE_DOWNLOAD_URL = PALETTE_BASE . '/download/site-to-design-token-latest.zip';
 const PALETTE_US_STATES = [
@@ -301,7 +301,7 @@ function palette_section_plans(string $lang, string $price): string
     $perMonth = palette_h(palette_t($lang, 'pp_ai_n', ['n' => palette_usage_limit(palette_settings($GLOBALS['conn']))]));
     $rows = '';
     foreach ([['pp_row_scan', $yes, $yes, $yes], ['pp_row_view', $yes, $yes, $yes], ['pp_row_copy', $yes, $yes, $yes], ['pp_row_contrast', $yes, $yes, $yes],
-              ['pp_row_saved', $t('pp_saved_free'), $t('pp_saved_pro'), $t('pp_saved_pro')], ['pp_row_exports', $no, $yes, $yes], ['pp_row_fixes', $no, $yes, $yes],
+              ['pp_row_saved', $t('pp_saved_free'), $t('pp_saved_pro'), $t('pp_saved_pro')], ['pp_row_copy_export', $yes, $yes, $yes], ['pp_row_exports', $no, $yes, $yes], ['pp_row_fixes', $no, $yes, $yes],
               ['pp_row_ai', $no, $no, $perMonth]] as [$k, $free, $pro, $ai]) {
         $rows .= '<tr><th scope="row">' . $t($k) . '</th><td>' . $free . '</td><td>' . $pro . '</td><td>' . $ai . '</td></tr>';
     }

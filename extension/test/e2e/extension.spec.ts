@@ -308,6 +308,143 @@ test.describe('export with Pro', () => {
   });
 });
 
+/** Wraps navigator.clipboard.writeText so the test can read what the page copied (the write itself still happens). */
+async function recordClipboard(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const w = window as unknown as { __copied: string[] };
+    w.__copied = [];
+    const original = navigator.clipboard.writeText.bind(navigator.clipboard);
+    navigator.clipboard.writeText = async (text: string) => {
+      w.__copied.push(text);
+      await original(text).catch(() => {});
+    };
+  });
+}
+const copiedTexts = (page: Page) => page.evaluate(() => (window as unknown as { __copied: string[] }).__copied);
+
+test.describe('free plan: copy is free, download is Pro', () => {
+  test('free Copy writes the preview to the clipboard with no plan sheet; free Download opens Choose your plan', async () => {
+    await setStorage({ settings: { theme: 'light', lang: 'en', pro: false } });
+    await openTab(`${BASE}/light-marketing.html`);
+    const panel = await openExtensionPage('sidepanel.html?view=export');
+    await expect(panel.getByRole('heading', { name: 'Export tokens' })).toBeVisible();
+    await panel.bringToFront(); // a background tab throttles animation frames, which Playwright's clicks wait on
+    await recordClipboard(panel);
+
+    for (const value of ['md', 'css', 'tailwind', 'figma', 'json']) {
+      await panel.locator('label.fmt', { has: panel.locator(`input[value="${value}"]`) }).click();
+      // The label reads Copied for a moment after each copy; the button is the footer's first.
+      await panel.locator('.export-footer .ex-btn').first().click();
+      await expect(panel.getByRole('dialog')).toHaveCount(0);
+      const preview = await panel.locator('pre.code').textContent();
+      await expect.poll(async () => (await copiedTexts(panel)).at(-1), value).toBe(preview);
+    }
+
+    let downloaded = false;
+    panel.on('download', () => { downloaded = true; });
+    await panel.getByRole('button', { name: /^Download tokens\.json/ }).click();
+    await expect(panel.getByRole('dialog')).toBeVisible();
+    await expect(panel.getByRole('dialog').getByRole('heading', { name: 'Choose your plan' })).toBeVisible();
+    await expect(panel.getByRole('dialog').locator('input[value="pro"]')).toBeChecked();
+    await panel.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
+    await expect(panel.getByRole('dialog')).toHaveCount(0);
+
+    await panel.locator('label.fmt', { has: panel.locator('input[value="all"]') }).click();
+    await expect(panel.getByRole('button', { name: 'Copy', exact: true })).toBeDisabled();
+    await panel.locator('.export-footer .ex-btn-primary').click();
+    await expect(panel.getByRole('dialog')).toBeVisible();
+    expect(downloaded).toBe(false);
+  });
+
+  test('pro Download downloads with no plan sheet', async () => {
+    await setStorage({ settings: { theme: 'light', lang: 'en', pro: true } });
+    await openTab(`${BASE}/light-marketing.html`);
+    const panel = await openExtensionPage('sidepanel.html?view=export');
+    const [download] = await Promise.all([
+      panel.waitForEvent('download'),
+      panel.getByRole('button', { name: /^Download DESIGN\.md/ }).click(),
+    ]);
+    expect(download.suggestedFilename()).toBe('DESIGN.md');
+    await expect(panel.getByRole('dialog')).toHaveCount(0);
+    await expect(panel.locator('.ex-btn-primary .badge')).toHaveCount(0);
+  });
+
+  test('popup Copy design system copies the full DESIGN.md for a free user', async () => {
+    await setStorage({ settings: { theme: 'light', lang: 'en', pro: false } });
+    await openTab(`${BASE}/light-marketing.html`);
+    const popup = await openExtensionPage('popup.html');
+    await expect(popup.locator('.swatch').first()).toBeVisible();
+    await recordClipboard(popup);
+    await popup.getByRole('button', { name: 'Copy design system' }).click();
+    await expect(popup.locator('.footer').getByText('Copied')).toBeVisible();
+    const [md] = await copiedTexts(popup);
+    expect(md).toMatch(/^# Design system/);
+    expect(md).toContain('#1F5E4B');
+    expect(md).toContain('#E0763A');
+  });
+});
+
+/**
+ * Text nodes under `selector` that wrap onto more than one line, and elements whose content is wider than their box.
+ * Empty when every label sits on a single, uncut line.
+ */
+async function wrapsOrOverflows(page: Page, selector: string): Promise<string[]> {
+  return page.evaluate((sel) => {
+    const out: string[] = [];
+    const els = document.querySelectorAll<HTMLElement>(sel);
+    if (els.length === 0) out.push(`no ${sel}`);
+    for (const root of els) {
+      for (const el of [root, ...root.querySelectorAll<HTMLElement>('*')]) {
+        if (el.scrollWidth > el.clientWidth + 1) out.push(`${sel} ${el.className} overflows ${el.scrollWidth}>${el.clientWidth}`);
+      }
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (!node.textContent!.trim()) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const tops = new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)));
+        if (tops.size > 1) out.push(`${sel} "${node.textContent!.trim()}" wraps onto ${tops.size} lines`);
+      }
+    }
+    return out;
+  }, selector);
+}
+
+test.describe('labels stay on one line', () => {
+  for (const lang of ['bn', 'es', 'fr']) {
+    test(`${lang}: popup footer buttons at 400 px`, async () => {
+      await setStorage({ settings: { theme: 'light', lang, pro: false } });
+      await openTab(`${BASE}/light-marketing.html`);
+      const popup = await openExtensionPage('popup.html');
+      await popup.setViewportSize({ width: 400, height: 600 });
+      await expect(popup.locator('.footer .btn').first()).toBeVisible();
+      expect(await wrapsOrOverflows(popup, '.footer .btn')).toEqual([]);
+      const footer = await popup.locator('.footer').boundingBox();
+      expect(footer!.y + footer!.height, 'footer bottom').toBeLessThanOrEqual(600);
+      await popup.screenshot({ path: test.info().outputPath(`${lang}-popup-footer.png`) });
+    });
+
+    for (const width of [360, 440]) {
+      test(`${lang}: side panel header title and export buttons at ${width} px`, async () => {
+        for (const pro of [false, true]) {
+          await setStorage({ settings: { theme: 'light', lang, pro } });
+          await openTab(`${BASE}/light-marketing.html`);
+          const panel = await openExtensionPage('sidepanel.html');
+          await panel.setViewportSize({ width, height: 800 });
+          await expect(panel.locator('.sp-header .header-name')).toBeVisible();
+          expect(await wrapsOrOverflows(panel, '.sp-header .header-name'), `pro=${pro}`).toEqual([]);
+          await expect(panel.locator('.sp-header .header-name')).toHaveAttribute('title', /.+/);
+          await panel.locator('.sp-export').click();
+          await expect(panel.locator('.export-footer')).toBeVisible();
+          expect(await wrapsOrOverflows(panel, '.export-footer .ex-btn'), `pro=${pro}`).toEqual([]);
+          expect(await wrapsOrOverflows(panel, '.export-title'), `pro=${pro}`).toEqual([]);
+          await panel.screenshot({ path: test.info().outputPath(`${lang}-${width}-${pro ? 'pro' : 'free'}-export.png`) });
+        }
+      });
+    }
+  }
+});
+
 test.describe('AI insights', () => {
   /** The canned answer the dev router's AI stub gives (server/tests/dev-router.php, PALETTE_DEV_AI_STUB=1). */
   const RESULT = {

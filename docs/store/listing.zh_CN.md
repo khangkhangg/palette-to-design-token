@@ -24,14 +24,14 @@ Site to Design Token 读取任意网页，把其中的设计元素整理成可�
 
 免费版
 - 带角色的颜色，可复制任意单个数值。
-- 复制十六进制颜色列表。
+- 复制完整设计系统（DESIGN.md、CSS、Tailwind、Figma、JSON）。
 - 查看字体、间距、圆角和阴影。
 - 对比度通过与未通过的结果。
 - 已保存的网站：最近 3 个。
 
 Pro 版，一次性付费 1.49 美元
 - 包含免费版的全部功能。
-- 导出为 CSS、Tailwind、Figma 变量、JSON、面向 AI 编程工具的 DESIGN.md，或打包成一个 zip。
+- 下载所有导出文件：CSS、Tailwind、Figma 变量、JSON、面向 AI 编程工具的 DESIGN.md，包括打包全部文件的 .zip。
 - 对比度修复建议。
 - 已保存的网站：不限数量。
 
