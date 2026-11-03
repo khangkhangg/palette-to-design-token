@@ -263,7 +263,7 @@ test.describe('languages', () => {
 
       await expect(popup.locator('html')).toHaveAttribute('lang', lang);
       await expect(popup.locator('.swatch').first()).toBeVisible();
-      await expect(popup.locator('.footer .badge')).toBeVisible();
+      await expect(popup.locator('.footer .badge')).toHaveCount(0);
       // The footer is pinned inside the 600 px popup; the tab panel scrolls instead.
       const footer = await popup.locator('.footer').boundingBox();
       expect(footer!.y + footer!.height, 'footer bottom').toBeLessThanOrEqual(600);

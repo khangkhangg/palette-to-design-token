@@ -207,7 +207,6 @@ export function App({ onExport }: AppProps) {
             </button>
             <button type="button" class="btn btn-primary" onClick={() => (onExport ?? (() => openPanel('export')))(tokens, settings)}>
               {t('popup.exportTokens')}
-              {!settings.pro && <span class="badge">{t('popup.pro')}</span>}
             </button>
           </footer>
         </>

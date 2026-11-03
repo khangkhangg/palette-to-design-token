@@ -140,16 +140,11 @@ describe('popup App', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('marks Export tokens as PRO for free users only', async () => {
+  it('does not mark Export tokens as PRO: copying is free, only Download is Pro', async () => {
     mocks.scanActiveTab.mockResolvedValue(brewline());
-    const { unmount } = render(<App />);
-    const btn = await screen.findByRole('button', { name: /Export tokens/ });
-    expect(within(btn).getByText('PRO')).toBeTruthy();
-    unmount();
-    mocks.settings = { ...mocks.settings, pro: true };
     render(<App />);
-    const pro = await screen.findByRole('button', { name: /Export tokens/ });
-    expect(within(pro).queryByText('PRO')).toBeNull();
+    const btn = await screen.findByRole('button', { name: /Export tokens/ });
+    expect(within(btn).queryByText('PRO')).toBeNull();
   });
 
   it('shows the restricted empty state', async () => {
