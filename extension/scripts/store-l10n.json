@@ -1,0 +1,171 @@
+{
+  "_comment": "Store screenshot copy per Chrome Web Store locale: the caption under each shot and the stubbed AI result shown in 6-ai-insights. Product and format names stay untranslated.",
+  "en": {
+    "lang": "en",
+    "captions": {
+      "1-popup-colours": "Every colour on the page, with its role",
+      "2-contrast": "Contrast pass and fail, checked against WCAG AA",
+      "3-side-panel-light": "The whole design system in the side panel",
+      "4-side-panel-dark": "Light and dark themes",
+      "5-export": "Pro: export CSS, Tailwind, Figma, JSON and DESIGN.md",
+      "6-ai-insights": "Pro + AI: a verdict, what the colours mean, and similar sites"
+    },
+    "ai": {
+      "sector": "Gardening and home",
+      "tags": ["Online shop", "Friendly, natural"],
+      "summary": "A calm, green storefront that reads as a trusted garden brand. The palette is restrained and the type is easy to read.",
+      "colours": [
+        ["Deep green: grounded, trustworthy", "Sets the natural, reliable tone of the brand."],
+        ["Warm orange: friendly, energetic", "Draws the eye to buttons and offers."]
+      ],
+      "fit": "The colours match what gardeners expect from a growing brand.",
+      "works": ["Consistent palette", "Readable body text"],
+      "improve": ["Raise contrast on muted labels"],
+      "why": ["Same market, similar tone", "Direct competitor online", "Similar visual style"]
+    }
+  },
+  "zh_CN": {
+    "lang": "zh-CN",
+    "captions": {
+      "1-popup-colours": "页面上的每种颜色，连同它的角色",
+      "2-contrast": "对照 WCAG AA 检查对比度是否达标",
+      "3-side-panel-light": "在侧边栏查看完整的设计系统",
+      "4-side-panel-dark": "浅色和深色主题",
+      "5-export": "Pro：导出 CSS、Tailwind、Figma、JSON 和 DESIGN.md",
+      "6-ai-insights": "Pro + AI：给出评价、解读配色含义，并推荐相似网站"
+    },
+    "ai": {
+      "sector": "园艺与家居",
+      "tags": ["网店", "亲切、自然"],
+      "summary": "沉稳的绿色店面，给人值得信赖的园艺品牌印象。配色克制，文字易读。",
+      "colours": [
+        ["深绿：稳重、可信", "奠定品牌自然、可靠的基调。"],
+        ["暖橙：友好、有活力", "把目光引向按钮和优惠。"]
+      ],
+      "fit": "这些颜色符合园艺爱好者对成长型品牌的期待。",
+      "works": ["配色统一", "正文易读"],
+      "improve": ["提高浅色标签的对比度"],
+      "why": ["同一市场，风格相近", "直接的线上竞争对手", "视觉风格相似"]
+    }
+  },
+  "hi": {
+    "lang": "hi",
+    "captions": {
+      "1-popup-colours": "पेज का हर रंग, उसकी भूमिका के साथ",
+      "2-contrast": "WCAG AA के हिसाब से कंट्रास्ट की जाँच: पास या फ़ेल",
+      "3-side-panel-light": "साइड पैनल में पूरा डिज़ाइन सिस्टम",
+      "4-side-panel-dark": "लाइट और डार्क थीम",
+      "5-export": "Pro: CSS, Tailwind, Figma, JSON और DESIGN.md में एक्सपोर्ट",
+      "6-ai-insights": "Pro + AI: निष्कर्ष, रंगों का अर्थ और मिलती-जुलती साइटें"
+    },
+    "ai": {
+      "sector": "बागवानी और घर",
+      "tags": ["ऑनलाइन दुकान", "दोस्ताना, प्राकृतिक"],
+      "summary": "एक शांत, हरा स्टोरफ़्रंट जो भरोसेमंद बागवानी ब्रांड जैसा लगता है। रंग संयमित हैं और टेक्स्ट पढ़ने में आसान है।",
+      "colours": [
+        ["गहरा हरा: स्थिर, भरोसेमंद", "ब्रांड का प्राकृतिक, भरोसेमंद अंदाज़ तय करता है।"],
+        ["गर्म नारंगी: दोस्ताना, ऊर्जावान", "बटन और ऑफ़र की ओर ध्यान खींचता है।"]
+      ],
+      "fit": "ये रंग वैसे ही हैं जैसे बागवानी के शौकीन एक बढ़ते ब्रांड से उम्मीद करते हैं।",
+      "works": ["एक जैसा रंग-संयोजन", "पढ़ने में आसान टेक्स्ट"],
+      "improve": ["हल्के लेबल का कंट्रास्ट बढ़ाएँ"],
+      "why": ["वही बाज़ार, मिलता-जुलता अंदाज़", "ऑनलाइन सीधा प्रतिस्पर्धी", "मिलती-जुलती विज़ुअल शैली"]
+    }
+  },
+  "es": {
+    "lang": "es",
+    "captions": {
+      "1-popup-colours": "Todos los colores de la página, con su función",
+      "2-contrast": "Contraste aprobado o no, según WCAG AA",
+      "3-side-panel-light": "Todo el sistema de diseño en el panel lateral",
+      "4-side-panel-dark": "Temas claro y oscuro",
+      "5-export": "Pro: exporta a CSS, Tailwind, Figma, JSON y DESIGN.md",
+      "6-ai-insights": "Pro + AI: un veredicto, qué transmiten los colores y sitios similares"
+    },
+    "ai": {
+      "sector": "Jardinería y hogar",
+      "tags": ["Tienda online", "Cercano, natural"],
+      "summary": "Una tienda verde y serena que transmite la confianza de una marca de jardinería. La paleta es contenida y el texto se lee con facilidad.",
+      "colours": [
+        ["Verde profundo: sólido, de confianza", "Marca el tono natural y fiable de la marca."],
+        ["Naranja cálido: cercano, enérgico", "Atrae la mirada hacia botones y ofertas."]
+      ],
+      "fit": "Los colores encajan con lo que los jardineros esperan de una marca en crecimiento.",
+      "works": ["Paleta coherente", "Texto fácil de leer"],
+      "improve": ["Sube el contraste de las etiquetas atenuadas"],
+      "why": ["Mismo mercado, tono parecido", "Competidor directo en línea", "Estilo visual similar"]
+    }
+  },
+  "ar": {
+    "lang": "ar",
+    "captions": {
+      "1-popup-colours": "كل لون في الصفحة، مع دوره",
+      "2-contrast": "نجاح التباين أو إخفاقه وفق معيار WCAG AA",
+      "3-side-panel-light": "نظام التصميم كاملًا في اللوحة الجانبية",
+      "4-side-panel-dark": "سمة فاتحة وأخرى داكنة",
+      "5-export": "Pro: التصدير إلى CSS وTailwind وFigma وJSON وDESIGN.md",
+      "6-ai-insights": "Pro + AI: تقييم، ومعنى الألوان، ومواقع مشابهة"
+    },
+    "ai": {
+      "sector": "البستنة والمنزل",
+      "tags": ["متجر إلكتروني", "ودود وطبيعي"],
+      "summary": "واجهة متجر خضراء هادئة توحي بعلامة بستنة موثوقة. الألوان متزنة والنص سهل القراءة.",
+      "colours": [
+        ["أخضر داكن: راسخ وجدير بالثقة", "يرسّخ الطابع الطبيعي والموثوق للعلامة."],
+        ["برتقالي دافئ: ودود ونشيط", "يلفت النظر إلى الأزرار والعروض."]
+      ],
+      "fit": "تتوافق الألوان مع ما يتوقعه هواة البستنة من علامة تجارية صاعدة.",
+      "works": ["ألوان متناسقة", "نص سهل القراءة"],
+      "improve": ["ارفع تباين التسميات الباهتة"],
+      "why": ["السوق نفسه وطابع مشابه", "منافس مباشر على الإنترنت", "أسلوب بصري مشابه"]
+    }
+  },
+  "fr": {
+    "lang": "fr",
+    "captions": {
+      "1-popup-colours": "Chaque couleur de la page, avec son rôle",
+      "2-contrast": "Contraste réussi ou échoué, selon WCAG AA",
+      "3-side-panel-light": "Tout le système de design dans le panneau latéral",
+      "4-side-panel-dark": "Thèmes clair et sombre",
+      "5-export": "Pro : export CSS, Tailwind, Figma, JSON et DESIGN.md",
+      "6-ai-insights": "Pro + AI : un verdict, le sens des couleurs et des sites similaires"
+    },
+    "ai": {
+      "sector": "Jardinage et maison",
+      "tags": ["Boutique en ligne", "Chaleureux, naturel"],
+      "summary": "Une vitrine verte et sereine qui inspire la confiance d’une marque de jardinage. La palette est sobre et le texte se lit facilement.",
+      "colours": [
+        ["Vert profond : solide, digne de confiance", "Donne à la marque son ton naturel et fiable."],
+        ["Orange chaud : chaleureux, énergique", "Attire l’œil vers les boutons et les offres."]
+      ],
+      "fit": "Les couleurs correspondent à ce que les jardiniers attendent d’une marque en plein essor.",
+      "works": ["Palette cohérente", "Texte facile à lire"],
+      "improve": ["Renforcer le contraste des libellés atténués"],
+      "why": ["Même marché, ton proche", "Concurrent direct en ligne", "Style visuel similaire"]
+    }
+  },
+  "bn": {
+    "lang": "bn",
+    "captions": {
+      "1-popup-colours": "পেজের প্রতিটি রং, তার ভূমিকাসহ",
+      "2-contrast": "WCAG AA অনুযায়ী কনট্রাস্ট পাস না ফেল, তা যাচাই",
+      "3-side-panel-light": "সাইড প্যানেলে পুরো ডিজাইন সিস্টেম",
+      "4-side-panel-dark": "লাইট ও ডার্ক থিম",
+      "5-export": "Pro: CSS, Tailwind, Figma, JSON ও DESIGN.md-এ এক্সপোর্ট",
+      "6-ai-insights": "Pro + AI: মূল্যায়ন, রংগুলোর অর্থ আর একই রকম সাইট"
+    },
+    "ai": {
+      "sector": "বাগান ও ঘর",
+      "tags": ["অনলাইন দোকান", "বন্ধুসুলভ, প্রাকৃতিক"],
+      "summary": "একটি শান্ত, সবুজ স্টোরফ্রন্ট, যা দেখতে বিশ্বস্ত বাগান-ব্র্যান্ডের মতো। রংগুলো সংযত আর লেখা সহজে পড়া যায়।",
+      "colours": [
+        ["গাঢ় সবুজ: স্থির, বিশ্বস্ত", "ব্র্যান্ডের প্রাকৃতিক, নির্ভরযোগ্য সুর ঠিক করে।"],
+        ["উষ্ণ কমলা: বন্ধুসুলভ, প্রাণবন্ত", "বোতাম আর অফারের দিকে চোখ টানে।"]
+      ],
+      "fit": "বাগানপ্রেমীরা একটি বেড়ে ওঠা ব্র্যান্ডের কাছে যে রং আশা করেন, এগুলো তার সঙ্গে মেলে।",
+      "works": ["সামঞ্জস্যপূর্ণ রং", "সহজপাঠ্য লেখা"],
+      "improve": ["হালকা লেবেলের কনট্রাস্ট বাড়ান"],
+      "why": ["একই বাজার, কাছাকাছি সুর", "সরাসরি অনলাইন প্রতিযোগী", "একই রকম ভিজ্যুয়াল স্টাইল"]
+    }
+  }
+}

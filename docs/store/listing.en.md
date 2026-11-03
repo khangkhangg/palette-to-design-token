@@ -75,7 +75,7 @@ For the Privacy practices tab. Declare these data types as collected. The first 
 - Website content: the page title and description, and a summary of the design (colours, fonts, sizes, spacing). Used to write the AI analysis. On our server, before anything else happens, email addresses, links (anything starting with http, https or www, or containing a path), @handles and long digit runs such as phone numbers are removed from the title and description. Other words in the title are sent as they are.
 - Web history: the address of the analysed page, without its query string. Used to look up similar and competitor sites and to cache the result for 7 days. It is user-initiated: nothing is sent unless the user presses Analyse.
 - Authentication information: the licence key, to check that Pro or Pro + AI is active.
-- Personal communications/contact: the buyer's email address, only when buying Pro or Pro + AI on vietnamcos.com, used to deliver and resend licence keys and for billing (sent via Resend; payment via PayPal).
+- Personally identifiable information: the buyer's email address, only when buying Pro or Pro + AI on vietnamcos.com, used to deliver and resend licence keys and for billing (sent via Resend; payment via PayPal).
 
 Third parties that process the analysis request on our behalf: Brave Search (web search) and DeepSeek (AI provider).
 
@@ -85,10 +85,19 @@ Certifications to tick: the data is not sold to third parties outside the approv
 
 ## Screenshots
 
-The store takes five. Upload 1-popup-colours, 2-contrast, 3-side-panel-light, 5-export and 6-ai-insights from docs/store/screenshots. 4-side-panel-dark is used on the landing page only.
+The store takes five per language. Upload 1-popup-colours, 2-contrast, 3-side-panel-light, 5-export and 6-ai-insights: the English set from docs/store/screenshots, and each other language from its own folder, docs/store/screenshots/<locale>/ (zh_CN, hi, es, ar, fr, bn), where the extension UI and the caption are in that language. 4-side-panel-dark is English only and used on the landing page. Regenerate with `npm run screenshots -- --all-langs` in extension/.
+
+## Graphic assets
+
+- Store icon: docs/store/store-icon-128.png (the mark at 96x96 with 16px transparent padding).
+- Small promo tile: docs/store/promo-440x280.png.
+- Marquee promo tile: docs/store/promo-marquee-1400x560.png.
+
+All three are made by `npm run promo` in extension/. The field-by-field submission guide is docs/store/SUBMIT.md.
 
 ## Links
 
 - Homepage URL: https://vietnamcos.com/palette/
 - Privacy policy URL: https://vietnamcos.com/palette/privacy
 - Terms of service URL: https://vietnamcos.com/palette/terms
+- Support URL: https://vietnamcos.com/palette/#faq (the landing page's FAQ; the page also shows support@vietnamcos.com)

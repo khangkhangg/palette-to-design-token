@@ -10,6 +10,7 @@
     "e2e": "node scripts/e2e.mjs",
     "e2e:checkout": "node scripts/e2e-checkout.mjs",
     "icons": "node scripts/icons.mjs",
+    "promo": "node scripts/promo.mjs",
     "screenshots": "node scripts/screenshots.mjs",
     "package": "node scripts/package.mjs",
     "package:direct": "node scripts/package.mjs --direct",
