@@ -145,3 +145,31 @@ td.end { text-align: end; padding-block: 8px; }
   .adm { padding: 20px 16px 40px; }
   .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Licence page */
+.back { font-size: 14px; text-decoration: none; }
+.lic-head { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.lic-head form { margin: 0; }
+.lic-head h2.mono-title { font-family: var(--font-mono); font-size: 22px; font-weight: 500; margin: 0; }
+.lic-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.lic-main, .lic-side { display: flex; flex-direction: column; gap: 16px; min-inline-size: 0; }
+.lic-side form { display: flex; flex-direction: column; gap: 14px; margin: 0; }
+.card-pad h2 { margin: 0; font-size: 16px; font-weight: 700; }
+.kvs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 24px; font-size: 14px; }
+.kv { display: flex; flex-direction: column; gap: 4px; min-inline-size: 0; overflow-wrap: anywhere; }
+.kv span { font-size: 12px; color: var(--muted); }
+.kv b { font-weight: 600; }
+td.bad { color: var(--fail-ink); font-weight: 600; }
+.history { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; font-size: 14px; }
+.history li { display: flex; gap: 12px; }
+.history .when { flex: 0 0 120px; color: var(--muted); }
+.fld { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.fld > span { font-weight: 600; }
+.fld select, .fld input, .fld textarea { font: inherit; font-size: 14px; color: var(--ink); background: var(--surface); border: 1px solid var(--field); border-radius: 10px; padding: 0 10px; min-block-size: 44px; }
+.fld textarea { padding: 10px; resize: vertical; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+.hint { font-size: 13px; color: var(--muted); }
+.card-danger { border-color: var(--fail-bg); }
+.card-danger h2 { color: var(--fail-ink); }
+.btn-danger { color: var(--fail-ink); border-color: var(--fail-ink); }
+@media (max-width: 860px) { .lic-grid { grid-template-columns: 1fr; } .kvs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

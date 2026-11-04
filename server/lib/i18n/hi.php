@@ -283,4 +283,14 @@ return [
     'co_st_cancelled' => 'भुगतान रद्द हो गया। कोई शुल्क नहीं लिया गया।',
     'co_st_failed' => 'भुगतान पूरा नहीं हुआ और कोई शुल्क नहीं लिया गया। कृपया फिर से कोशिश करें।',
     'co_manage_billing_note' => 'Stripe के सुरक्षित पेज पर अपना कार्ड बदलें, रसीदें देखें या सदस्यता रद्द करें।',
+    // Admin licence page (2026-11-04): change notice and billing-link emails.
+    'em_admin_change_subject' => 'आपका Site to Design Token लाइसेंस अपडेट किया गया',
+    'em_admin_change_body_access' => 'हमने आपकी Site to Design Token कुंजी के उपयोग की अनुमति बदली है। मौजूदा स्थिति देखने के लिए एक्सटेंशन खोलें।',
+    'em_admin_change_body_payment' => 'हमने आपके Site to Design Token लाइसेंस का भुगतान रिकॉर्ड अपडेट किया है। आपकी कुंजी में कोई बदलाव नहीं हुआ है।',
+    'em_admin_change_body_until' => 'आपकी Pro + AI पहुँच अब {date} तक चलेगी।',
+    'em_admin_change_body_plan' => 'आपका Site to Design Token प्लान अब {plan} है।',
+    'em_billing_link_subject' => 'अपना कार्ड अपडेट करें',
+    'em_billing_link_title' => 'अपना भुगतान कार्ड बदलें',
+    'em_billing_link_body' => 'कार्ड बदलने, रसीदें देखने या रद्द करने के लिए नीचे दिए सुरक्षित Stripe पेज का उपयोग करें। यह लिंक सिर्फ आपके लिए है और जल्द समाप्त हो जाएगा, कृपया इसे आगे न भेजें।',
+    'em_billing_link_button' => 'Stripe बिलिंग खोलें',
 ];

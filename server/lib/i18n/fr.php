@@ -283,4 +283,14 @@ return [
     'co_st_cancelled' => 'Paiement annulé. Rien n\'a été débité.',
     'co_st_failed' => 'Le paiement n\'a pas abouti et rien n\'a été débité. Veuillez réessayer.',
     'co_manage_billing_note' => 'Changez de carte, consultez vos reçus ou résiliez sur la page sécurisée de Stripe.',
+    // Admin licence page (2026-11-04): change notice and billing-link emails.
+    'em_admin_change_subject' => 'Votre licence Site to Design Token a été mise à jour',
+    'em_admin_change_body_access' => 'Nous avons modifié l’accès de votre clé Site to Design Token. Ouvrez l’extension pour voir son état actuel.',
+    'em_admin_change_body_payment' => 'Nous avons mis à jour l’enregistrement du paiement de votre licence Site to Design Token. La clé elle-même n’a pas changé.',
+    'em_admin_change_body_until' => 'Votre accès Pro + AI court maintenant jusqu’au {date}.',
+    'em_admin_change_body_plan' => 'Votre offre Site to Design Token est maintenant {plan}.',
+    'em_billing_link_subject' => 'Mettez à jour votre carte',
+    'em_billing_link_title' => 'Changez votre carte de paiement',
+    'em_billing_link_body' => 'Utilisez la page sécurisée de Stripe ci-dessous pour changer de carte, consulter vos reçus ou résilier. Ce lien est personnel et expire bientôt : ne le transférez pas.',
+    'em_billing_link_button' => 'Ouvrir la facturation Stripe',
 ];

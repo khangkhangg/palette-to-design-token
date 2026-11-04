@@ -283,4 +283,14 @@ return [
     'co_st_cancelled' => 'পেমেন্ট বাতিল হয়েছে। কোনো টাকা কাটা হয়নি।',
     'co_st_failed' => 'পেমেন্ট সম্পন্ন হয়নি, কোনো টাকা কাটা হয়নি। আবার চেষ্টা করুন।',
     'co_manage_billing_note' => 'Stripe-এর নিরাপদ পেজে কার্ড বদলান, রসিদ দেখুন বা সাবস্ক্রিপশন বাতিল করুন।',
+    // Admin licence page (2026-11-04): change notice and billing-link emails.
+    'em_admin_change_subject' => 'আপনার Site to Design Token লাইসেন্স আপডেট করা হয়েছে',
+    'em_admin_change_body_access' => 'আমরা আপনার Site to Design Token কী ব্যবহারের অনুমতি বদলেছি। বর্তমান অবস্থা দেখতে এক্সটেনশনটি খুলুন।',
+    'em_admin_change_body_payment' => 'আমরা আপনার Site to Design Token লাইসেন্সের পেমেন্ট রেকর্ড আপডেট করেছি। কী নিজে বদলায়নি।',
+    'em_admin_change_body_until' => 'আপনার Pro + AI অ্যাক্সেস এখন {date} পর্যন্ত চলবে।',
+    'em_admin_change_body_plan' => 'আপনার Site to Design Token প্ল্যান এখন {plan}।',
+    'em_billing_link_subject' => 'আপনার কার্ড আপডেট করুন',
+    'em_billing_link_title' => 'আপনার পেমেন্ট কার্ড বদলান',
+    'em_billing_link_body' => 'কার্ড বদলাতে, রসিদ দেখতে বা বাতিল করতে নিচের নিরাপদ Stripe পেজ ব্যবহার করুন। লিংকটি শুধু আপনার জন্য এবং শীঘ্রই মেয়াদ শেষ হবে, তাই এটি ফরোয়ার্ড করবেন না।',
+    'em_billing_link_button' => 'Stripe বিলিং খুলুন',
 ];

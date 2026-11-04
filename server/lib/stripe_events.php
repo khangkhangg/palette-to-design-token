@@ -341,7 +341,12 @@ function palette_st_portal_url(mysqli $c, string $rawKey, ?int $userId, ?string 
 {
     $o = palette_sub_owned_row($c, $rawKey, $userId, $email);
     if (!$o['ok']) return $o;
-    $row = $o['row'];
+    return palette_st_portal_for_row($c, $o['row']);
+}
+
+// The portal session for a subscription row the caller may act on (the owner above, or an admin: lib/admin.php).
+function palette_st_portal_for_row(mysqli $c, array $row): array
+{
     if (($row['provider'] ?? '') !== 'stripe') return ['ok' => false, 'error' => 'err_invalid_key'];   // a PayPal subscription has no Stripe portal
     $cus = (string)($row['stripe_customer'] ?? '');
     $mode = (int)$row['livemode'] === 1 ? 'live' : 'test';

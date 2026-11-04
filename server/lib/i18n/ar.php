@@ -283,4 +283,14 @@ return [
     'co_st_cancelled' => 'أُلغيت الدفعة. لم يُحصَّل أي مبلغ.',
     'co_st_failed' => 'لم تكتمل الدفعة ولم يُحصَّل أي مبلغ. يُرجى المحاولة مرة أخرى.',
     'co_manage_billing_note' => 'غيّر بطاقتك أو اطّلع على الإيصالات أو ألغِ الاشتراك على صفحة Stripe الآمنة.',
+    // Admin licence page (2026-11-04): change notice and billing-link emails.
+    'em_admin_change_subject' => 'تم تحديث ترخيص Site to Design Token الخاص بك',
+    'em_admin_change_body_access' => 'غيّرنا صلاحية استخدام مفتاح Site to Design Token الخاص بك. افتح الإضافة لمعرفة حالته الحالية.',
+    'em_admin_change_body_payment' => 'حدّثنا سجل الدفع في ترخيص Site to Design Token الخاص بك. المفتاح نفسه لم يتغير.',
+    'em_admin_change_body_until' => 'أصبح وصولك إلى Pro + AI ساريًا حتى {date}.',
+    'em_admin_change_body_plan' => 'أصبحت خطة Site to Design Token الخاصة بك الآن {plan}.',
+    'em_billing_link_subject' => 'حدّث بطاقتك',
+    'em_billing_link_title' => 'غيّر بطاقة الدفع الخاصة بك',
+    'em_billing_link_body' => 'استخدم صفحة Stripe الآمنة أدناه لتغيير بطاقتك أو عرض الإيصالات أو الإلغاء. الرابط شخصي وتنتهي صلاحيته قريبًا، فلا تعد توجيهه.',
+    'em_billing_link_button' => 'فتح فواتير Stripe',
 ];

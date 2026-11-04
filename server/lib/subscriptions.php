@@ -705,7 +705,13 @@ function palette_sub_cancel(mysqli $c, string $rawKey, ?int $userId, ?string $em
 {
     $o = palette_sub_owned_row($c, $rawKey, $userId, $email);
     if (!$o['ok']) return $o;
-    $row = $o['row'];
+    return palette_sub_cancel_row($c, $o['row']);
+}
+
+// The cancel itself, for a subscription row (with the licence's revoked_at and paid_through) the caller is allowed to act on:
+// the owner (palette_sub_cancel) or an admin (lib/admin.php). No ownership check here.
+function palette_sub_cancel_row(mysqli $c, array $row): array
+{
     $end = $row['revoked_at'] ?? $row['paid_through'];
     $endsOn = $end === null ? null : date('Y-m-d', strtotime($end));
     $revoked = $row['revoked_at'] !== null;

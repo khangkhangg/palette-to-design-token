@@ -283,4 +283,14 @@ return [
     'co_st_cancelled' => 'Pago cancelado. No se ha cobrado nada.',
     'co_st_failed' => 'El pago no se completó y no se ha cobrado nada. Inténtalo de nuevo.',
     'co_manage_billing_note' => 'Cambia tu tarjeta, consulta los recibos o cancela en la página segura de Stripe.',
+    // Admin licence page (2026-11-04): change notice and billing-link emails.
+    'em_admin_change_subject' => 'Tu licencia de Site to Design Token se ha actualizado',
+    'em_admin_change_body_access' => 'Hemos cambiado quién puede usar tu clave de Site to Design Token. Abre la extensión para ver su estado actual.',
+    'em_admin_change_body_payment' => 'Hemos actualizado el registro de pago de tu licencia de Site to Design Token. La clave en sí no ha cambiado.',
+    'em_admin_change_body_until' => 'Tu acceso a Pro + AI ahora dura hasta el {date}.',
+    'em_admin_change_body_plan' => 'Tu plan de Site to Design Token ahora es {plan}.',
+    'em_billing_link_subject' => 'Actualiza tu tarjeta',
+    'em_billing_link_title' => 'Cambia tu tarjeta de pago',
+    'em_billing_link_body' => 'Usa la página segura de Stripe de abajo para cambiar tu tarjeta, ver recibos o cancelar. El enlace es personal y caduca pronto, así que no lo reenvíes.',
+    'em_billing_link_button' => 'Abrir la facturación de Stripe',
 ];

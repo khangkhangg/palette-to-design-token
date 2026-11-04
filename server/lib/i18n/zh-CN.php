@@ -283,4 +283,14 @@ return [
     'co_st_cancelled' => '付款已取消，未产生任何扣款。',
     'co_st_failed' => '付款未成功，未产生任何扣款。请重试。',
     'co_manage_billing_note' => '在 Stripe 的安全页面更换银行卡、查看收据或取消订阅。',
+    // Admin licence page (2026-11-04): change notice and billing-link emails.
+    'em_admin_change_subject' => '你的 Site to Design Token 许可已更新',
+    'em_admin_change_body_access' => '我们更改了你的 Site to Design Token 密钥的使用权限。请打开扩展查看当前状态。',
+    'em_admin_change_body_payment' => '我们更新了你的 Site to Design Token 许可上的付款记录。密钥本身没有变化。',
+    'em_admin_change_body_until' => '你的 Pro + AI 权限现在有效期至 {date}。',
+    'em_admin_change_body_plan' => '你的 Site to Design Token 方案现在是 {plan}。',
+    'em_billing_link_subject' => '更新你的银行卡',
+    'em_billing_link_title' => '更换你的付款银行卡',
+    'em_billing_link_body' => '请通过下方安全的 Stripe 页面更换银行卡、查看收据或取消订阅。该链接仅供你本人使用且很快过期，请勿转发。',
+    'em_billing_link_button' => '打开 Stripe 账单页面',
 ];

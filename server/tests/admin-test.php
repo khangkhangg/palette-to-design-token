@@ -119,7 +119,7 @@ $r = palette_admin_page($conn, $admin, ['q' => '"><img src=x onerror=1>'], [], '
 ok('search term is escaped in the form', $r['status'] === 200 && !str_contains($r['body'], '"><img') && str_contains($r['body'], '&quot;&gt;&lt;img'));
 $r = palette_admin_page($conn, $admin, ['tab' => 'licences', 'plan' => 'ai', 'status' => 'bogus', 'page' => '-3'], [], 'GET');
 ok('bad filter / page values are tolerated', $r['status'] === 200);
-foreach (['payments', 'settings', 'issue', 'licence'] as $tab) {
+foreach (['payments', 'settings', 'issue'] as $tab) {
     $r = palette_admin_page($conn, $admin, ['tab' => $tab], [], 'GET');
     ok("$tab tab: placeholder inside shell", $r['status'] === 200 && str_contains($r['body'], 'Coming in a later task') && str_contains($r['body'], 'Issue a key'));
 }

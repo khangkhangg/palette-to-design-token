@@ -284,4 +284,14 @@ return [
     'co_st_cancelled' => 'Payment cancelled. Nothing was charged.',
     'co_st_failed' => 'The payment didn\'t go through and nothing was charged. Please try again.',
     'co_manage_billing_note' => 'Change your card, see receipts or cancel on Stripe\'s secure page.',
+    // Admin licence page (2026-11-04): change notice and billing-link emails.
+    'em_admin_change_subject' => 'Your Site to Design Token licence was updated',
+    'em_admin_change_body_access' => 'We changed who can use your Site to Design Token key. Open the extension to see its current state.',
+    'em_admin_change_body_payment' => 'We updated the payment record on your Site to Design Token licence. Your key itself is unchanged.',
+    'em_admin_change_body_until' => 'Your Pro + AI access now runs until {date}.',
+    'em_admin_change_body_plan' => 'Your Site to Design Token plan is now {plan}.',
+    'em_billing_link_subject' => 'Update your card',
+    'em_billing_link_title' => 'Change your payment card',
+    'em_billing_link_body' => 'Use the secure Stripe page below to change your card, see receipts or cancel. The link is personal to you and expires soon, so please do not forward it.',
+    'em_billing_link_button' => 'Open Stripe billing',
 ];
