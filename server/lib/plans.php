@@ -10,6 +10,11 @@ function palette_licence_access(array $lic, ?int $now = null): array
 {
     $now ??= time();
     if (($lic['revoked_at'] ?? null) !== null) return ['pro' => false, 'ai' => false];
+    // A test-mode (Stripe test key) licence is a trial of the flow: it stops working 7 days after it was made.
+    if ((int)($lic['livemode'] ?? 1) === 0) {
+        $made = is_string($lic['created_at'] ?? null) ? strtotime($lic['created_at']) : false;
+        if ($made !== false && $made + 7 * 86400 < $now) return ['pro' => false, 'ai' => false];
+    }
     if (($lic['plan'] ?? 'pro') !== 'ai') return ['pro' => true, 'ai' => false];
     $pt = $lic['paid_through'] ?? null;
     $t = is_string($pt) ? strtotime($pt) : false;

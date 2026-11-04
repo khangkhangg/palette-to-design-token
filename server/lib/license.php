@@ -65,7 +65,7 @@ function palette_verify(mysqli $c, string $rawKey, string $ip): array
     $none = ['valid' => false, 'revoked' => false, 'email_masked' => null];
     $key = palette_normalise_key($rawKey);
     if ($key === null) return $none;
-    $st = $c->prepare('SELECT id, email, revoked_at, plan, sub_status, paid_through, period_start, created_at FROM palette_licenses WHERE license_key = ?');
+    $st = $c->prepare('SELECT id, email, revoked_at, plan, sub_status, paid_through, period_start, created_at, livemode FROM palette_licenses WHERE license_key = ?');
     $st->bind_param('s', $key);
     $st->execute();
     $row = $st->get_result()->fetch_assoc();
@@ -76,6 +76,8 @@ function palette_verify(mysqli $c, string $rawKey, string $ip): array
     $id = (int)$row['id'];
     $c->query("UPDATE palette_licenses SET last_verified_at = NOW() WHERE id = $id");
     $out = ['valid' => true, 'revoked' => false, 'email_masked' => $masked];
+    // An expired test-mode licence (palette_licence_access) is no longer valid, whatever its plan.
+    if ($row['plan'] !== 'ai' && !palette_licence_access($row)['pro']) $out['valid'] = false;
     if ($row['plan'] === 'ai') {
         // Pro licences keep the original three-field answer; AI licences add their plan state.
         $acc = palette_licence_access($row);
