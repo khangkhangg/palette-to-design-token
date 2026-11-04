@@ -27,6 +27,7 @@ ok('connect ok: result', $r['ok'] === true && $r['error'] === null);
 ok('connect ok: stored id + secret', $m['webhook_id'] === 'we_new' && $m['webhook_secret'] === 'whsec_new' && $m['secret'] === 'sk_test_secretvalue' && $m['error'] === '' && $m['checked_at'] !== '');
 $post = $calls('POST', '/v1/webhook_endpoints')[0]['params'] ?? [];
 ok('connect ok: all 8 events', ($post['enabled_events'] ?? []) === PALETTE_STRIPE_EVENTS);
+ok('connect ok: endpoint pinned to the API version palette_st_api speaks', ($post['api_version'] ?? '') === '2024-06-20' && PALETTE_STRIPE_API_VERSION === '2024-06-20');
 ok('connect ok: url + description + metadata', ($post['url'] ?? '') === palette_stripe_webhook_url() && ($post['description'] ?? '') === 'Site to Design Token (palette)' && ($post['metadata']['palette'] ?? '') === '1');
 ok('connect ok: used the given key', str_contains(implode(' ', $calls('GET', '/v1/balance')[0]['headers']), 'sk_test_secretvalue'));
 

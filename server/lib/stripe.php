@@ -7,6 +7,8 @@ if (!function_exists('st_settings') && is_file(PALETTE_COMPANIES_DIR . '/include
 }
 
 const PALETTE_STRIPE_KEY = 'palette_stripe';
+// Every call and the webhook endpoint use this version, so payloads keep the fields the code reads (charge.invoice, ...).
+const PALETTE_STRIPE_API_VERSION = '2024-06-20';
 
 function palette_stripe_mode_defaults(string $mode): array
 {
@@ -103,7 +105,7 @@ function palette_st_request(string $secret, string $method, string $path, array 
 {
     $body = $params ? http_build_query($params) : null;
     $url = 'https://api.stripe.com/v1/' . ltrim($path, '/') . ($method === 'GET' && $body ? '?' . $body : '');
-    $headers = ['Authorization: Bearer ' . $secret,'Content-Type: application/x-www-form-urlencoded', 'Stripe-Version: 2024-06-20'];
+    $headers = ['Authorization: Bearer ' . $secret,'Content-Type: application/x-www-form-urlencoded', 'Stripe-Version: ' . PALETTE_STRIPE_API_VERSION];
     $send = $method === 'GET' ? null : $body;
     if (isset($GLOBALS['palette_st_http']) && is_callable($GLOBALS['palette_st_http'])) {
         $r = ($GLOBALS['palette_st_http'])($method, $url, $headers, $send, 20);
@@ -195,7 +197,7 @@ function palette_stripe_connect(mysqli $c, string $mode, string $source, string 
     $oldSettings = palette_stripe_settings($c)[$mode];
     $oldKey = palette_stripe_secret($c, $mode);
     $w = palette_st_request($key, 'POST', 'webhook_endpoints', ['url' => palette_stripe_webhook_url(), 'enabled_events' => PALETTE_STRIPE_EVENTS,
-        'description' => 'Site to Design Token (palette)', 'metadata' => ['palette' => '1']]);
+        'description' => 'Site to Design Token (palette)', 'metadata' => ['palette' => '1'], 'api_version' => PALETTE_STRIPE_API_VERSION]);
     $id = (string)($w['json']['id'] ?? '');
     $whsec = (string)($w['json']['secret'] ?? '');
     if ($w['status'] !== 200 || $id === '' || $whsec === '') return $fail(palette_stripe_api_error($w));

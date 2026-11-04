@@ -257,7 +257,16 @@ palette_st_fulfil_order($conn, $row, sw_order_session($row));
 $GLOBALS['st_calls'] = [];
 $charge = fn(array $o = []) => $o + ['id' => 'ch_1', 'object' => 'charge', 'amount' => 149, 'amount_refunded' => 149, 'currency' => 'usd', 'payment_intent' => 'pi_123', 'invoice' => null];
 ok('partial refund ignored', sw_send($conn, 'charge.refunded', $charge(['amount_refunded' => 50])) === [200, 'ignored'] && sw_lic($conn)['revoked_at'] === null);
-ok('foreign charge ignored', sw_send($conn, 'charge.refunded', $charge(['payment_intent' => 'pi_other'])) === [200, 'ignored'] && sw_lic($conn)['revoked_at'] === null);
+$GLOBALS['st_routes']['GET /v1/charges/ch_1'] = ['status' => 200, 'json' => ['id' => 'ch_1', 'payment_intent' => 'pi_other', 'invoice' => null]];
+ok('foreign charge ignored (looked up: no invoice)', sw_send($conn, 'charge.refunded', $charge(['payment_intent' => 'pi_other'])) === [200, 'ignored'] && sw_lic($conn)['revoked_at'] === null);
+$GLOBALS['st_routes']['GET /v1/charges/ch_1'] = ['status' => 404, 'json' => ['error' => ['message' => 'No such charge']]];
+$r = sw_send($conn, 'charge.refunded', $charge(['payment_intent' => 'pi_other']), ['id' => 'evt_404']);
+ok('charge lookup 404 (permanent) -> 200 ignored, logged with the status', $r === [200, 'ignored'] && str_contains(sw_log(), 'PALETTE_STRIPE_ERROR event=evt_404 http=404'));
+$GLOBALS['st_routes']['GET /v1/charges/ch_1'] = ['status' => 429, 'json' => []];
+ok('charge lookup 429 -> 503 retry', sw_send($conn, 'charge.refunded', $charge(['payment_intent' => 'pi_other'])) === [503, 'retry']);
+$GLOBALS['st_routes']['GET /v1/charges/ch_1'] = ['status' => 0, 'json' => []];
+ok('charge lookup transport failure -> 503 retry', sw_send($conn, 'charge.refunded', $charge(['payment_intent' => 'pi_other'])) === [503, 'retry']);
+$GLOBALS['st_calls'] = [];
 $r = sw_send($conn, 'charge.refunded', $charge());
 $l = sw_lic($conn);
 ok('full refund revokes the Pro licence', $r === [200, 'revoked'] && $l['revoked_at'] !== null && $l['pay_status'] === 'refunded' && !$GLOBALS['st_calls']);
@@ -282,6 +291,19 @@ ok('refund revokes and cancels', $r === [200, 'revoked'] && sw_lic($conn)['revok
     && palette_sub_row($conn, 'id', (int)$srow['id'])['status'] === 'cancelled'
     && sw_count($conn, "SELECT COUNT(*) FROM palette_sub_payments WHERE sale_id = 'in_r' AND status = 'refunded'") === 1);
 
+// API 2025-03-31+ charges have no `invoice` field: the charge is looked up (palette_st_api is pinned to 2024-06-20)
+sw_reset($conn);
+$srow = sw_fulfilled_sub($conn);
+sw_send($conn, 'invoice.paid', sw_invoice('in_n', 399, [], SW_START, SW_END));
+$GLOBALS['st_calls'] = [];
+$GLOBALS['st_routes']['GET /v1/charges/ch_new'] = ['status' => 200, 'json' => ['id' => 'ch_new', 'payment_intent' => 'pi_sub2', 'invoice' => 'in_n']];
+$GLOBALS['st_routes']['DELETE /v1/subscriptions/sub_123'] = ['status' => 200, 'json' => ['id' => 'sub_123', 'status' => 'canceled']];
+$noInv = ['id' => 'ch_new', 'object' => 'charge', 'amount' => 399, 'amount_refunded' => 399, 'currency' => 'usd', 'payment_intent' => 'pi_sub2'];
+$r = sw_send($conn, 'charge.refunded', $noInv);
+ok('sub refund without invoice field: charge looked up, revoked, DELETE sent', $r === [200, 'revoked'] && sw_lic($conn)['revoked_at'] !== null
+    && count(array_filter($GLOBALS['st_calls'], fn($x) => $x['method'] === 'GET' && $x['path'] === '/v1/charges/ch_new')) === 1
+    && count(array_filter($GLOBALS['st_calls'], fn($x) => $x['method'] === 'DELETE' && $x['path'] === '/v1/subscriptions/sub_123')) === 1);
+
 sw_reset($conn);
 $srow = sw_fulfilled_sub($conn);
 $GLOBALS['st_routes']['GET /v1/invoices/in_unrec'] = ['status' => 200, 'json' => ['id' => 'in_unrec', 'subscription' => 'sub_123']];
@@ -301,6 +323,27 @@ ok('payment on a revoked key: recorded, not extended, cancel retried', $r === [2
     && sw_count($conn, "SELECT COUNT(*) FROM palette_sub_payments WHERE sale_id = 'in_after'") === 1 && sw_lic($conn)['paid_through'] === $ptBefore
     && count(array_filter($GLOBALS['st_calls'], fn($x) => $x['method'] === 'DELETE')) === 1
     && palette_sub_row($conn, 'id', (int)$srow['id'])['status'] === 'cancelled');
+
+sw_reset($conn);
+sw_fulfilled_sub($conn);
+$GLOBALS['st_routes']['GET /v1/charges/ch_q'] = ['status' => 200, 'json' => ['id' => 'ch_q', 'invoice' => 'in_gone']];
+$GLOBALS['st_routes']['GET /v1/invoices/in_gone'] = ['status' => 404, 'json' => []];
+ok('invoice lookup 404 -> 200 ignored', sw_send($conn, 'charge.dispute.created', ['id' => 'dp_q', 'charge' => 'ch_q', 'payment_intent' => 'pi_q']) === [200, 'ignored']
+    && sw_lic($conn)['revoked_at'] === null);
+$GLOBALS['st_routes']['GET /v1/invoices/in_gone'] = ['status' => 503, 'json' => []];
+ok('invoice lookup 503 -> 503 retry', sw_send($conn, 'charge.dispute.created', ['id' => 'dp_q', 'charge' => 'ch_q', 'payment_intent' => 'pi_q']) === [503, 'retry']);
+
+// settings read failing (DB down) -> 503, class only
+sw_reset($conn);
+$conn->query("RENAME TABLE admin_settings TO admin_settings_off");
+try {
+    $r = sw_send($conn, 'customer.created', ['id' => 'cus_1'], ['id' => 'evt_nodb'], 'whsec_live');
+} catch (Throwable $e) {
+    $r = ['uncaught', get_class($e)];
+} finally {
+    $conn->query("RENAME TABLE admin_settings_off TO admin_settings");
+}
+ok('settings DB failure -> 503 + PALETTE_STRIPE_ERROR, not uncaught', $r === [503, 'retry'] && str_contains(sw_log(), 'PALETTE_STRIPE_ERROR event=evt_nodb mysqli_sql_exception'));
 
 // ---- exceptions -> 503
 sw_reset($conn);

@@ -10,16 +10,37 @@ function palette_st_webhook_response(mysqli $c, string $payload, string $sigHead
     $event = json_decode($payload, true);
     if (!is_array($event) || array_is_list($event) || !is_bool($event['livemode'] ?? null)) return [400, 'bad body'];
     $mode = $event['livemode'] ? 'live' : 'test';
-    $secret = palette_stripe_settings($c)[$mode]['webhook_secret'];
-    if ($secret === '' || !palette_st_signed($payload, $sigHeader, $secret)) return [400, 'unverified'];
-    $id = palette_st_id($event['id'] ?? null, 'evt') ?? '?';
+    $id = palette_st_ev_ref(palette_st_id($event['id'] ?? null, 'evt') ?? '?');
     try {
+        // Inside the try: a database failure reading the secret is a 503, never an uncaught 500.
+        $secret = palette_stripe_settings($c)[$mode]['webhook_secret'];
+        if ($secret === '' || !palette_st_signed($payload, $sigHeader, $secret)) return [400, 'unverified'];
         $r = palette_st_event($c, $mode, $event);
     } catch (Throwable $e) {
         error_log("PALETTE_STRIPE_ERROR event=$id " . get_class($e) . ' (will retry)');   // never the message: it may quote a key
         return [503, 'retry'];
     }
     return [$r === 'retry' ? 503 : 200, $r];
+}
+
+// The id of the event being handled, for log lines (set once per delivery).
+function palette_st_ev_ref(?string $set = null): string
+{
+    static $id = '?';
+    if ($set !== null) $id = $set;
+    return $id;
+}
+
+// A GET for the webhook: the JSON on 2xx, else null with $fail set. Only a transport failure (0), 429 or 5xx is worth
+// a redelivery ('retry'); any other 4xx is permanent (a companies charge we cannot see, a deleted object): 'ignored'.
+function palette_st_ev_get(mysqli $c, string $mode, string $path, array $params, ?string &$fail): ?array
+{
+    $r = palette_st_api($c, $mode, 'GET', $path, $params);
+    $s = $r['status'];
+    if ($s >= 200 && $s < 300) return $r['json'];
+    error_log('PALETTE_STRIPE_ERROR event=' . palette_st_ev_ref() . " http=$s GET " . strtok($path, '/'));
+    $fail = ($s === 0 || $s === 429 || $s >= 500) ? 'retry' : 'ignored';
+    return null;
 }
 
 // A Stripe id with the given prefix (sub, in, pi, ch, cs, evt), or null. An expanded object yields its id.
@@ -67,18 +88,14 @@ function palette_st_ev_session(mysqli $c, string $mode, array $obj): string
     if (!$row || !palette_st_same_mode($row, $mode)) return 'ignored';
     if ($row['status'] !== ($kind === 'sub' ? 'pending' : 'created')) return 'already';
 
-    $ref = $kind === 'sub' ? 'sub-' . $row['id'] : (string)$row['order_id'];
-    $r = palette_st_api($c, $mode, 'GET', 'checkout/sessions/' . $sid, $kind === 'sub' ? ['expand' => ['subscription']] : []);
-    if ($r['status'] < 200 || $r['status'] >= 300) {
-        palette_st_log_error('webhook get session', $ref, $r['status']);
-        return 'retry';
-    }
-    $f = $kind === 'sub' ? palette_st_fulfil_sub($c, $row, $r['json']) : palette_st_fulfil_order($c, $row, $r['json']);
+    $sess = palette_st_ev_get($c, $mode, 'checkout/sessions/' . $sid, $kind === 'sub' ? ['expand' => ['subscription']] : [], $fail);
+    if ($sess === null) return $fail;
+    $f = $kind === 'sub' ? palette_st_fulfil_sub($c, $row, $sess) : palette_st_fulfil_order($c, $row, $sess);
     if ($f['ok']) return $f['already'] ? 'already' : 'fulfilled';
     if (!empty($f['retry'])) {
         // Completed but not paid yet (a delayed payment method): async_payment_succeeded fulfils it later. 200 with no
         // DB change, so Stripe does not count the endpoint as failing. Other retries (DB rollback, Stripe down) stay 503.
-        return in_array($r['json']['payment_status'] ?? '', ['paid', 'no_payment_required'], true) ? 'retry' : 'waiting';
+        return in_array($sess['payment_status'] ?? '', ['paid', 'no_payment_required'], true) ? 'retry' : 'waiting';
     }
     return $f['already'] ? 'already' : 'refused';   // a foreign or mismatched session: logged by the fulfil function
 }
@@ -160,14 +177,11 @@ function palette_st_ev_invoice_paid(mysqli $c, string $mode, array $inv): string
         }
     }
     if ($end === null) {
-        $r = palette_st_api($c, $mode, 'GET', 'subscriptions/' . $subId);
-        if ($r['status'] < 200 || $r['status'] >= 300) {
-            palette_st_log_error('webhook get subscription', "sub-{$row['id']}", $r['status']);
-            return 'retry';
-        }
-        $item = $r['json']['items']['data'][0] ?? [];
-        $start = palette_st_utc($r['json']['current_period_start'] ?? $item['current_period_start'] ?? null);
-        $end = palette_st_utc($r['json']['current_period_end'] ?? $item['current_period_end'] ?? null);
+        $sub = palette_st_ev_get($c, $mode, 'subscriptions/' . $subId, [], $fail);
+        if ($sub === null) return $fail;
+        $item = $sub['items']['data'][0] ?? [];
+        $start = palette_st_utc($sub['current_period_start'] ?? $item['current_period_start'] ?? null);
+        $end = palette_st_utc($sub['current_period_end'] ?? $item['current_period_end'] ?? null);
         if ($end === null) return 'retry';
     }
 
@@ -225,12 +239,9 @@ function palette_st_ev_subscription(mysqli $c, string $mode, array $sub, bool $d
             [$to, $from] = ['active', ['suspended', 'cancelled']];
             // Undoing a cancel: events can arrive out of order, so ask Stripe before reopening a cancelled row.
             if ($row['status'] === 'cancelled') {
-                $r = palette_st_api($c, $mode, 'GET', 'subscriptions/' . $subId);
-                if ($r['status'] < 200 || $r['status'] >= 300) {
-                    palette_st_log_error('webhook get subscription', "sub-{$row['id']}", $r['status']);
-                    return 'retry';
-                }
-                if (!in_array($r['json']['status'] ?? '', ['active', 'trialing'], true) || !empty($r['json']['cancel_at_period_end'])) return 'already';
+                $now = palette_st_ev_get($c, $mode, 'subscriptions/' . $subId, [], $fail);
+                if ($now === null) return $fail;
+                if (!in_array($now['status'] ?? '', ['active', 'trialing'], true) || !empty($now['cancel_at_period_end'])) return 'already';
             }
         }
     } else {
@@ -269,16 +280,15 @@ function palette_st_ev_refund(mysqli $c, string $mode, array $obj, bool $dispute
             return 'revoked';
         }
     }
-    if ($dispute) {
-        // A dispute names only its charge; the charge names the invoice.
-        $chId = palette_st_id($obj['charge'] ?? null, 'ch') ?? palette_st_id($obj['charge'] ?? null, 'py');
+    if ($invId === null) {
+        // A dispute names only its charge, and from API 2025-03-31 a charge has no `invoice` field (the endpoint may
+        // send a newer version than ours): fetch the charge with palette_st_api, pinned to 2024-06-20, which has it.
+        $ch = $dispute ? ($obj['charge'] ?? null) : ($obj['id'] ?? null);
+        $chId = palette_st_id($ch, 'ch') ?? palette_st_id($ch, 'py');
         if ($chId === null) return 'ignored';
-        $r = palette_st_api($c, $mode, 'GET', 'charges/' . $chId);
-        if ($r['status'] < 200 || $r['status'] >= 300) {
-            palette_st_log_error('webhook get charge', $chId, $r['status']);
-            return 'retry';
-        }
-        $invId = palette_st_id($r['json']['invoice'] ?? null, 'in');
+        $charge = palette_st_ev_get($c, $mode, 'charges/' . $chId, [], $fail);
+        if ($charge === null) return $fail;
+        $invId = palette_st_id($charge['invoice'] ?? null, 'in');
     }
     if ($invId === null) return 'ignored';   // not palette's (a companies charge on the shared account)
 
@@ -288,12 +298,9 @@ function palette_st_ev_refund(mysqli $c, string $mode, array $obj, bool $dispute
     $subId = $st->get_result()->fetch_row()[0] ?? null;
     $st->close();
     if ($subId === null) {
-        $r = palette_st_api($c, $mode, 'GET', 'invoices/' . $invId);
-        if ($r['status'] < 200 || $r['status'] >= 300) {
-            palette_st_log_error('webhook get invoice', $invId, $r['status']);
-            return 'retry';
-        }
-        $subId = palette_st_invoice_sub($r['json']);
+        $inv = palette_st_ev_get($c, $mode, 'invoices/' . $invId, [], $fail);
+        if ($inv === null) return $fail;
+        $subId = palette_st_invoice_sub($inv);
     }
     $row = palette_st_sub_by_stripe($c, is_string($subId) ? $subId : null, $mode);
     if (!$row) return 'ignored';
