@@ -133,8 +133,9 @@ ok('palette metadata without a row ignored, no Stripe call', sw_send($conn, 'che
 $thin = ['id' => $row['stripe_session'], 'object' => 'checkout.session', 'metadata' => ['palette' => 'order', 'row' => (string)$row['id']], 'livemode' => true,
          'payment_status' => 'paid', 'amount_total' => 149];
 $GLOBALS['st_routes']['GET /v1/checkout/sessions/' . $row['stripe_session']] = ['status' => 200, 'json' => sw_order_session($row, ['payment_status' => 'unpaid'])];
-ok('event body not trusted: Stripe says unpaid -> 503, no licence', sw_send($conn, 'checkout.session.completed', $thin) === [503, 'retry']
-    && sw_count($conn, 'SELECT COUNT(*) FROM palette_licenses') === 0);
+$ordersBefore = $conn->query('SELECT * FROM palette_orders')->fetch_all(MYSQLI_ASSOC);
+ok('event body not trusted: Stripe says unpaid -> 200 waiting, no DB change', sw_send($conn, 'checkout.session.completed', $thin) === [200, 'waiting']
+    && sw_count($conn, 'SELECT COUNT(*) FROM palette_licenses') === 0 && $conn->query('SELECT * FROM palette_orders')->fetch_all(MYSQLI_ASSOC) === $ordersBefore);
 $get = $GLOBALS['st_calls'][0] ?? [];
 ok('session re-fetched with the live key', ($get['method'] ?? '') === 'GET' && ($get['path'] ?? '') === '/v1/checkout/sessions/' . $row['stripe_session']
     && in_array('Authorization: Bearer sk_live_x', $get['headers'] ?? [], true));

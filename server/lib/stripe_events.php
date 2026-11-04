@@ -75,7 +75,11 @@ function palette_st_ev_session(mysqli $c, string $mode, array $obj): string
     }
     $f = $kind === 'sub' ? palette_st_fulfil_sub($c, $row, $r['json']) : palette_st_fulfil_order($c, $row, $r['json']);
     if ($f['ok']) return $f['already'] ? 'already' : 'fulfilled';
-    if (!empty($f['retry'])) return 'retry';
+    if (!empty($f['retry'])) {
+        // Completed but not paid yet (a delayed payment method): async_payment_succeeded fulfils it later. 200 with no
+        // DB change, so Stripe does not count the endpoint as failing. Other retries (DB rollback, Stripe down) stay 503.
+        return in_array($r['json']['payment_status'] ?? '', ['paid', 'no_payment_required'], true) ? 'retry' : 'waiting';
+    }
     return $f['already'] ? 'already' : 'refused';   // a foreign or mismatched session: logged by the fulfil function
 }
 
