@@ -323,13 +323,32 @@ $ptUnix = strtotime(ai_lic($conn, $mv)['paid_through'] . ' UTC');
 ok('st_checkout move: a subscription for the licence email, moving that licence', $r['status'] === 200 && $srow && (int)$srow['move_license_id'] === $mv
     && $srow['email'] === 'marco@example.es' && str_contains($raw, 'mode=subscription') && str_contains($raw, 'customer_email=marco@example.es') && !str_contains($raw, 'attacker'));
 ok('st_checkout move: trial ends at the PayPal paid-through', str_contains($raw, 'subscription_data[trial_end]=' . $ptUnix));
+// one link, many checkouts: a start while the first session is still open answers that session again
 $_SESSION['user_role'] = 'admin';
 $GLOBALS['st_calls'] = [];
-$GLOBALS['st_routes']['POST /v1/checkout/sessions'] = ['status' => 200, 'json' => ['id' => 'cs_live_Move1b', 'url' => 'https://checkout.stripe.com/c/pay/m']];
+$GLOBALS['st_routes']['GET /v1/checkout/sessions/cs_live_Move1'] = ['status' => 200, 'json' => ['id' => 'cs_live_Move1', 'status' => 'open', 'url' => 'https://checkout.stripe.com/c/pay/m']];
+$rows0 = ai_count($conn, 'SELECT COUNT(*) FROM palette_subscriptions');
 $r = ai_api('st_checkout', ['plan' => 'ai', 'consent' => '1', 'move' => $tok, 'test' => '1']);
-ok('st_checkout move: an admin ?test=1 still moves to a live subscription', $r['status'] === 200
-    && in_array('Authorization: Bearer sk_live_x', $GLOBALS['st_calls'][0]['headers'] ?? [], true)
-    && (int)$conn->query("SELECT livemode FROM palette_subscriptions WHERE stripe_session = 'cs_live_Move1b'")->fetch_row()[0] === 1);
+$posts = array_filter($GLOBALS['st_calls'], fn($x) => $x['method'] === 'POST');
+ok('st_checkout move: two starts -> one Stripe session, same URL, no new row', $r['status'] === 200 && $r['body']['url'] === 'https://checkout.stripe.com/c/pay/m'
+    && !$posts && ai_count($conn, 'SELECT COUNT(*) FROM palette_subscriptions') === $rows0);
+ok('st_checkout move: the open session is checked in live mode (admin ?test=1 ignored)', in_array('Authorization: Bearer sk_live_x', $GLOBALS['st_calls'][0]['headers'] ?? [], true)
+    && in_array('s:' . $srow['id'], $_SESSION['palette_st'] ?? [], true));
+foreach (['expired' => ['status' => 200, 'json' => ['id' => 'cs_live_Move1', 'status' => 'expired']], 'gone (404)' => ['status' => 404, 'json' => []]] as $label => $resp) {
+    $GLOBALS['st_calls'] = [];
+    $GLOBALS['st_routes']['GET /v1/checkout/sessions/cs_live_Move1'] = $resp;
+    $new = 'cs_live_Move1' . ($label === 'expired' ? 'b' : 'c');
+    $GLOBALS['st_routes']['POST /v1/checkout/sessions'] = ['status' => 200, 'json' => ['id' => $new, 'url' => 'https://checkout.stripe.com/c/pay/' . $new]];
+    $r = ai_api('st_checkout', ['plan' => 'ai', 'consent' => '1', 'move' => $tok, 'test' => '1']);
+    ok("st_checkout move: previous session $label -> a new live session", $r['status'] === 200 && $r['body']['url'] === 'https://checkout.stripe.com/c/pay/' . $new
+        && in_array('Authorization: Bearer sk_live_x', end($GLOBALS['st_calls'])['headers'], true)
+        && (int)$conn->query("SELECT livemode FROM palette_subscriptions WHERE stripe_session = '$new'")->fetch_row()[0] === 1);
+    $conn->query("UPDATE palette_subscriptions SET status = 'cancelled' WHERE stripe_session = '$new'");   // keep cs_live_Move1 the open one
+}
+$GLOBALS['st_routes']['GET /v1/checkout/sessions/cs_live_Move1'] = ['status' => 503, 'json' => []];
+$GLOBALS['st_calls'] = [];
+$r = ai_api('st_checkout', ['plan' => 'ai', 'consent' => '1', 'move' => $tok]);
+ok('st_checkout move: Stripe down while checking the open session -> 502, nothing created', $r['status'] === 502 && !array_filter($GLOBALS['st_calls'], fn($x) => $x['method'] === 'POST'));
 $h = palette_render_checkout(['query' => ['move' => $tok, 'test' => '1'], 'session' => ['user_role' => 'admin'], 'accept_language' => '']);
 ok('checkout move: no test banner for an admin ?test=1', !str_contains($h, 'id="test-banner"') && str_contains($h, 'readonly'));
 $_SESSION = [];
@@ -339,9 +358,14 @@ ok('st_checkout move: bad token refused, no Stripe call', $r['status'] === 400 &
 $soon = ai_pp_licence($conn, 'soon@example.es', 3600, 'I-MOVESOON1');
 $GLOBALS['st_routes']['POST /v1/checkout/sessions'] = ['status' => 200, 'json' => ['id' => 'cs_live_Move2', 'url' => 'https://checkout.stripe.com/c/pay/m2']];
 $r = ai_api('st_checkout', ['plan' => 'ai', 'email' => '', 'consent' => '1', 'move' => palette_admin_move_token($conn, $soon, $exp)]);
-ok('st_checkout move: paid-through too close for a Stripe trial -> no trial', $r['status'] === 200 && !str_contains((string)end($GLOBALS['st_calls'])['raw'], 'trial_end'));
-ok('move trial end: rule', palette_admin_move_trial_end(['paid_through' => gmdate('Y-m-d H:i:s', time() + 5 * 86400)]) === (string)strtotime(gmdate('Y-m-d H:i:s', time() + 5 * 86400) . ' UTC')
-    && palette_admin_move_trial_end(['paid_through' => gmdate('Y-m-d H:i:s', time() - 60)]) === null && palette_admin_move_trial_end(['paid_through' => null]) === null);
+$t = preg_match('/subscription_data\[trial_end\]=(\d+)/', urldecode((string)end($GLOBALS['st_calls'])['raw']), $tm) ? (int)$tm[1] : 0;
+ok('st_checkout move: paid-through 1 h ahead -> trial ends now + 48 h + 5 min', $r['status'] === 200 && abs($t - (time() + 48 * 3600 + 300)) <= 5);
+$in10 = gmdate('Y-m-d H:i:s', time() + 10 * 86400);
+$in3h = gmdate('Y-m-d H:i:s', time() + 3 * 3600);
+ok('move trial end: paid_through 10 days ahead -> paid_through', palette_admin_move_trial_end(['paid_through' => $in10]) === (string)strtotime($in10 . ' UTC'));
+ok('move trial end: paid_through 3 h ahead -> now + 48 h + 5 min', abs((int)palette_admin_move_trial_end(['paid_through' => $in3h]) - (time() + 48 * 3600 + 300)) <= 5);
+ok('move trial end: past or missing paid_through -> now + 48 h + 5 min', abs((int)palette_admin_move_trial_end(['paid_through' => gmdate('Y-m-d H:i:s', time() - 60)]) - (time() + 173100)) <= 5
+    && abs((int)palette_admin_move_trial_end(['paid_through' => null]) - (time() + 173100)) <= 5);
 
 // ---- move keeps key and cancels paypal
 function ai_move_session(array $row, string $subId = 'sub_MOVED1'): array

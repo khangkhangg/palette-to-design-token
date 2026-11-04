@@ -232,6 +232,25 @@ function palette_st_sub_start(mysqli $c, string $mode, string $email, string $la
     return ['ok' => true, 'url' => $url, 'row_id' => $id];
 }
 
+// One move-to-card link, many clicks: the newest pending move checkout for this licence, when Stripe still has its session open.
+// ['url', 'row_id'] to send the customer back to it; null when there is none (or it expired, completed or is gone: start a new
+// one); ['error' => 'err_stripe'] when Stripe cannot say.
+function palette_st_move_open_session(mysqli $c, int $licenceId): ?array
+{
+    $r = $c->query("SELECT id, stripe_session, livemode FROM palette_subscriptions WHERE move_license_id = $licenceId AND status = 'pending'
+                    AND stripe_session IS NOT NULL ORDER BY id DESC LIMIT 1")->fetch_assoc();
+    if (!$r || !preg_match(PALETTE_STRIPE_SESSION_RE, (string)$r['stripe_session'])) return null;
+    $g = palette_st_api($c, (int)$r['livemode'] === 1 ? 'live' : 'test', 'GET', 'checkout/sessions/' . $r['stripe_session']);
+    if ($g['status'] === 404) return null;
+    if ($g['status'] < 200 || $g['status'] >= 300) {
+        palette_st_log_error('get open move session', 'sub-' . $r['id'], $g['status']);
+        return ['error' => 'err_stripe'];
+    }
+    $url = $g['json']['url'] ?? null;
+    if (($g['json']['status'] ?? '') === 'open' && is_string($url) && str_starts_with($url, 'https://')) return ['url' => $url, 'row_id' => (int)$r['id']];
+    return null;
+}
+
 // The licence key a subscription row holds, or null while it has none.
 function palette_st_sub_key(mysqli $c, int $rowId): ?string
 {

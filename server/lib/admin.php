@@ -1300,8 +1300,9 @@ function palette_admin_tab_payments(mysqli $c, array $session, array $query): ar
 
 const PALETTE_MOVE_TTL = 7 * 86400;
 const PALETTE_MOVE_URL = 'https://vietnamcos.com/palette/checkout?move=';
-// Stripe Checkout refuses a subscription trial_end less than 48 hours ahead: paid days closer than that are not carried over.
-const PALETTE_MOVE_MIN_TRIAL = 48 * 3600;
+// Stripe Checkout refuses a subscription trial_end less than 48 hours ahead. A move always gets a trial (never a double
+// charge): at least 48 h + 5 min, so a PayPal period ending sooner gives the customer up to about two free days.
+const PALETTE_MOVE_MIN_TRIAL = 48 * 3600 + 300;
 
 function palette_b64url(string $s): string
 {
@@ -1360,12 +1361,12 @@ function palette_admin_move_check(mysqli $c, string $token, ?int $now = null): a
     return ['ok' => true, 'licence' => $lic, 'expires' => $exp, 'paypal' => $pp];
 }
 
-// The Stripe trial_end (unix seconds, as a string) that carries the PayPal paid-through over, or null to charge at once.
-function palette_admin_move_trial_end(array $lic, ?int $now = null): ?string
+// The Stripe trial_end (unix seconds, as a string) for a move: max(PayPal paid-through, now + 48 h + 5 min).
+function palette_admin_move_trial_end(array $lic, ?int $now = null): string
 {
     $now ??= time();
     $t = is_string($lic['paid_through'] ?? null) ? strtotime($lic['paid_through'] . ' UTC') : false;
-    return $t !== false && $t >= $now + PALETTE_MOVE_MIN_TRIAL ? (string)$t : null;
+    return (string)max($t === false ? 0 : $t, $now + PALETTE_MOVE_MIN_TRIAL);
 }
 
 // Emails the licence's owner the one-use move link in their language. ['ok' => true] or ['ok' => false, 'error' => not_found|not_paypal|mail].
@@ -1378,13 +1379,13 @@ function palette_admin_move_link(mysqli $c, int $adminId, int $licenceId, string
     $lang = palette_lang((string)$lic['lang']);
     $url = PALETTE_MOVE_URL . palette_admin_move_token($c, $licenceId, $exp) . '&lang=' . rawurlencode($lang);
     $trial = palette_admin_move_trial_end($lic);
-    $m = palette_move_email($url, $lang, $trial === null ? null : gmdate('Y-m-d', (int)$trial));
+    $m = palette_move_email($url, $lang, gmdate('Y-m-d', (int)$trial));
     if (!palette_mail((string)$lic['email'], $m['subject'], $m['html'])) {
         error_log('PALETTE_MAIL_FAILED admin_move_link licence=' . $licenceId);
         return ['ok' => false, 'error' => 'mail'];
     }
     $note = trim($note);
-    palette_admin_log($c, $adminId, 'move_link', $licenceId, null, ['expires' => gmdate('Y-m-d H:i:s', $exp), 'trial' => $trial !== null], $note !== '' ? $note : null);
+    palette_admin_log($c, $adminId, 'move_link', $licenceId, null, ['expires' => gmdate('Y-m-d H:i:s', $exp), 'first_charge' => gmdate('Y-m-d', (int)$trial)], $note !== '' ? $note : null);
     return ['ok' => true, 'error' => null];
 }
 

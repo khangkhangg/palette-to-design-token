@@ -198,9 +198,12 @@ function palette_api_handle(array $req): array
             $open = $mode === 'test' ? palette_stripe_ready($conn, 'test')
                 : in_array('stripe', palette_stripe_settings($conn)['checkout_methods'], true) && palette_stripe_ready($conn, 'live');
             if (!$open) return palette_api_error(503, 'err_paused', $lang);
-            $r = $move !== null ? palette_st_sub_start($conn, $mode, (string)$move['email'], $lang, $str('consent') === '1', (int)$move['id'], palette_admin_move_trial_end($move))
+            $again = $move !== null ? palette_st_move_open_session($conn, (int)$move['id']) : null;   // a checkout from this link still open
+            if (isset($again['error'])) return palette_api_error(502, $again['error'], $lang);
+            $r = $again !== null ? ['ok' => true] + $again
+                : ($move !== null ? palette_st_sub_start($conn, $mode, (string)$move['email'], $lang, $str('consent') === '1', (int)$move['id'], palette_admin_move_trial_end($move))
                 : ($ai ? palette_st_sub_start($conn, $mode, $str('email'), $lang, $str('consent') === '1')
-                     : palette_st_order_start($conn, $mode, $str('email'), $lang, $str('consent') === '1'));
+                     : palette_st_order_start($conn, $mode, $str('email'), $lang, $str('consent') === '1')));
             if (!$r['ok']) return palette_api_error(['err_paused' => 503, 'err_stripe' => 502][$r['error']] ?? 400, $r['error'], $lang);
             $mine = is_array($_SESSION['palette_st'] ?? null) ? $_SESSION['palette_st'] : [];
             $mine[] = ($ai ? 's:' : 'o:') . $r['row_id'];

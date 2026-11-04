@@ -586,7 +586,7 @@ function palette_render_checkout(array $ctx): string
     if ($move !== null) {
         $trial = palette_admin_move_trial_end($move['licence']);
         $moveNote = '<div class="st-msg move-msg" id="move-msg" role="note">' . palette_icon('card', 16) . '<span><strong>' . $t('co_move_title') . '</strong> '
-            . palette_h($trial !== null ? palette_t($lang, 'co_move_note_date', ['date' => gmdate('Y-m-d', (int)$trial)]) : palette_t($lang, 'co_move_note_now')) . '</span></div>';
+            . palette_h(palette_t($lang, 'co_move_note_date', ['date' => gmdate('Y-m-d', (int)$trial)])) . '</span></div>';
     } elseif ($moveBad) {
         $moveNote = '<p class="st-msg" id="move-msg" role="status">' . palette_icon('alert', 16) . '<span>' . $t('co_move_invalid') . '</span></p>';
     }
