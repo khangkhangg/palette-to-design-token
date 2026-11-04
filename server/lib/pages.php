@@ -6,8 +6,8 @@
 const PALETTE_BASE = '/palette';
 const PALETTE_LANG_NAMES = ['en' => 'English', 'zh-CN' => '中文', 'hi' => 'हिन्दी', 'es' => 'Español',
                             'ar' => 'العربية', 'fr' => 'Français', 'bn' => 'বাংলা'];
-const PALETTE_PRIVACY_UPDATED = '2026-10-17';
-const PALETTE_TERMS_UPDATED = '2026-10-17';
+const PALETTE_PRIVACY_UPDATED = '2026-11-04';
+const PALETTE_TERMS_UPDATED = '2026-11-04';
 const PALETTE_SUPPORT_EMAIL = 'support@vietnamcos.com';
 // The extension version the checkout page offers (keep in step with extension/public/manifest.json; pages-test checks).
 const PALETTE_EXT_VERSION = '0.2.1';
@@ -29,7 +29,9 @@ const PALETTE_US_STATES = [
 const PALETTE_SCRIPT_STRINGS = ['err_email', 'err_paused', 'err_consent', 'err_paypal', 'err_retry', 'err_csrf', 'co_err_region', 'co_err_network',
     'co_err_confirm', 'co_err_confirm_sub', 'co_load_failed', 'co_copy', 'co_copied', 'co_copy_failed', 'co_ext_ok', 'co_ext_paste', 'co_emailed', 'co_key_emailed', 'api_resend_ok', 'acct_added',
     // plan chooser (swapped in by checkout.js when the plan changes) and the account subscription panel
-    'co_item', 'co_item_ai', 'co_refund', 'co_refund_ai', 'co_card_note', 'co_note_ai', 'co_sub_pending', 'co_success_title', 'co_success_title_ai', 'acct_st_cancelled'];
+    'co_item', 'co_item_ai', 'co_refund', 'co_refund_ai', 'co_card_note', 'co_note_ai', 'co_sub_pending', 'co_success_title', 'co_success_title_ai', 'acct_st_cancelled',
+    // Stripe: the PayPal block's note, the return states and Stripe's own error
+    'co_pp_note', 'co_st_waiting', 'co_st_failed', 'err_stripe'];
 
 // ?lang= when it is one of the 7; else the best Accept-Language match; else en.
 // The escaped string with {name} placeholders replaced by trusted HTML.
@@ -454,29 +456,49 @@ function palette_render_terms(array $ctx): string
     return palette_page_shell('terms', $lang, [], palette_t($lang, 'terms_title') . ' | Site to Design Token', $main);
 }
 
+// Methods come from checkout_methods, in that order; a method counts only while it is connected (Stripe: the Live
+// connection, or Test for a signed-in admin's ?test=1, which offers Stripe alone). None connected: "Payments are paused".
+// Return from Stripe: ?st=cs_... confirms (checkout.js polls st_confirm), ?st=cancel shows the form with a note.
 function palette_render_checkout(array $ctx): string
 {
     $conn = $GLOBALS['conn'];
     $query = is_array($ctx['query'] ?? null) ? $ctx['query'] : [];
+    $session = is_array($ctx['session'] ?? null) ? $ctx['session'] : [];
     $lang = palette_page_lang($query, (string)($ctx['accept_language'] ?? ''));
     $keep = array_intersect_key(palette_page_keep($query), ['ext' => 1]);
     if (in_array($query['plan'] ?? null, ['ai', 'pro'], true)) $keep['plan'] = $query['plan'];
     $t = fn(string $k) => palette_h(palette_t($lang, $k));
 
+    $mode = palette_checkout_mode($session, $query);
+    $test = $mode === 'test';
+    if ($test) $keep['test'] = '1';
     $settings = palette_settings($conn);
     $money = palette_money_settings($settings);
     $pp = pp_settings($conn);
-    $ready = pp_ready($pp);
-    $aiOn = palette_ai_plan_ready($settings, $pp);
+    $stOn = palette_stripe_ready($conn, $mode);
+    $ppOn = !$test && pp_ready($pp);
+    $methods = $test ? ['stripe'] : palette_stripe_settings($conn)['checkout_methods'];
+    $active = array_values(array_filter($methods, fn(string $m) => $m === 'stripe' ? $stOn : $ppOn));
+    $hasSt = in_array('stripe', $active, true);
+    $hasPp = in_array('paypal', $active, true);
+    $ppAi = $hasPp && palette_ai_plan_ready($settings, $pp);   // PayPal sells Pro + AI only once its plan exists (A18)
+    $aiOn = $hasSt || $ppAi;
     $plan = palette_page_plan($query, $aiOn);
     $isAi = $plan === 'ai';
-    $ca = $money['tax_mode'] === 'ca';
+    $ca = $money['tax_mode'] === 'ca' && $hasPp;   // sales tax is collected on PayPal's Pro order only
     $fr = $lang === 'fr';
     $usd = fn(string $amount): string => palette_usd($lang, $amount);
     $price = $usd(palette_money($money['price']));
-    $aiPrice = $usd(palette_money(palette_ai_display_cents($settings)));
+    $aiPrice = $usd(palette_money($test ? palette_sub_price_cents($settings) : palette_ai_display_cents($settings)));
     $withTax = palette_total($settings, 'US', 'CA');
     $shown = $isAi ? $aiPrice : $price;
+    // The Stripe button names what Stripe will charge (palette_st_order_start / palette_st_sub_start), the price kept
+    // left-to-right inside RTL copy; checkout.js swaps it when the plan changes.
+    $stPrice = ['pro' => $usd(palette_total($settings, null, null)['amount']), 'ai' => $usd(palette_money(palette_sub_price_cents($settings)))];
+
+    $st = is_string($query['st'] ?? null) ? $query['st'] : '';
+    $stSession = preg_match(PALETTE_STRIPE_SESSION_RE, $st) ? $st : null;
+    $stCancel = $st === 'cancel';
 
     // Pro + AI is a subscription: no sales-tax lines for it (the selects and the CA row only apply to Pro).
     $summary = '<div class="summary">'
@@ -487,14 +509,15 @@ function palette_render_checkout(array $ctx): string
         . ($ca ? '<p class="sum-note" id="sum-note"' . ($isAi ? ' hidden' : '') . '>' . $t('co_tax_note') . '</p>' : '')
         . '</div>';
 
+    $trust = '';
+    foreach ($active as $m) $trust .= '<li>' . palette_icon('lock', 15) . $t($m === 'stripe' ? 'co_trust_stripe' : 'co_trust_paypal') . '</li>';
     $hero = '<section class="hero">'
         . '<span class="eyebrow">' . $t('co_eyebrow') . '</span>'
         . '<h1>' . $t('co_h1') . '</h1>'
         . '<p class="lead">' . $t('co_lead') . '</p>'
         . palette_section_hero_actions($lang, $price, '#buy')
         . $summary
-        . '<ul class="trust">'
-        . '<li>' . palette_icon('lock', 15) . $t('co_trust_paypal') . '</li>'
+        . '<ul class="trust">' . $trust
         . '<li>' . palette_icon('browser', 15) . $t('co_trust_browsers') . '</li>'
         . '</ul></section>';
 
@@ -518,13 +541,29 @@ function palette_render_checkout(array $ctx): string
             . '</div>';
     }
 
-    $pay = $ready
-        ? '<div id="paypal" class="paypal is-locked" aria-busy="true"><div class="pp-loading"><span class="spinner" aria-hidden="true"></span>' . $t('co_loading') . '</div></div>'
-          . '<p class="hint hint-center" id="pay-note">' . $t($isAi ? 'co_note_ai' : 'co_card_note') . '</p>'
+    $blocks = [];
+    foreach ($active as $m) {
+        $blocks[] = $m === 'stripe'
+            ? '<div class="pay-method" id="pay-stripe">'
+              . '<button type="button" class="btn btn-accent btn-lg btn-pay" id="st-pay">' . palette_icon('card', 18) . '<span id="st-pay-label">' . palette_t_html($lang, 'co_pay_card_' . $plan, ['price' => palette_ltr($stPrice[$plan])]) . '</span></button>'
+              . '<p class="hint hint-center" id="st-note">' . $t('co_card_note') . '</p></div>'
+            : '<div class="pay-method" id="pay-paypal"' . ($isAi && !$ppAi ? ' hidden' : '') . '>'
+              . '<div id="paypal" class="paypal is-locked" aria-busy="true"><div class="pp-loading"><span class="spinner" aria-hidden="true"></span>' . $t('co_loading') . '</div></div>'
+              . '<p class="hint hint-center" id="pay-note"' . ($isAi ? ' hidden' : '') . '>' . $t('co_pp_note') . '</p></div>';
+    }
+    $pay = $blocks
+        ? '<div class="pay" id="pay">' . implode('<p class="pay-or" id="pay-or"' . ($isAi && !$ppAi ? ' hidden' : '') . '><span>' . $t('co_pay_or') . '</span></p>', $blocks)
+          . '<p class="hint hint-center" id="ai-note"' . ($isAi ? '' : ' hidden') . '>' . $t('co_note_ai') . '</p></div>'
         : '<div class="notice" role="status">' . palette_icon('alert', 18) . '<span>' . $t('err_paused') . '</span></div>';
 
-    $form = '<form id="buy" class="buy" novalidate>'
+    // The test card number stays on one line and in order, also inside Arabic.
+    $card = '4242 4242 4242 4242';
+    $banner = $test ? '<div class="test-banner" id="test-banner" role="note">' . palette_icon('alert', 16)
+        . '<span>' . str_replace($card, '<bdi dir="ltr" class="card-no">' . $card . '</bdi>', $t('co_test_banner')) . '</span></div>' : '';
+
+    $form = '<form id="buy" class="buy" novalidate' . ($stSession !== null ? ' hidden' : '') . '>'
         . '<h2 id="buy-title">' . $t('co_form_title') . '</h2>'
+        . ($stCancel ? '<p class="st-msg" id="st-msg" role="status">' . palette_icon('info', 16) . '<span>' . $t('co_st_cancelled') . '</span></p>' : '')
         . '<div class="field"><span class="field-label" id="plan-h">' . $t('co_plan_h') . '</span>'
         . palette_plan_cards($lang, $plan, $aiOn, $price, $aiPrice, palette_usage_limit($settings)) . '</div>'
         . '<div class="field"><label for="email">' . $t('co_email_label') . '</label>'
@@ -538,8 +577,14 @@ function palette_render_checkout(array $ctx): string
         . '<p class="pending" id="pending" role="status" hidden>' . palette_icon('check', 18) . '<span id="pending-text"></span></p>'
         . $pay
         . '</form>'
-        . '<div class="busy" id="busy" role="status" hidden><span class="spinner" aria-hidden="true"></span>' . $t('co_finishing') . '</div>';
+        . '<div class="busy" id="busy" role="status"' . ($stSession !== null ? '' : ' hidden') . '><span class="spinner" aria-hidden="true"></span>' . $t('co_finishing') . '</div>';
 
+    // After a Stripe Pro + AI payment: Stripe's billing portal for this subscription (st_portal, key + the email just used).
+    $billing = $stSession !== null
+        ? '<div class="st-billing" id="st-billing" hidden>'
+          . '<button type="button" class="btn btn-quiet" id="st-portal">' . palette_icon('card', 15) . '<span>' . $t('co_manage_billing') . '</span></button>'
+          . '<p class="hint">' . $t('co_manage_billing_note') . '</p><p class="sub-msg" id="st-portal-msg" role="status"></p></div>'
+        : '';
     $done = '<div id="done" class="done" hidden>'
         . '<div class="done-badge">' . palette_icon('check', 22) . '</div>'
         . '<h2 id="done-title" tabindex="-1">' . $t($isAi ? 'co_success_title_ai' : 'co_success_title') . '</h2>'
@@ -548,6 +593,7 @@ function palette_render_checkout(array $ctx): string
         . '<p class="copy-status" id="copy-status" role="status"></p>'
         . '<p class="ext-status" id="ext-status" role="status"></p>'
         . '<p class="emailed" id="emailed"></p>'
+        . $billing
         . '<div class="linkbox"><span>' . $t('co_account_note') . '</span>'
         . '<a id="account-link" class="btn btn-quiet" href="' . palette_h(palette_page_url('account', $lang)) . '">' . palette_icon('user', 15) . '<span>' . $t('co_account_link') . '</span></a></div>'
         . '</div>';
@@ -562,13 +608,17 @@ function palette_render_checkout(array $ctx): string
         . '</form>';
 
     $main = '<main class="wrap checkout">' . $pitch
-        . '<div class="side"><section class="card buy-card" aria-labelledby="buy-title">' . $form . $done . '</section>'
+        . '<div class="side"><section class="card buy-card" aria-labelledby="buy-title">' . $banner . $form . $done . '</section>'
         . $lost . '</div></main>';
 
-    $strings = [];
-    foreach (PALETTE_SCRIPT_STRINGS as $k) $strings[$k] = palette_t($lang, $k);
-    return palette_page_shell('checkout', $lang, $keep, palette_t($lang, 'co_title'), $main,
-        ['t' => $strings, 'plan' => $plan, 'ai_enabled' => $aiOn, 'total' => $price, 'total_ca' => $usd($withTax['amount']), 'total_ai' => $aiPrice]);
+    $data = ['t' => palette_script_strings($lang), 'plan' => $plan, 'ai_enabled' => $aiOn, 'total' => $price, 'total_ca' => $usd($withTax['amount']), 'total_ai' => $aiPrice,
+             'methods' => $active, 'pp_ai' => $ppAi, 'test' => $test];
+    if ($hasSt) {   // the button label templates ({price}) only where there is a button
+        $data['st_price'] = $stPrice;
+        $data['t'] += ['co_pay_card_pro' => palette_t($lang, 'co_pay_card_pro'), 'co_pay_card_ai' => palette_t($lang, 'co_pay_card_ai')];
+    }
+    if ($stSession !== null) $data += ['st' => $stSession, 'csrf_account' => palette_account_csrf_token()];
+    return palette_page_shell('checkout', $lang, $keep, palette_t($lang, 'co_title'), $main, $data);
 }
 
 function palette_session_user(array $session): int

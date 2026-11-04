@@ -10,7 +10,8 @@ function stub_reset(mysqli $c): void
 {
     $c->query('DELETE FROM palette_orders');
     $c->query('DELETE FROM palette_licenses');
-    $c->query("DELETE FROM admin_settings WHERE setting_key IN ('palette', 'paypal', 'resend_api_key')");
+    // palette_stripe too: a Stripe connection left by another test (or the checkout e2e) changes prices and methods.
+    $c->query("DELETE FROM admin_settings WHERE setting_key IN ('palette', 'paypal', 'resend_api_key', 'palette_stripe')");
     $c->query("INSERT INTO admin_settings (setting_key, setting_value) VALUES ('resend_api_key', 're_test')");
     stub_paypal($c, true);
     $GLOBALS['pp_routes'] = [];

@@ -18,6 +18,13 @@
 // &grace=1 for one that lapsed yesterday, inside it; &user_id=N claims it; &revoked=1 revokes it) and /__dev/login takes
 // &role=admin (for /palette/admin-sites). Combine with PALETTE_DEV_PP_STUB=1 for PayPal; without it PayPal and Resend
 // calls get a stub 500, never the network.
+// PALETTE_FAKE_STRIPE=1 (also only on a *_test database) answers the Stripe API locally: session create returns
+// https://stripe.fake.invalid/pay/cs_fake_<o|s><row id>?success=<local return URL>&cancel=<local cancel URL> (the e2e serves
+// that host as a stand-in Stripe page), GET session answers paid (subscriptions expanded, active), except for buyers whose
+// address starts with "pending@" (unpaid, still open: the page keeps polling) or "expired@" (expired: failed); the billing
+// portal answers https://stripe.fake.invalid/portal. /__dev/seed then takes &methods=stripe,paypal (checkout_methods, in
+// order; default paypal) and &stripe=live|test|both|off (a fake connection; default off), and /__dev/login takes
+// &role=admin.
 foreach (['DB_HOST_LOCAL' => '127.0.0.1', 'DB_HOST_REMOTE' => '127.0.0.1', 'DB_USERNAME' => 'palette',
           'DB_PASSWORD' => 'palette', 'DB_NAME' => 'palette_test'] as $k => $v) {
     $_ENV[$k] = $v;
@@ -137,7 +144,42 @@ if ($aiStub) {
                              'usage' => $usage]), 200, '', 40];
     };
 }
-$dev = $stub || $aiStub;
+$fakeStripe = getenv('PALETTE_FAKE_STRIPE') === '1';
+if ($fakeStripe) {
+    $GLOBALS['palette_st_http'] = function (string $method, string $url, array $headers, ?string $body) use ($conn): array {
+        $path = explode('?', (string)preg_replace('#^https://api\.stripe\.com/v1/#', '', $url), 2)[0];
+        parse_str((string)($body ?? ''), $p);
+        $local = fn(string $u) => str_replace(PALETTE_STRIPE_BASE, 'http://' . ($_SERVER['HTTP_HOST'] ?? '127.0.0.1') . PALETTE_BASE, $u);
+        if ($method === 'POST' && $path === 'checkout/sessions') {
+            if (!preg_match('/^palette:(order|sub):(\d+)$/', (string)($p['client_reference_id'] ?? ''), $m)) return ['status' => 400, 'json' => ['error' => ['message' => 'dev fake: no reference']]];
+            $sid = 'cs_fake_' . ($m[1] === 'order' ? 'o' : 's') . $m[2];
+            $back = ['success' => $local(str_replace('{CHECKOUT_SESSION_ID}', $sid, (string)($p['success_url'] ?? ''))), 'cancel' => $local((string)($p['cancel_url'] ?? ''))];
+            return ['status' => 200, 'json' => ['id' => $sid, 'url' => 'https://stripe.fake.invalid/pay/' . $sid . '?' . http_build_query($back)]];
+        }
+        if ($method === 'GET' && preg_match('#^checkout/sessions/(cs_fake_([os])(\d+))$#', $path, $m)) {
+            $isOrder = $m[2] === 'o';
+            $row = $isOrder ? palette_order_by($conn, 'id', (int)$m[3]) : palette_sub_row($conn, 'id', (int)$m[3]);
+            if (!$row || ($row['stripe_session'] ?? '') !== $m[1]) return ['status' => 404, 'json' => ['error' => ['message' => 'dev fake: no such session']]];
+            $email = (string)$row['email'];
+            $state = str_starts_with($email, 'pending@') ? ['payment_status' => 'unpaid', 'status' => 'open']
+                : (str_starts_with($email, 'expired@') ? ['payment_status' => 'unpaid', 'status' => 'expired'] : ['payment_status' => 'paid', 'status' => 'complete']);
+            $s = $state + ['id' => $m[1], 'object' => 'checkout.session', 'livemode' => (int)$row['livemode'] === 1, 'currency' => 'usd',
+                'customer' => 'cus_fake_' . $m[2] . $m[3], 'client_reference_id' => 'palette:' . ($isOrder ? 'order' : 'sub') . ':' . $m[3]];
+            if ($isOrder) {
+                return ['status' => 200, 'json' => $s + ['amount_total' => palette_cents((string)$row['amount_usd']), 'payment_intent' => 'pi_fake_' . $m[3],
+                    'metadata' => ['palette' => 'order', 'row' => $m[3]]]];
+            }
+            $s['subscription'] = ['id' => 'sub_fake_' . $m[3], 'status' => 'active', 'metadata' => ['palette' => 'sub', 'row' => $m[3]],
+                'current_period_start' => time(), 'current_period_end' => time() + 30 * 86400,
+                'items' => ['data' => [['price' => ['unit_amount' => palette_cents((string)$row['price_usd']), 'currency' => 'usd']]]]];
+            return ['status' => 200, 'json' => $s + ['amount_total' => palette_cents((string)$row['price_usd'])]];
+        }
+        if ($method === 'POST' && $path === 'billing_portal/sessions') return ['status' => 200, 'json' => ['url' => 'https://stripe.fake.invalid/portal/' . rawurlencode((string)($p['customer'] ?? ''))]];
+        if ($method === 'POST' && preg_match('#^subscriptions/sub_fake_\d+$#', $path)) return ['status' => 200, 'json' => ['id' => substr($path, 14), 'cancel_at_period_end' => true]];
+        return ['status' => 500, 'json' => ['error' => ['message' => 'dev fake Stripe: unrouted ' . $method . ' ' . $path]]];
+    };
+}
+$dev = $stub || $aiStub || $fakeStripe;
 
 if ($dev && $path === '/__dev/seed') {
     $conn->query("CREATE TABLE IF NOT EXISTS admin_settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)");
@@ -147,7 +189,7 @@ if ($dev && $path === '/__dev/seed') {
     $conn->query('DELETE FROM palette_subscriptions');
     $conn->query('DELETE FROM palette_sub_payments');
     $conn->query('DELETE FROM palette_rate');
-    $conn->query("DELETE FROM admin_settings WHERE setting_key IN ('palette', 'paypal', 'resend_api_key')");
+    $conn->query("DELETE FROM admin_settings WHERE setting_key IN ('palette', 'paypal', 'resend_api_key', 'palette_stripe')");
     $conn->query("INSERT INTO admin_settings (setting_key, setting_value) VALUES ('resend_api_key', 're_dev')");
     pp_settings_put($conn, ['enabled' => ($_GET['paypal'] ?? 'ready') === 'ready', 'mode' => 'sandbox', 'client_id' => 'dev-client', 'secret' => 'dev-secret', 'error' => '']);
     $settings = ['tax_mode' => ($_GET['tax'] ?? 'none') === 'ca' ? 'ca' : 'none'];
@@ -162,6 +204,17 @@ if ($dev && $path === '/__dev/seed') {
         if (preg_match('/^[a-p]{32}$/', $ext)) $settings['extension_ids'] = [$ext];
     }
     palette_settings_put($conn, $settings);
+    // Checkout methods (default PayPal, as before Stripe) and, with PALETTE_FAKE_STRIPE, a fake Stripe connection.
+    $stModes = ['live' => ['live'], 'test' => ['test'], 'both' => ['live', 'test']][(string)($_GET['stripe'] ?? 'off')] ?? [];
+    if ($stModes && !$fakeStripe) {
+        http_response_code(400);
+        echo 'stripe needs PALETTE_FAKE_STRIPE=1';
+        return true;
+    }
+    $st = ['checkout_methods' => array_values(array_intersect(explode(',', (string)($_GET['methods'] ?? 'paypal')), ['stripe', 'paypal']))];
+    foreach ($stModes as $m) $st[$m] = ['source' => 'own', 'secret' => "sk_{$m}_fake", 'webhook_id' => "we_fake_$m", 'webhook_secret' => "whsec_fake_$m",
+                                        'checked_at' => date('Y-m-d H:i:s'), 'error' => ''];
+    palette_stripe_settings_put($conn, $st);
     header('Content-Type: text/plain');
     echo 'seeded';
     return true;
@@ -170,7 +223,7 @@ if ($dev && $path === '/__dev/login') {   // pretend to be signed in to companie
     $_SESSION['user_id'] = (int)($_GET['user_id'] ?? 0);
     unset($_SESSION['user_role']);
     if ($_SESSION['user_id'] < 1) unset($_SESSION['user_id']);
-    elseif ($aiStub && ($_GET['role'] ?? '') === 'admin') $_SESSION['user_role'] = 'admin';
+    elseif (($aiStub || $fakeStripe) && ($_GET['role'] ?? '') === 'admin') $_SESSION['user_role'] = 'admin';
     echo 'ok';
     return true;
 }

@@ -474,7 +474,8 @@ test('plan chooser: ?plan=ai selects Pro + AI; switching swaps the URL, summary,
   await expect(page.locator('#sum-item')).toHaveText('Site to Design Token Pro + AI, monthly');
   await expect(page.locator('#total')).toHaveText('$3.99');
   await expect(page.locator('#refund')).toHaveText(AI_REFUND);
-  await expect(page.locator('#pay-note')).toContainText(AI_CANCEL);
+  await expect(page.locator('#ai-note')).toContainText(AI_CANCEL);
+  await expect(page.locator('#pay-note')).toBeHidden();
   await expect(ai).toContainText('100 AI analyses a month');
   await expect(ai).toContainText('/month');
 
@@ -772,7 +773,7 @@ test('account: a refunded key PayPal still bills can be cancelled by its signed-
   const reply = page.waitForResponse((r) => r.url().includes('action=sub_cancel'));
   await row.getByRole('button', { name: 'Yes, cancel subscription' }).click();
   expect((await reply).status()).toBe(200);
-  await expect(row.locator('.sub-msg')).toHaveText('Your subscription is cancelled. PayPal will not bill you again.');
+  await expect(row.locator('.sub-msg')).toHaveText('Your subscription is cancelled. You will not be billed again.');
   await expect(row.locator('[data-sub-status]')).toHaveText('Revoked');
   await page.reload();
   await expect(row.locator('[data-sub-status]')).toHaveText('Revoked');
@@ -799,4 +800,221 @@ test('account: cancel by key while signed out needs the subscribing email', asyn
   expect(((await body).postDataJSON() as Record<string, string>).csrf).toMatch(/^[0-9a-f]{64}$/);
   await expect(page.locator('#cancel-by-status')).toContainText('Your subscription is cancelled. Pro and AI stay on until');
   await expect(page.locator('#cancel-by-status')).toHaveClass(/is-ok/);
+});
+
+// ---- Stripe (Task 7). The dev router's fake Stripe (PALETTE_FAKE_STRIPE=1) answers session create with a
+// https://stripe.fake.invalid/pay/<session> URL carrying the local success and cancel URLs; this page stands in for
+// Stripe's hosted checkout with a Pay link and a Cancel link. GET session answers paid, except for buyers whose address
+// starts with "pending@" (unpaid: the page keeps polling) or "expired@" (expired: failed).
+
+/** Resets the tables and stores a fake Stripe connection: live, test or both; methods in order. */
+async function seedStripe(page: Page, opts: { methods?: string; stripe?: 'live' | 'test' | 'both'; paypal?: 'ready' | 'paused'; ai?: 'ready' | 'off' } = {}) {
+  const q = new URLSearchParams({ paypal: opts.paypal ?? 'ready', ai: opts.ai ?? 'off', methods: opts.methods ?? 'stripe', stripe: opts.stripe ?? 'live' });
+  const r = await page.request.get(`/__dev/seed?${q}`);
+  expect(await r.text()).toBe('seeded');
+}
+
+/** Serves the stand-in Stripe pages (checkout and billing portal); returns the URLs visited. */
+async function fakeStripePages(page: Page): Promise<string[]> {
+  const seen: string[] = [];
+  await page.route('https://stripe.fake.invalid/**', (route) => {
+    const u = new URL(route.request().url());
+    seen.push(u.pathname);
+    const ok = u.searchParams.get('success') ?? '';
+    const cancel = u.searchParams.get('cancel') ?? '';
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+    const body = u.pathname.startsWith('/portal')
+      ? '<!doctype html><title>Fake portal</title><h1>Billing portal</h1>'
+      : `<!doctype html><title>Fake Stripe</title><a id="fake-pay" href="${esc(ok)}">Pay</a> <a id="fake-cancel" href="${esc(cancel)}">Cancel</a>`;
+    return route.fulfill({ contentType: 'text/html', body });
+  });
+  return seen;
+}
+
+test('Stripe: pay by card redirects and shows key', async ({ page }) => {
+  await seedStripe(page, { methods: 'stripe' });
+  const sdk = await fakePayPal(page);
+  await fakeStripePages(page);
+  await fakeExtension(page);
+  await page.goto(`/palette/checkout?lang=en&ext=${EXT}`);
+  const pay = page.locator('#st-pay');
+  await expect(pay).toHaveText('Pay $1.49 by card');
+  await expect(page.getByText("Card, Apple Pay or Google Pay on Stripe's secure page. We never see your card.")).toBeVisible();
+  await expect(page.locator('#paypal')).toHaveCount(0);
+
+  await pay.click();   // nothing filled in: refused before Stripe
+  await expect(page.locator('#buy-error')).toHaveText('Enter a valid email address.');
+  await expect(page.locator('#email')).toBeFocused();
+  await fillForm(page, 'mai@studio.vn');
+  const start = page.waitForRequest((r) => r.url().includes('action=st_checkout'));
+  await pay.click();
+  const body = (await start).postDataJSON() as Record<string, string>;
+  expect(body).toMatchObject({ plan: 'pro', email: 'mai@studio.vn', consent: '1', lang: 'en' });
+  expect(body.csrf).toMatch(/^[0-9a-f]{64}$/);
+  expect(body.test ?? '').toBe('');
+  await page.waitForURL(/stripe\.fake\.invalid\/pay\/cs_fake_/);
+  await page.locator('#fake-pay').click();
+
+  await page.waitForURL(/\/palette\/checkout\?st=cs_fake_/);
+  await expect(page.locator('#done')).toBeVisible();
+  await expect(page.locator('#buy')).toBeHidden();
+  const key = (await page.locator('#key').textContent()) ?? '';
+  expect(key).toMatch(KEY_RE);
+  await expect(page.locator('#done-title')).toHaveText("You're Pro. Thank you.");
+  await expect(page.locator('#emailed')).toContainText('m***@studio.vn');
+  // the extension id survived the trip through Stripe
+  await expect(page.locator('#ext-status')).toHaveText('Your extension is now Pro.');
+  expect(await page.evaluate(() => (window as unknown as { __sent: unknown[] }).__sent)).toEqual([[EXT, { type: 'license', key }]]);
+  await expect(page.locator('#st-billing')).toBeHidden();   // Pro is one payment: nothing to manage
+  await page.waitForLoadState('networkidle');
+  expect(sdk).toEqual([]);   // Stripe only: the PayPal SDK is never loaded
+});
+
+test('Stripe: Pro + AI by card shows the key and Manage billing opens the Stripe portal', async ({ page }) => {
+  await seedStripe(page, { methods: 'stripe' });
+  const seen = await fakeStripePages(page);
+  await page.goto('/palette/checkout?lang=en&plan=ai');
+  await expect(page.locator('.plan-card[data-plan="ai"]')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('#st-pay')).toHaveText('Subscribe for $3.99 a month');
+  await expect(page.locator('#ai-note')).toContainText(AI_CANCEL);
+  await page.locator('.plan-card[data-plan="pro"]').click();
+  await expect(page.locator('#st-pay')).toHaveText('Pay $1.49 by card');
+  await expect(page.locator('#ai-note')).toBeHidden();
+  await page.locator('.plan-card[data-plan="ai"]').click();
+  await expect(page.locator('#st-pay')).toHaveText('Subscribe for $3.99 a month');
+  await fillForm(page, 'lan@studio.vn');
+  const start = page.waitForRequest((r) => r.url().includes('action=st_checkout'));
+  await page.locator('#st-pay').click();
+  expect(((await start).postDataJSON() as Record<string, string>).plan).toBe('ai');
+  await page.locator('#fake-pay').click();
+  await page.waitForURL(/\/palette\/checkout\?st=cs_fake_/);
+  await expect(page.locator('#done-title')).toHaveText("You're Pro + AI. Thank you.");
+  const key = (await page.locator('#key').textContent()) ?? '';
+  expect(key).toMatch(KEY_RE);
+  const billing = page.getByRole('button', { name: 'Manage billing' });
+  await expect(billing).toBeVisible();
+  const portal = page.waitForRequest((r) => r.url().includes('action=st_portal'));
+  await billing.click();
+  const pb = (await portal).postDataJSON() as Record<string, string>;
+  expect(pb).toMatchObject({ key, email: 'lan@studio.vn' });
+  expect(pb.csrf).toMatch(/^[0-9a-f]{64}$/);
+  await page.waitForURL(/stripe\.fake\.invalid\/portal/);
+  expect(seen.some((p) => p.startsWith('/portal'))).toBe(true);
+});
+
+test('Stripe: cancel returns to form', async ({ page }) => {
+  await seedStripe(page, { methods: 'stripe' });
+  await fakeStripePages(page);
+  await page.goto('/palette/checkout?lang=en');
+  await fillForm(page, 'tam@studio.vn');
+  await page.locator('#st-pay').click();
+  await page.locator('#fake-cancel').click();
+  await page.waitForURL(/\/palette\/checkout\?st=cancel/);
+  await expect(page.locator('#st-msg')).toHaveText('Payment cancelled. Nothing was charged.');
+  await expect(page.locator('#buy')).toBeVisible();
+  await expect(page.locator('#done')).toBeHidden();
+  await expect(page.locator('#email')).toHaveValue('tam@studio.vn');   // kept for the second try
+  await expect(page.locator('#st-pay')).toBeEnabled();
+});
+
+test('Stripe: a session Stripe expired says the payment failed and offers the form again', async ({ page }) => {
+  await seedStripe(page, { methods: 'stripe' });
+  await fakeStripePages(page);
+  await page.goto('/palette/checkout?lang=en');
+  await fillForm(page, 'expired@studio.vn');
+  await page.locator('#st-pay').click();
+  await page.locator('#fake-pay').click();
+  await expect(page.locator('#buy-error')).toHaveText("The payment didn't go through and nothing was charged. Please try again.");
+  await expect(page.locator('#buy')).toBeVisible();
+  await expect(page.locator('#st-pay')).toBeEnabled();
+});
+
+test('Stripe: still processing after 30 s says the key will be emailed (polls every 3 s)', async ({ page }) => {
+  await seedStripe(page, { methods: 'stripe' });
+  await fakeStripePages(page);
+  await page.clock.install();
+  await page.goto('/palette/checkout?lang=en');
+  await fillForm(page, 'pending@studio.vn');
+  await page.locator('#st-pay').click();
+  const polls: string[] = [];
+  page.on('request', (r) => { if (r.url().includes('action=st_confirm')) polls.push(r.url()); });
+  await page.locator('#fake-pay').click();
+  await page.waitForURL(/\/palette\/checkout\?st=cs_fake_/);
+  await expect(page.locator('#busy')).toBeVisible();
+  await expect.poll(() => polls.length).toBe(1);
+  for (let i = 0; i < 10; i++) {
+    await page.clock.runFor(3000);
+    await expect.poll(() => polls.length).toBe(i + 2);
+  }
+  await page.clock.runFor(3000);
+  await expect(page.locator('#pending')).toContainText('Stripe is still confirming your payment');
+  await expect(page.locator('#busy')).toBeHidden();
+  await page.clock.runFor(9000);
+  expect(polls.length).toBe(11);   // 0 s, 3 s ... 30 s, then it stops
+});
+
+test('Stripe: test banner for admin', async ({ page }) => {
+  await seedStripe(page, { methods: 'paypal', stripe: 'test' });
+  await fakePayPal(page);
+  await fakeStripePages(page);
+  await page.request.get('/__dev/login?user_id=2');
+  await page.goto('/palette/checkout?lang=en&test=1');
+  await expect(page.locator('#test-banner')).toHaveCount(0);
+  await expect(page.locator('#st-pay')).toHaveCount(0);
+
+  await page.request.get('/__dev/login?user_id=1&role=admin');
+  await page.goto('/palette/checkout?lang=en&test=1');
+  await expect(page.locator('#test-banner')).toHaveText('Test mode — use card 4242 4242 4242 4242. Keys from test payments stop working after 7 days.');
+  await expect(page.locator('#paypal')).toHaveCount(0);
+  await fillForm(page, 'owner@studio.vn');
+  const start = page.waitForRequest((r) => r.url().includes('action=st_checkout'));
+  await page.locator('#st-pay').click();
+  expect(((await start).postDataJSON() as Record<string, string>).test).toBe('1');
+  await page.locator('#fake-pay').click();
+  await page.waitForURL(/\/palette\/checkout\?st=cs_fake_.*test=1/);
+  await expect(page.locator('#test-banner')).toBeVisible();
+  await expect(page.locator('#done')).toBeVisible();
+  expect((await page.locator('#key').textContent()) ?? '').toMatch(KEY_RE);
+  await page.request.get('/__dev/login?user_id=0');
+});
+
+test('Stripe: both methods in the chosen order, each with its own button', async ({ page }) => {
+  await seedStripe(page, { methods: 'paypal,stripe' });
+  const sdk = await fakePayPal(page);
+  await page.goto('/palette/checkout?lang=en');
+  await expect(page.getByTestId('fake-paypal')).toBeVisible();
+  await expect(page.locator('#st-pay')).toBeVisible();
+  const order = await page.evaluate(() => {
+    const pp = document.getElementById('paypal')!;
+    const st = document.getElementById('st-pay')!;
+    return pp.compareDocumentPosition(st) & Node.DOCUMENT_POSITION_FOLLOWING ? 'paypal-first' : 'stripe-first';
+  });
+  expect(order).toBe('paypal-first');
+  expect(sdk).toEqual([SDK]);
+  // Pro + AI on a PayPal plan that is not set up: the card button sells it, the PayPal block steps aside
+  await page.locator('.plan-card[data-plan="ai"]').click();
+  await expect(page.locator('#st-pay')).toHaveText('Subscribe for $3.99 a month');
+  await expect(page.locator('#pay-paypal')).toBeHidden();
+  await page.locator('.plan-card[data-plan="pro"]').click();
+  await expect(page.locator('#pay-paypal')).toBeVisible();
+  await expect(page.getByTestId('fake-paypal')).toBeVisible();
+});
+
+test('Stripe: 7 languages fit 360 px', async ({ page }) => {
+  await seedStripe(page, { methods: 'stripe,paypal', stripe: 'both' });
+  await fakePayPal(page);
+  await page.request.get('/__dev/login?user_id=1&role=admin');
+  await page.setViewportSize({ width: 360, height: 780 });
+  for (const lang of ['en', 'zh-CN', 'hi', 'es', 'ar', 'fr', 'bn']) {
+    for (const q of ['plan=ai&st=cancel', 'test=1']) {
+      await page.goto(`/palette/checkout?lang=${lang}&${q}`);
+      await expect(page.locator('#st-pay')).toBeVisible();
+      const fit = await page.evaluate(() => {
+        const b = document.getElementById('st-pay')!;
+        return { page: document.documentElement.scrollWidth <= document.documentElement.clientWidth, button: b.scrollWidth <= b.clientWidth + 1 };
+      });
+      expect(fit, `${lang} ${q}`).toEqual({ page: true, button: true });
+    }
+  }
+  await page.request.get('/__dev/login?user_id=0');
 });

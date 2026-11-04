@@ -243,3 +243,15 @@ ok('api st_confirm needs a session param', sc_call('st_confirm', [])['body']['st
 $allLangs = true;
 foreach (PALETTE_LANGS as $lg) $allLangs = $allLangs && isset((require PALETTE_DIR . "/lib/i18n/$lg.php")['err_stripe']);
 ok('err_stripe in every language', $allLangs);
+
+// Task 7: the return page polls st_confirm every 3 s for 30 s (11 calls). The limit is per Stripe session id (40/h),
+// with a wide per-IP cap (600/h), so buyers behind one address (an office, a carrier NAT) never 429 each other's polling.
+sc_reset($conn);
+[$r, $row] = sc_order($conn);
+$GLOBALS['st_routes']['GET /v1/checkout/sessions/' . $row['stripe_session']] = ['status' => 200, 'json' => sc_session($row, ['payment_status' => 'unpaid', 'status' => 'open'])];
+$codes = [];
+for ($i = 0; $i < 35; $i++) $codes[] = sc_call('st_confirm', ['session' => $row['stripe_session']])['status'];
+ok('st_confirm: 35 polls of one session from one IP never 429 (old limit was 30/h per IP)', array_unique($codes) === [200]);
+for ($i = 0; $i < 5; $i++) sc_call('st_confirm', ['session' => $row['stripe_session']]);
+ok('st_confirm: past 40 polls of one session id -> 429', sc_call('st_confirm', ['session' => $row['stripe_session']])['status'] === 429);
+ok('st_confirm: another buyer on the same IP is not blocked', sc_call('st_confirm', ['session' => 'cs_live_other1'])['status'] === 200);

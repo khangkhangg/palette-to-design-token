@@ -723,7 +723,7 @@ function palette_sub_cancel(mysqli $c, string $rawKey, ?int $userId, ?string $em
         return ['ok' => false, 'error' => 'err_paypal'];
     }
     palette_sub_set_status($c, $row, 'cancelled', ['active', 'suspended']);
-    $m = palette_sub_cancel_email((string)$endsOn, (string)$row['lang']);
+    $m = palette_sub_cancel_email((string)$endsOn, (string)$row['lang'], (string)($row['provider'] ?? 'paypal'));
     if (!palette_mail((string)$row['email'], $m['subject'], $m['html'])) error_log("PALETTE_MAIL_FAILED cancel=$sid");
     return ['ok' => true, 'ends_on' => $endsOn, 'revoked' => $revoked];
 }

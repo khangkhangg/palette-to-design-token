@@ -106,13 +106,14 @@ function palette_sub_email(string $key, string $lang, int $limit): array
     return ['subject' => palette_t($lang, 'email_sub_subject'), 'html' => palette_email_shell($lang, $html)];
 }
 
-// ['subject' => ..., 'html' => ...] confirming a cancellation; $endsOn is Y-m-d.
-function palette_sub_cancel_email(string $endsOn, string $lang): array
+// ['subject' => ..., 'html' => ...] confirming a cancellation; $endsOn is Y-m-d. Only a PayPal subscriber is pointed at
+// PayPal's automatic payments page; a Stripe subscriber has nothing to check there.
+function palette_sub_cancel_email(string $endsOn, string $lang, string $provider = 'paypal'): array
 {
     $url = PALETTE_PAYPAL_AUTOPAY_URL;
     $html = '<h1 style="font-size:20px;margin:0 0 12px">' . palette_h(palette_t($lang, 'email_cancel_title')) . '</h1>'
         . '<p style="margin:0 0 8px">' . palette_h(palette_t($lang, 'email_cancel_body', ['date' => $endsOn])) . '</p>'
-        . '<p style="margin:16px 0 8px">' . palette_h(palette_t($lang, 'email_cancel_paypal'))
-        . ' <a href="' . $url . '" style="color:#0b6b57">' . $url . '</a></p>';
+        . ($provider === 'stripe' ? '' : '<p style="margin:16px 0 8px">' . palette_h(palette_t($lang, 'email_cancel_paypal'))
+            . ' <a href="' . $url . '" style="color:#0b6b57">' . $url . '</a></p>');
     return ['subject' => palette_t($lang, 'email_cancel_subject'), 'html' => palette_email_shell($lang, $html)];
 }

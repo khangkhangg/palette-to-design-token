@@ -97,7 +97,7 @@ function palette_api_handle(array $req): array
         $ready = pp_ready($pp);
         return palette_api_reply(200, ['ok' => true, 'enabled' => $ready] + ($ready ? ['client_id' => $pp['client_id']] : [])
             + ['price' => palette_money($m['price']), 'tax_mode' => $m['tax_mode'], 'ai_enabled' => palette_ai_plan_ready($s, $pp),
-               'ai_price' => palette_money(palette_ai_sale_cents($s)), 'csrf' => palette_api_csrf_token()]);
+               'ai_price' => palette_money(palette_ai_display_cents($s)), 'csrf' => palette_api_csrf_token()]);
     }
 
     if ($action === 'verify') {
@@ -196,7 +196,12 @@ function palette_api_handle(array $req): array
             $_SESSION['palette_st'] = array_slice($mine, -PALETTE_API_SESSION_ORDERS);
             return palette_api_reply(200, ['ok' => true, 'url' => $r['url']]);
         case 'st_confirm':
-            if (!palette_rate_hit('st:confirm:ip:' . (string)($req['ip'] ?? ''), 30, 3600)) return palette_api_error(429, 'api_rate_limited', $lang);
+            // The return page polls every 3 s for 30 s (11 calls). Limited per Stripe session id, so buyers sharing an
+            // address (an office, a carrier NAT) never 429 each other; the wide per-IP cap still stops id guessing.
+            $sidBucket = preg_match(PALETTE_STRIPE_SESSION_RE, $str('session')) ? $str('session') : '-';
+            if (!palette_rate_hit('st:confirm:s:' . $sidBucket, 40, 3600) || !palette_rate_hit('st:confirm:ip:' . (string)($req['ip'] ?? ''), 600, 3600)) {
+                return palette_api_error(429, 'api_rate_limited', $lang);
+            }
             $r = palette_st_confirm($conn, $str('session'));
             if ($r['state'] === 'error') return palette_api_error(502, $r['error'], $lang);
             if ($r['state'] !== 'paid') return palette_api_reply(200, ['ok' => true, 'state' => $r['state']]);
