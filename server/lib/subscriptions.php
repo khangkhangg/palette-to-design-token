@@ -361,6 +361,8 @@ function palette_sub_fulfil(mysqli $c, array $subRow, array $paypalSub, ?int $sa
 }
 
 // Moves a fulfilled row (and its licence's sub_status) to $to, only from one of $from. True when it changed.
+// The licence follows only while this subscription still backs it: after a move to card (lib/admin.php) the old PayPal row
+// keeps its license_id, and its cancel or expiry must not touch the licence the Stripe subscription now pays for.
 function palette_sub_set_status(mysqli $c, array $row, string $to, array $from): bool
 {
     $id = (int)$row['id'];
@@ -375,8 +377,9 @@ function palette_sub_set_status(mysqli $c, array $row, string $to, array $from):
         $st->close();
         if ($changed && $row['license_id'] !== null) {
             $lid = (int)$row['license_id'];
-            $st = $c->prepare('UPDATE palette_licenses SET sub_status = ? WHERE id = ?');
-            $st->bind_param('si', $to, $lid);
+            $sid = $row['subscription_id'] ?? null;
+            $st = $c->prepare('UPDATE palette_licenses SET sub_status = ? WHERE id = ? AND (subscription_id IS NULL OR subscription_id <=> ?)');
+            $st->bind_param('sis', $to, $lid, $sid);
             $st->execute();
             $st->close();
         }
@@ -586,12 +589,14 @@ function palette_sub_stop_billing(mysqli $c, array $row, string $sid, string $wh
 
 // Call inside a transaction. paid_through only moves forward; period_start (the usage period) moves only to a payment
 // more than PALETTE_SUB_RECONCILE_MIN_GAP after the current one, which resets usage: a first sale that lands just after
-// the key was issued never resets the period twice. True when the licence changed.
+// the key was issued never resets the period twice. True when the licence changed. A subscription that no longer backs the
+// licence (moved to card) never extends it.
 function palette_sub_extend(mysqli $c, array $row, ?string $paidThrough, ?string $periodStart): bool
 {
     $lid = (int)$row['license_id'];
-    $l = $c->query("SELECT paid_through, period_start FROM palette_licenses WHERE id = $lid FOR UPDATE")->fetch_assoc();
+    $l = $c->query("SELECT paid_through, period_start, subscription_id FROM palette_licenses WHERE id = $lid FOR UPDATE")->fetch_assoc();
     if (!$l) return false;
+    if ($l['subscription_id'] !== null && ($row['subscription_id'] ?? null) !== null && $l['subscription_id'] !== $row['subscription_id']) return false;
     $pt = palette_sub_later($l['paid_through'], $paidThrough);
     $gapOk = $periodStart !== null && ($l['period_start'] === null || strtotime($periodStart) > strtotime($l['period_start']) + PALETTE_SUB_RECONCILE_MIN_GAP);
     $ps = $gapOk ? palette_sub_later($l['period_start'], $periodStart) : $l['period_start'];

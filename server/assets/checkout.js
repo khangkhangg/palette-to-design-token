@@ -549,7 +549,7 @@
         isBusy = true;   // the plan cannot change while the session is being made
         stBtn.disabled = true;
         config().then(function (c) {
-          return c.ok ? api('st_checkout', { plan: plan, email: email.value.trim(), consent: consent.checked ? '1' : '', csrf: c.csrf, test: data.test ? '1' : '' }) : c;
+          return c.ok ? api('st_checkout', { plan: plan, email: email.value.trim(), consent: consent.checked ? '1' : '', csrf: c.csrf, test: data.test ? '1' : '', move: data.move || '' }) : c;
         }).then(function (r) {
           if (r.ok && r.url) {
             var ext = new URLSearchParams(location.search).get('ext');

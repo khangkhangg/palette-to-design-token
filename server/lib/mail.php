@@ -117,3 +117,17 @@ function palette_sub_cancel_email(string $endsOn, string $lang, string $provider
             . ' <a href="' . $url . '" style="color:#0b6b57">' . $url . '</a></p>');
     return ['subject' => palette_t($lang, 'email_cancel_subject'), 'html' => palette_email_shell($lang, $html)];
 }
+
+// ['subject' => ..., 'html' => ...] with the one-use move-to-card link (admin "Move to card"). $chargeOn (Y-m-d) is when the card is
+// first charged (the PayPal paid-through carried over as a Stripe trial); null when it is charged at once.
+function palette_move_email(string $url, string $lang, ?string $chargeOn): array
+{
+    $html = '<h1 style="font-size:20px;margin:0 0 12px">' . palette_h(palette_t($lang, 'em_move_title')) . '</h1>'
+        . '<p style="margin:0 0 8px">' . palette_h(palette_t($lang, 'em_move_body')) . '</p>'
+        . '<p style="margin:0 0 16px">' . palette_h($chargeOn !== null ? palette_t($lang, 'em_move_when_date', ['date' => $chargeOn]) : palette_t($lang, 'em_move_when_now')) . '</p>'
+        . '<p style="margin:0 0 8px"><a href="' . palette_h($url) . '" style="display:inline-block;padding:10px 18px;background:#3b4bd8;color:#ffffff;'
+        . 'border-radius:6px;text-decoration:none;font-weight:bold">' . palette_h(palette_t($lang, 'em_move_button')) . '</a></p>'
+        . '<p style="margin:16px 0 0;font-size:13px;color:#5b6270">' . palette_h(palette_t($lang, 'em_move_note')) . '</p>'
+        . palette_email_footer($lang);
+    return ['subject' => palette_t($lang, 'em_move_subject'), 'html' => palette_email_shell($lang, $html)];
+}

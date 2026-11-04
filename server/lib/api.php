@@ -184,12 +184,23 @@ function palette_api_handle(array $req): array
             if (!palette_rate_hit('create:ip:' . (string)($req['ip'] ?? ''), 20, 3600)) return palette_api_error(429, 'api_rate_limited', $lang);
             $mode = palette_checkout_mode((array)($req['session'] ?? []), ['test' => $str('test')]);
             $ai = $str('plan') === 'ai';
+            // Move to card (admin link): the signed token is checked again here; it fixes the plan, the email (the licence's)
+            // and the licence the subscription takes over, and carries the PayPal paid-through over as the Stripe trial.
+            $move = null;
+            if ($str('move') !== '') {
+                $mc = palette_admin_move_check($conn, $str('move'));
+                if (!$mc['ok']) return palette_api_error(400, 'err_move', $lang);
+                $move = $mc['licence'];
+                $ai = true;
+                $mode = 'live';   // a PayPal licence is live: never re-pointed to a test-mode subscription
+            }
             // Public checkout needs Stripe enabled as a method and live ready; an admin's test checkout needs only test ready.
             $open = $mode === 'test' ? palette_stripe_ready($conn, 'test')
                 : in_array('stripe', palette_stripe_settings($conn)['checkout_methods'], true) && palette_stripe_ready($conn, 'live');
             if (!$open) return palette_api_error(503, 'err_paused', $lang);
-            $r = $ai ? palette_st_sub_start($conn, $mode, $str('email'), $lang, $str('consent') === '1')
-                     : palette_st_order_start($conn, $mode, $str('email'), $lang, $str('consent') === '1');
+            $r = $move !== null ? palette_st_sub_start($conn, $mode, (string)$move['email'], $lang, $str('consent') === '1', (int)$move['id'], palette_admin_move_trial_end($move))
+                : ($ai ? palette_st_sub_start($conn, $mode, $str('email'), $lang, $str('consent') === '1')
+                     : palette_st_order_start($conn, $mode, $str('email'), $lang, $str('consent') === '1'));
             if (!$r['ok']) return palette_api_error(['err_paused' => 503, 'err_stripe' => 502][$r['error']] ?? 400, $r['error'], $lang);
             $mine = is_array($_SESSION['palette_st'] ?? null) ? $_SESSION['palette_st'] : [];
             $mine[] = ($ai ? 's:' : 'o:') . $r['row_id'];

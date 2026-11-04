@@ -322,6 +322,8 @@ function palette_st_fulfil_sub(mysqli $c, array $row, array $session): array
     $end = palette_st_utc($sub['current_period_end'] ?? $item['current_period_end'] ?? null) ?? gmdate('Y-m-d H:i:s', strtotime($start . ' UTC +1 month'));
     $move = $row['move_license_id'] !== null ? (int)$row['move_license_id'] : null;
     $moved = false;
+    $oldSub = null;
+    $refused = null;
 
     // Claim first: only the call whose UPDATE flips 'pending' issues the key; the transaction makes a concurrent
     // claimer wait on the row lock until license_id is stored.
@@ -338,17 +340,26 @@ function palette_st_fulfil_sub(mysqli $c, array $row, array $session): array
         }
         $lic = null;
         if ($move !== null) {
-            // Move to card: the existing licence takes over, so the customer keeps their key.
+            // Move to card: the existing licence takes over, so the customer keeps their key. Only while it is still the licence
+            // the link was sent for: Pro + AI, not revoked, the same email, and not moved already (one use, admin log 'move_used').
+            $k = $c->query("SELECT id, license_key, email, plan, revoked_at, subscription_id FROM palette_licenses WHERE id = $move FOR UPDATE")->fetch_assoc();
+            $used = $k ? $c->query("SELECT 1 FROM palette_admin_log WHERE action = 'move_used' AND license_id = $move LIMIT 1")->num_rows > 0 : false;
+            $refused = !$k ? 'licence gone' : ($k['plan'] !== 'ai' ? 'not pro + ai' : ($k['revoked_at'] !== null ? 'licence revoked'
+                : (strcasecmp((string)$k['email'], (string)$row['email']) !== 0 ? 'email differs' : ($used ? 'already moved' : null))));
+            if ($refused !== null) {
+                $c->rollback();
+                palette_st_move_refused($c, $row, $sid, $cust, $refused);
+                return $no;
+            }
+            $oldSub = $k['subscription_id'];
             $livemode = (int)$row['livemode'];
             $st = $c->prepare("UPDATE palette_licenses SET subscription_id = ?, source = 'stripe', sub_status = 'active', paid_through = ?, period_start = ?, livemode = ? WHERE id = ?");
             $st->bind_param('sssii', $sid, $end, $start, $livemode, $move);
             $st->execute();
             $st->close();
-            $k = $c->query("SELECT id, license_key FROM palette_licenses WHERE id = $move")->fetch_assoc();
-            if ($k) {
-                $lic = ['id' => (int)$k['id'], 'key' => $k['license_key']];
-                $moved = true;
-            }
+            palette_admin_log($c, 0, 'move_used', $move, $sid, ['from' => $oldSub, 'row' => $id], null);
+            $lic = ['id' => (int)$k['id'], 'key' => $k['license_key']];
+            $moved = true;
         }
         $lic ??= palette_issue_license($c, (string)$row['email'], $sid, (string)$row['lang'],
             ['subscription_id' => $sid, 'paid_through' => $end, 'period_start' => $start], 'stripe', (int)$row['livemode']);
@@ -360,11 +371,47 @@ function palette_st_fulfil_sub(mysqli $c, array $row, array $session): array
         error_log("PALETTE_STRIPE_ERROR fulfil sub=$id failed (will retry): " . $e->getMessage());
         return $no + ['retry' => true];
     }
-    if (!$moved) {   // a moved customer already holds the key
+    if ($moved) {   // a moved customer already holds the key; their PayPal billing stops now
+        if (is_string($oldSub) && $oldSub !== '' && $oldSub !== $sid) palette_st_move_stop_paypal($c, (int)$lic['id'], $oldSub);
+    } else {
         $m = palette_sub_email($lic['key'], (string)$row['lang'], palette_usage_limit(palette_settings($c)));
         if (!palette_mail((string)$row['email'], $m['subject'], $m['html'])) error_log("PALETTE_MAIL_FAILED sub=$id");
     }
     return ['ok' => true, 'key' => $lic['key'], 'already' => false];
+}
+
+// A move-to-card subscription whose licence can no longer take it: nothing re-pointed, the Stripe subscription is cancelled
+// (it backs no key) and the row closed, so a webhook redelivery does not try again. The admin is alerted through the log.
+function palette_st_move_refused(mysqli $c, array $row, string $sid, ?string $cust, string $why): void
+{
+    $id = (int)$row['id'];
+    error_log("PALETTE_PAID_UNFULFILLED sub=$id move refused: $why; Stripe subscription $sid cancelled, refund it if it was charged");
+    $mode = (int)$row['livemode'] === 1 ? 'live' : 'test';
+    palette_st_cancel_sub($c, $mode, ['id' => $id, 'subscription_id' => $sid, 'license_id' => null], 'refused move to card');
+    $now = palette_sub_now();
+    $st = $c->prepare("UPDATE palette_subscriptions SET status = 'cancelled', subscription_id = ?, stripe_customer = ?, updated_at = ? WHERE id = ? AND status = 'pending'");
+    $st->bind_param('sssi', $sid, $cust, $now, $id);
+    $st->execute();
+    $st->close();
+}
+
+// After a move to card: cancel the PayPal subscription the licence left. A failure logs PALETTE_CANCEL_FAILED and an admin log
+// row 'move_paypal_cancel_failed' (the licence page shows it until the PayPal row is no longer active); the move stands.
+function palette_st_move_stop_paypal(mysqli $c, int $licenceId, string $ppSid): void
+{
+    $pp = palette_sub_row($c, 'subscription_id', $ppSid);
+    if (!$pp || ($pp['provider'] ?? 'paypal') !== 'paypal' || !in_array($pp['status'], ['active', 'suspended'], true)) return;
+    try {
+        $ok = palette_sub_paypal_cancel($c, $ppSid, 'Moved to card payments');
+    } catch (Throwable $e) {
+        $ok = false;
+    }
+    if ($ok) {
+        palette_sub_set_status($c, $pp, 'cancelled', ['active', 'suspended']);   // the licence is not touched: it is on Stripe now
+        return;
+    }
+    error_log("PALETTE_CANCEL_FAILED subscription=$ppSid after move to card (licence $licenceId); cancel it in PayPal by hand");
+    palette_admin_log($c, 0, 'move_paypal_cancel_failed', $licenceId, $ppSid, ['paypal_subscription' => $ppSid], null);
 }
 
 // Another call claimed the subscription row: share its key, waiting briefly if license_id is not stored yet.

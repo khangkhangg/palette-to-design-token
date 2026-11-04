@@ -262,7 +262,8 @@ function palette_account_csrf_token(): string
 }
 
 // Two plan cards, radio semantics (mockup J): Pro + AI first, Pro second. Pro + AI is not selectable until its PayPal plan exists.
-function palette_plan_cards(string $lang, string $plan, bool $aiOn, string $proPrice, string $aiPrice, int $analyses): string
+// $aiOnly (a move-to-card checkout) leaves the Pro card out.
+function palette_plan_cards(string $lang, string $plan, bool $aiOn, string $proPrice, string $aiPrice, int $analyses, bool $aiOnly = false): string
 {
     $card = function (string $id, string $name, string $price, string $per, string $badge, array $items) use ($plan, $aiOn, $lang): string {
         $disabled = $id === 'ai' && !$aiOn;
@@ -281,7 +282,7 @@ function palette_plan_cards(string $lang, string $plan, bool $aiOn, string $proP
     return '<div class="plan-pick" id="plan-pick" role="radiogroup" aria-labelledby="plan-h">'
         . $card('ai', 'Pro + AI', $aiPrice, $t('co_plan_month'), $aiOn ? $t('co_plan_best') : $t('co_plan_soon'),
             [$t('co_ai_i1'), $t('co_ai_i2', ['n' => $analyses]), $t('co_ai_i3'), $t('co_ai_i4'), $t('co_ai_i5')])
-        . $card('pro', 'Pro', $proPrice, $t('co_plan_once'), '', [$t('co_pro_i1'), $t('co_pro_i2'), $t('co_pro_i3')])
+        . ($aiOnly ? '' : $card('pro', 'Pro', $proPrice, $t('co_plan_once'), '', [$t('co_pro_i1'), $t('co_pro_i2'), $t('co_pro_i3')]))
         . '</div>';
 }
 
@@ -479,18 +480,31 @@ function palette_render_checkout(array $ctx): string
     $mode = palette_checkout_mode($session, $query);
     $test = $mode === 'test';
     if ($test) $keep['test'] = '1';
+    // ?move=<token>: an admin's move-to-card link for a PayPal Pro + AI subscriber (lib/admin.php). Valid: Pro + AI only, Stripe
+    // only, the licence's email fixed. Invalid: an ordinary checkout with a note saying the link no longer works.
+    $moveTok = is_string($query['move'] ?? null) ? $query['move'] : '';
+    $move = $moveTok !== '' ? palette_admin_move_check($conn, $moveTok) : null;
+    $moveBad = $move !== null && !$move['ok'];
+    if ($moveBad) $move = null;
+    if ($move !== null) {   // a PayPal licence is live: never a test-mode subscription, even for an admin's ?test=1
+        $mode = 'live';
+        $test = false;
+        unset($keep['test']);
+        $keep['move'] = $moveTok;
+        $keep['plan'] = 'ai';
+    }
     $settings = palette_settings($conn);
     $money = palette_money_settings($settings);
     $pp = pp_settings($conn);
     $stOn = palette_stripe_ready($conn, $mode);
     $ppOn = !$test && pp_ready($pp);
     $methods = $test ? ['stripe'] : palette_stripe_settings($conn)['checkout_methods'];
-    $active = array_values(array_filter($methods, fn(string $m) => $m === 'stripe' ? $stOn : $ppOn));
+    $active = array_values(array_filter($methods, fn(string $m) => $m === 'stripe' ? $stOn : ($ppOn && $move === null)));
     $hasSt = in_array('stripe', $active, true);
     $hasPp = in_array('paypal', $active, true);
     $ppAi = $hasPp && palette_ai_plan_ready($settings, $pp);   // PayPal sells Pro + AI only once its plan exists (A18)
     $aiOn = $hasSt || $ppAi;
-    $plan = palette_page_plan($query, $aiOn);
+    $plan = $move !== null ? 'ai' : palette_page_plan($query, $aiOn);
     $isAi = $plan === 'ai';
     $ca = $money['tax_mode'] === 'ca' && $hasPp;   // sales tax is collected on PayPal's Pro order only
     $fr = $lang === 'fr';
@@ -568,13 +582,23 @@ function palette_render_checkout(array $ctx): string
     $banner = $test ? '<div class="test-banner" id="test-banner" role="note">' . palette_icon('alert', 16)
         . '<span>' . str_replace($card, '<bdi dir="ltr" class="card-no">' . $card . '</bdi>', $t('co_test_banner')) . '</span></div>' : '';
 
+    $moveNote = '';
+    if ($move !== null) {
+        $trial = palette_admin_move_trial_end($move['licence']);
+        $moveNote = '<div class="st-msg move-msg" id="move-msg" role="note">' . palette_icon('card', 16) . '<span><strong>' . $t('co_move_title') . '</strong> '
+            . palette_h($trial !== null ? palette_t($lang, 'co_move_note_date', ['date' => gmdate('Y-m-d', (int)$trial)]) : palette_t($lang, 'co_move_note_now')) . '</span></div>';
+    } elseif ($moveBad) {
+        $moveNote = '<p class="st-msg" id="move-msg" role="status">' . palette_icon('alert', 16) . '<span>' . $t('co_move_invalid') . '</span></p>';
+    }
     $form = '<form id="buy" class="buy" novalidate' . ($stSession !== null ? ' hidden' : '') . '>'
         . '<h2 id="buy-title">' . $t('co_form_title') . '</h2>'
         . ($stCancel ? '<p class="st-msg" id="st-msg" role="status">' . palette_icon('info', 16) . '<span>' . $t('co_st_cancelled') . '</span></p>' : '')
+        . $moveNote
         . '<div class="field"><span class="field-label" id="plan-h">' . $t('co_plan_h') . '</span>'
-        . palette_plan_cards($lang, $plan, $aiOn, $price, $aiPrice, palette_usage_limit($settings)) . '</div>'
+        . palette_plan_cards($lang, $plan, $aiOn, $price, $aiPrice, palette_usage_limit($settings), $move !== null) . '</div>'
         . '<div class="field"><label for="email">' . $t('co_email_label') . '</label>'
-        . '<input type="email" id="email" name="email" autocomplete="email" inputmode="email" spellcheck="false" maxlength="190" required aria-describedby="email-hint">'
+        . '<input type="email" id="email" name="email" autocomplete="email" inputmode="email" spellcheck="false" maxlength="190" required aria-describedby="email-hint"'
+        . ($move !== null ? ' value="' . palette_h((string)$move['licence']['email']) . '" readonly' : '') . '>'
         . '<p class="hint" id="email-hint">' . $t('co_email_hint') . '</p></div>'
         . $tax
         . '<div class="terms"><p class="refund" id="refund">' . $t($isAi ? 'co_refund_ai' : 'co_refund') . '</p>'
@@ -625,6 +649,7 @@ function palette_render_checkout(array $ctx): string
         $data['t'] += ['co_pay_card_pro' => palette_t($lang, 'co_pay_card_pro'), 'co_pay_card_ai' => palette_t($lang, 'co_pay_card_ai')];
     }
     if ($stSession !== null) $data += ['st' => $stSession, 'csrf_account' => palette_account_csrf_token()];
+    if ($move !== null) $data['move'] = $moveTok;
     return palette_page_shell('checkout', $lang, $keep, palette_t($lang, 'co_title'), $main, $data);
 }
 

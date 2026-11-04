@@ -24,6 +24,8 @@ const PALETTE_ADMIN_ACTIONS = [
     'resend'       => 'palette_admin_do_resend',
     'cancel'       => 'palette_admin_do_cancel',
     'billing_link' => 'palette_admin_do_billing_link',
+    'move_link'    => 'palette_admin_do_move_link',
+    'issue'        => 'palette_admin_do_issue',
 ];
 
 // ---- access, CSRF, log
@@ -207,6 +209,9 @@ const PALETTE_ADMIN_MESSAGES = [
         'resent'       => 'The key email was sent.',
         'cancelled'    => 'The subscription will end at the end of the paid period.',
         'billing_sent' => 'The billing link was emailed to the customer.',
+        'move_sent'    => 'The move-to-card link was emailed to the customer. It works once, for 7 days.',
+        'issued'       => 'Key issued.',
+        'issued_existing' => 'That payment already has a key. It is shown below; no second key was made.',
     ],
     'err' => [
         'note_required' => 'Write a reason (1 to 500 characters).',
@@ -223,6 +228,12 @@ const PALETTE_ADMIN_MESSAGES = [
         'plan_needs_until' => 'To switch to Pro + AI, set an access date in the future in the same save.',
         'cancel_first'  => 'Cancel the subscription first.',
         'cancel_failed' => 'Access was revoked, but the provider could not cancel the subscription. Cancel it in Stripe or PayPal now.',
+        'not_paypal'    => 'Move to card is only for Pro + AI licences paid by an active PayPal subscription.',
+        'bad_email'     => 'Enter a valid email address.',
+        'bad_reason'    => 'Choose why the key is issued.',
+        'bad_ref'       => 'A payment reference may hold letters, digits and _ - . : / only (Stripe: cs_... or pi_...).',
+        'ref_other_email' => 'That payment reference already has a key for a different email. Check the reference, or leave it empty.',
+        'ref_subscription' => 'That Stripe checkout is a Pro + AI subscription that has no key yet. Its key is issued when Stripe confirms it; check it in Stripe first.',
     ],
 ];
 
@@ -260,7 +271,7 @@ function palette_admin_shell(string $tab, string $title, string $inner, array $s
         . '<div class="adm"><header class="adm-head"><span class="mark" aria-hidden="true"></span><h1>' . palette_h($h1) . '</h1>'
         . '<nav class="adm-nav" aria-label="Admin sections">' . $nav . '</nav><span class="grow"></span>'
         . '<a class="btn btn-accent" href="' . palette_h(palette_admin_url('issue')) . '">' . palette_icon('plus', 16) . '<span>Issue a key</span></a></header>'
-        . palette_admin_flash($query) . $inner . '</div></body></html>';
+        . palette_admin_flash($query) . $inner . '</div><script src="' . palette_h(palette_asset('admin.js')) . '" defer></script></body></html>';
 }
 
 // ---- tabs (each returns ['html' => inner HTML, 'title'? , 'status'? ] or ['response' => full response])
@@ -270,9 +281,7 @@ function palette_admin_placeholder(string $title): array
     return ['title' => $title, 'html' => '<section class="card"><div class="empty">' . palette_icon('info', 16) . '<span>Coming in a later task.</span></div></section>'];
 }
 
-function palette_admin_tab_payments(mysqli $c, array $session, array $query): array { return palette_admin_placeholder('Payments'); }
 function palette_admin_tab_settings(mysqli $c, array $session, array $query): array { return palette_admin_placeholder('Settings'); }
-function palette_admin_tab_issue(mysqli $c, array $session, array $query): array { return palette_admin_placeholder('Issue a key'); }
 
 function palette_admin_tab_sites(mysqli $c, array $session, array $query): array
 {
@@ -756,8 +765,9 @@ function palette_admin_usd(string|float $amount): string
     return '$' . number_format((float)$amount, 2, '.', ',');
 }
 
-// Payments of one licence, newest first: [at, amount, result, ref] (orders by licence, subscription payments by subscription id).
-function palette_admin_payments(mysqli $c, array $lic): array
+// Payments of one licence, newest first: [at, amount, result, ref] (orders by licence; subscription payments of the licence's
+// subscription and of every subscription row it had, so a moved-to-card licence still lists its PayPal payments).
+function palette_admin_licence_payments(mysqli $c, array $lic): array
 {
     $out = [];
     $id = (int)$lic['id'];
@@ -770,17 +780,16 @@ function palette_admin_payments(mysqli $c, array $lic): array
                   'result' => ['captured' => 'Paid', 'failed' => 'Failed', 'created' => 'Not paid'][$o['status']] ?? $o['status'], 'ref' => $ref];
     }
     $st->close();
-    if ($lic['subscription_id'] !== null && $lic['subscription_id'] !== '') {
-        $st = $c->prepare('SELECT sale_id, amount_usd, status, paid_at FROM palette_sub_payments WHERE subscription_id = ?');
-        $sid = (string)$lic['subscription_id'];
-        $st->bind_param('s', $sid);
-        $st->execute();
-        foreach ($st->get_result() as $p) {
-            $out[] = ['at' => (string)$p['paid_at'], 'amount' => palette_admin_usd($p['amount_usd']),
-                      'result' => ['completed' => 'Paid', 'refunded' => 'Refunded', 'reversed' => 'Reversed'][$p['status']] ?? $p['status'], 'ref' => (string)$p['sale_id']];
-        }
-        $st->close();
+    $st = $c->prepare('SELECT sale_id, amount_usd, status, paid_at FROM palette_sub_payments WHERE subscription_id = ?
+                       OR subscription_id IN (SELECT subscription_id FROM palette_subscriptions WHERE license_id = ? AND subscription_id IS NOT NULL)');
+    $sid = (string)($lic['subscription_id'] ?? '');
+    $st->bind_param('si', $sid, $id);
+    $st->execute();
+    foreach ($st->get_result() as $p) {
+        $out[] = ['at' => (string)$p['paid_at'], 'amount' => palette_admin_usd($p['amount_usd']),
+                  'result' => ['completed' => 'Paid', 'refunded' => 'Refunded', 'reversed' => 'Reversed'][$p['status']] ?? $p['status'], 'ref' => (string)$p['sale_id']];
     }
+    $st->close();
     usort($out, fn($a, $b) => strcmp($b['at'], $a['at']));
     return $out;
 }
@@ -799,6 +808,11 @@ function palette_admin_log_text(array $r): string
         'resend'       => 'Resent the key email',
         'cancel'       => 'Cancelled the subscription',
         'billing_link' => 'Sent a billing link',
+        'issue'        => !empty($d['existing']) ? 'Asked to issue a key again; the existing key was shown'
+                          : 'Issued this key (' . (PALETTE_ADMIN_REASONS[$d['reason'] ?? ''] ?? 'admin') . ')' . (!empty($d['linked']) ? ' and linked it to the Stripe payment' : ''),
+        'move_link'    => 'Emailed a move-to-card link',
+        'move_used'    => 'Moved to card payments with Stripe; the key stayed the same',
+        'move_paypal_cancel_failed' => 'Could not cancel the PayPal subscription after the move to card',
         default        => ucfirst(str_replace('_', ' ', (string)$r['action'])),
     };
 }
@@ -812,7 +826,8 @@ function palette_admin_history(mysqli $c, array $lic, array $payments): array
     $st->bind_param('i', $id);
     $st->execute();
     foreach ($st->get_result() as $r) {
-        $html = '<b>Admin ' . (int)$r['admin_user_id'] . '</b> ' . palette_h(lcfirst(palette_admin_log_text($r))) . '.';
+        $who = (int)$r['admin_user_id'] === 0 ? 'System' : 'Admin ' . (int)$r['admin_user_id'];   // 0: written by checkout or a webhook
+        $html = '<b>' . $who . '</b> ' . palette_h(lcfirst(palette_admin_log_text($r))) . '.';
         if ($r['note'] !== null && $r['note'] !== '') $html .= ' <span class="muted">Reason: ' . palette_h($r['note']) . '</span>';
         $items[] = ['at' => (string)$r['created_at'], 'html' => $html];
     }
@@ -874,7 +889,7 @@ function palette_admin_tab_licence(mysqli $c, array $session, array $query): arr
             . $field('AI analyses this period', (int)$u['used'] . ' of ' . (int)$u['limit']);
     }
 
-    $payments = palette_admin_payments($c, $lic);
+    $payments = palette_admin_licence_payments($c, $lic);
     $rows = '';
     foreach ($payments as $p) {
         $cls = in_array($p['result'], ['Failed', 'Reversed'], true) ? ' class="bad"' : '';
@@ -916,6 +931,12 @@ function palette_admin_tab_licence(mysqli $c, array $session, array $query): arr
         $buttons = '';
         if ($live) $buttons .= palette_admin_form_open($session, $id, 'cancel') . '<button class="btn btn-danger" type="submit">Cancel subscription</button></form>';
         if ($stripe) $buttons .= palette_admin_form_open($session, $id, 'billing_link') . '<button class="btn" type="submit">Send billing link</button></form>';
+        if (palette_admin_move_paypal_row($c, $lic)) {
+            $buttons .= palette_admin_form_open($session, $id, 'move_link')
+                . '<label class="fld"><span>Note (optional, kept in history)</span><input type="text" name="note" maxlength="500"></label>'
+                . '<button class="btn" type="submit">' . palette_icon('card', 16) . '<span>Move to card</span></button>'
+                . '<p class="hint">Emails the customer a one-use link (7 days) to subscribe by card with Stripe. Their key stays the same, the PayPal days they paid for carry over, and the PayPal subscription is cancelled when they subscribe.</p></form>';
+        }
         $note = $live ? ($stripe ? 'Stops Stripe charging this card at the end of the paid period. Access stays until then.'
                                  : 'Stops PayPal billing now. Access stays until the paid-through date.')
                       : 'This subscription is already ' . $sub['status'] . '.';
@@ -928,6 +949,465 @@ function palette_admin_tab_licence(mysqli $c, array $session, array $query): arr
         . '<span class="pill ' . $accessCls . '">' . palette_h($access) . '</span><span class="pill ' . $paidCls . '">' . palette_h($paid) . '</span><span class="grow"></span>'
         . palette_admin_form_open($session, $id, 'resend') . '<button class="btn" type="submit">' . palette_icon('mail', 16) . '<span>Resend key email</span></button></form>'
         . palette_admin_stripe_link($c, $lic, $sub) . '</header>';
+    $head .= palette_admin_move_warnings($c, $id);
     return ['title' => 'Licence', 'html' => $head . '<div class="lic-grid"><div class="lic-main"><section class="card card-pad kvs">' . $details . '</section>'
         . $payHtml . $histHtml . '</div><aside class="lic-side">' . $side . '</aside></div>'];
+}
+
+// ---- issue a key
+// palette_admin_issue: one function for every way an admin hands out a key. Idempotent: the same payment reference (or, without
+// one, the same admin, email and plan within PALETTE_ADMIN_ISSUE_WINDOW seconds: a double-click) answers the key already made
+// (existing = true) instead of a second licence. A named lock serialises concurrent calls for the same reference or email.
+
+const PALETTE_ADMIN_REASONS = ['paid_no_key' => 'Paid, key not issued', 'paid_other' => 'Paid another way', 'comp' => 'Free (comp)', 'replacement' => 'Replacement key'];
+const PALETTE_ADMIN_STRIPE_REF_RE = '/^(cs|pi)_[A-Za-z0-9_]{1,77}$/D';
+const PALETTE_ADMIN_REF_RE = '/^[A-Za-z0-9][A-Za-z0-9_.:\/-]{0,79}$/D';
+const PALETTE_ADMIN_ISSUE_WINDOW = 30;
+
+// Lowercased, trimmed email, or null when it is not one address.
+function palette_admin_clean_email(string $email): ?string
+{
+    if (preg_match('/[\r\n]/', $email)) return null;
+    $email = strtolower(trim($email));
+    return strlen($email) <= 190 && filter_var($email, FILTER_VALIDATE_EMAIL) ? $email : null;
+}
+
+function palette_admin_ref_ok(string $ref): bool
+{
+    if (preg_match('/^(cs|pi)_/', $ref)) return preg_match(PALETTE_ADMIN_STRIPE_REF_RE, $ref) === 1;
+    return preg_match(PALETTE_ADMIN_REF_RE, $ref) === 1;
+}
+
+// A palette order for a Stripe reference and, while it has no key, its Checkout session from Stripe (in the order's mode).
+// Read-only. A pi_ that matches no order is looked up as GET /v1/checkout/sessions?payment_intent= (live, then test).
+// ['order' => ?row, 'session' => ?array, 'error' => ?'stripe'].
+function palette_admin_ref_resolve(mysqli $c, string $ref): array
+{
+    $out = ['order' => null, 'session' => null, 'error' => null];
+    $col = str_starts_with($ref, 'cs_') ? 'stripe_session' : 'stripe_payment_intent';
+    $st = $c->prepare("SELECT * FROM palette_orders WHERE $col = ? ORDER BY id DESC LIMIT 1");
+    $st->bind_param('s', $ref);
+    $st->execute();
+    $o = $st->get_result()->fetch_assoc() ?: null;
+    $st->close();
+    if ($o) {
+        $out['order'] = $o;
+        if ($o['license_id'] !== null || !preg_match(PALETTE_STRIPE_SESSION_RE, (string)$o['stripe_session'])) return $out;
+        $r = palette_st_api($c, (int)$o['livemode'] === 1 ? 'live' : 'test', 'GET', 'checkout/sessions/' . $o['stripe_session']);
+        if ($r['status'] >= 200 && $r['status'] < 300) {
+            $out['session'] = $r['json'];
+        } else {
+            palette_st_log_error('admin lookup', (string)$o['order_id'], $r['status']);
+            $out['error'] = 'stripe';
+        }
+        return $out;
+    }
+    if (!str_starts_with($ref, 'pi_')) return $out;
+    foreach (['live', 'test'] as $mode) {
+        if (!palette_stripe_ready($c, $mode)) continue;
+        $r = palette_st_api($c, $mode, 'GET', 'checkout/sessions', ['payment_intent' => $ref, 'limit' => 1]);
+        if ($r['status'] < 200 || $r['status'] >= 300) {
+            palette_st_log_error('admin lookup by payment intent', '-', $r['status']);
+            $out['error'] = 'stripe';
+            continue;
+        }
+        $s = $r['json']['data'][0] ?? null;
+        if (!is_array($s) || !preg_match(PALETTE_STRIPE_SESSION_RE, (string)($s['id'] ?? ''))) continue;
+        $o = palette_st_row_by_session($c, 'palette_orders', (string)$s['id']);
+        return ['order' => $o, 'session' => $o ? $s : null, 'error' => null];   // a session that is not ours: not found
+    }
+    return $out;
+}
+
+// The hint under the reference field (GET admin.php?tab=issue&lookup=). Read-only; the format is checked before any Stripe call.
+// ['found', 'paid', 'amount', 'email', 'date'] (+ 'lang', 'has_key', 'kind' when found; 'error' => bad_ref|stripe).
+function palette_admin_ref_lookup(mysqli $c, string $ref): array
+{
+    $out = ['found' => false, 'paid' => false, 'amount' => '', 'email' => null, 'date' => null];
+    $ref = trim($ref);
+    if (!preg_match(PALETTE_ADMIN_STRIPE_REF_RE, $ref)) return $out + ['error' => 'bad_ref'];
+    $res = palette_admin_ref_resolve($c, $ref);
+    $o = $res['order'];
+    if (!$o && str_starts_with($ref, 'cs_') && ($s = palette_st_row_by_session($c, 'palette_subscriptions', $ref))) {
+        return ['found' => true, 'paid' => $s['status'] !== 'pending', 'amount' => palette_admin_usd((string)($s['price_usd'] ?? '0')), 'email' => (string)$s['email'],
+                'date' => substr((string)$s['created_at'], 0, 10), 'lang' => (string)$s['lang'], 'has_key' => $s['license_id'] !== null, 'kind' => 'subscription'];
+    }
+    if (!$o) return $out + ($res['error'] !== null ? ['error' => 'stripe'] : []);
+    $hasKey = $o['license_id'] !== null;
+    $paid = $hasKey || $o['status'] === 'captured' || ($res['session']['payment_status'] ?? '') === 'paid';
+    return ['found' => true, 'paid' => $paid, 'amount' => palette_admin_usd((string)$o['amount_usd']), 'email' => (string)$o['email'],
+            'date' => substr((string)$o['created_at'], 0, 10), 'lang' => (string)$o['lang'], 'has_key' => $hasKey, 'kind' => 'order']
+        + ($res['error'] !== null ? ['error' => 'stripe'] : []);
+}
+
+// The licence an earlier admin issue made for this reference (or, without one, for this admin + email + plan a moment ago).
+function palette_admin_issued_before(mysqli $c, int $adminId, string $email, string $plan, string $ref): ?array
+{
+    if ($ref !== '') {
+        $st = $c->prepare("SELECT l.id, l.license_key, l.email, l.order_id FROM palette_admin_log a JOIN palette_licenses l ON l.id = a.license_id
+                           WHERE a.action = 'issue' AND a.order_ref = ? ORDER BY a.id DESC LIMIT 1");
+        $st->bind_param('s', $ref);
+    } else {
+        $since = gmdate('Y-m-d H:i:s', time() - PALETTE_ADMIN_ISSUE_WINDOW);
+        $st = $c->prepare("SELECT l.id, l.license_key, l.email, l.order_id FROM palette_admin_log a JOIN palette_licenses l ON l.id = a.license_id
+                           WHERE a.action = 'issue' AND a.order_ref IS NULL AND a.admin_user_id = ? AND l.email = ? AND l.plan = ? AND a.created_at >= ?
+                           ORDER BY a.id DESC LIMIT 1");
+        $st->bind_param('isss', $adminId, $email, $plan, $since);
+    }
+    $st->execute();
+    $r = $st->get_result()->fetch_assoc();
+    $st->close();
+    return $r ?: null;
+}
+
+function palette_admin_key_by(mysqli $c, string $col, string|int $val): ?array
+{
+    $col = $col === 'id' ? 'id' : 'license_key';
+    $st = $c->prepare("SELECT id, license_key, email FROM palette_licenses WHERE $col = ?");
+    $v = (string)$val;
+    $st->bind_param('s', $v);
+    $st->execute();
+    $r = $st->get_result()->fetch_assoc();
+    $st->close();
+    return $r ?: null;
+}
+
+// ['ok' => true, 'key', 'existing' => bool, 'licence_id', 'mailed' => bool] or ['ok' => false, 'error' => code].
+// $reason: paid_no_key|paid_other|comp|replacement; $ref optional (a Stripe cs_/pi_ is looked up, anything else is recorded);
+// $note required. $lang is the language of a new admin licence and its email (a linked Stripe order keeps its own).
+// A paid Stripe order is fulfilled through palette_st_fulfil_order (linked, marked captured; the buyer gets the usual key
+// email whatever $notify says). Otherwise an admin licence: order_id ADM-<16 hex>, source admin, pay_status comp for 'comp'
+// else manual_paid; Pro + AI runs one month. Every call writes one palette_admin_log row (never the key or the email).
+function palette_admin_issue(mysqli $c, int $adminId, string $email, string $plan, string $reason, string $ref, string $note, bool $notify, string $lang = 'en'): array
+{
+    if (!palette_admin_note_ok($note)) return ['ok' => false, 'error' => 'note_required'];
+    $email = palette_admin_clean_email($email);
+    if ($email === null) return ['ok' => false, 'error' => 'bad_email'];
+    if (!in_array($plan, ['pro', 'ai'], true)) return ['ok' => false, 'error' => 'bad_plan'];
+    if (!isset(PALETTE_ADMIN_REASONS[$reason])) return ['ok' => false, 'error' => 'bad_reason'];
+    $ref = trim($ref);
+    if ($ref !== '' && !palette_admin_ref_ok($ref)) return ['ok' => false, 'error' => 'bad_ref'];
+    $lock = 'palette_issue:' . sha1($ref !== '' ? "ref:$ref" : "email:$email");   // hex only: safe inside the quotes
+    $got = (int)($c->query("SELECT GET_LOCK('$lock', 10)")->fetch_row()[0] ?? 0);
+    try {
+        return palette_admin_issue_locked($c, $adminId, $email, $plan, $reason, $ref, trim($note), $notify, palette_lang($lang));
+    } finally {
+        if ($got === 1) $c->query("SELECT RELEASE_LOCK('$lock')");
+    }
+}
+
+function palette_admin_issue_locked(mysqli $c, int $adminId, string $email, string $plan, string $reason, string $ref, string $note, bool $notify, string $lang): array
+{
+    $detail = ['reason' => $reason, 'plan' => $plan];
+    $refOrNull = $ref !== '' ? $ref : null;
+    $existing = function (array $l, array $extra = []) use ($c, $adminId, $refOrNull, $detail, $note): array {
+        palette_admin_log($c, $adminId, 'issue', (int)$l['id'], $refOrNull, $detail + $extra + ['existing' => true], $note);
+        return ['ok' => true, 'key' => (string)$l['license_key'], 'existing' => true, 'licence_id' => (int)$l['id'], 'mailed' => false, 'email' => (string)$l['email']];
+    };
+    if ($prev = palette_admin_issued_before($c, $adminId, $email, $plan, $ref)) {
+        // A reference the admin typed earlier for someone else is a typo, not a request to show that person's key. (A Stripe
+        // order's key is shown whatever email was typed: the order says whose it is.)
+        if ($prev['email'] !== $email && str_starts_with((string)$prev['order_id'], 'ADM-')) return ['ok' => false, 'error' => 'ref_other_email'];
+        return $existing($prev);
+    }
+
+    if ($ref !== '' && preg_match(PALETTE_ADMIN_STRIPE_REF_RE, $ref)) {
+        $res = palette_admin_ref_resolve($c, $ref);
+        $o = $res['order'];
+        if ($o && $o['license_id'] !== null && ($l = palette_admin_key_by($c, 'id', (int)$o['license_id']))) return $existing($l, ['linked' => true]);
+        if (!$o && str_starts_with($ref, 'cs_') && ($s = palette_st_row_by_session($c, 'palette_subscriptions', $ref))) {
+            if ($s['license_id'] !== null && ($l = palette_admin_key_by($c, 'id', (int)$s['license_id']))) return $existing($l, ['linked' => true]);
+            if ($s['status'] === 'pending') return ['ok' => false, 'error' => 'ref_subscription'];
+        }
+        if ($res['error'] !== null) return ['ok' => false, 'error' => 'stripe'];
+        if ($o && $res['session'] !== null && ($res['session']['payment_status'] ?? '') === 'paid') {
+            $f = palette_st_fulfil_order($c, $o, $res['session']);
+            if (!empty($f['retry'])) return ['ok' => false, 'error' => 'stripe'];
+            $l = $f['ok'] && $f['key'] !== null ? palette_admin_key_by($c, 'key', (string)$f['key']) : null;
+            if ($l) {
+                if ($f['already']) return $existing($l, ['linked' => true]);
+                palette_admin_log($c, $adminId, 'issue', (int)$l['id'], $ref, $detail + ['linked' => true, 'existing' => false], $note);
+                return ['ok' => true, 'key' => (string)$l['license_key'], 'existing' => false, 'licence_id' => (int)$l['id'], 'mailed' => true, 'email' => (string)$l['email']];
+            }
+            $detail['stripe'] = 'refused';   // paid, but the order could not take it (amount mismatch, failed order): issued by hand below
+        } else {
+            $detail['stripe'] = $o ? 'not_paid' : 'not_found';
+        }
+    }
+
+    $orderId = 'ADM-' . strtoupper(bin2hex(random_bytes(8)));
+    $pay = $reason === 'comp' ? 'comp' : 'manual_paid';
+    $until = $plan === 'ai' ? palette_admin_plus_month(null) . ' 23:59:59' : null;
+    $start = $plan === 'ai' ? gmdate('Y-m-d H:i:s') : null;
+    $c->begin_transaction();
+    try {
+        $lic = palette_issue_license($c, $email, $orderId, $lang, null, 'admin');
+        $lid = (int)$lic['id'];
+        $st = $c->prepare('UPDATE palette_licenses SET pay_status = ?, plan = ?, paid_through = ?, period_start = ? WHERE id = ?');
+        $st->bind_param('ssssi', $pay, $plan, $until, $start, $lid);
+        $st->execute();
+        $st->close();
+        palette_admin_log($c, $adminId, 'issue', $lid, $refOrNull, $detail + ['existing' => false], $note);
+        $c->commit();
+    } catch (Throwable $e) {
+        $c->rollback();
+        throw $e;
+    }
+    $mailed = false;
+    if ($notify) {
+        $m = $plan === 'ai' ? palette_sub_email($lic['key'], $lang, palette_usage_limit(palette_settings($c))) : palette_license_email($lic['key'], $lang);
+        $mailed = palette_mail($email, $m['subject'], $m['html']);
+        if (!$mailed) error_log("PALETTE_MAIL_FAILED admin_issue licence=$lid");
+    }
+    return ['ok' => true, 'key' => $lic['key'], 'existing' => false, 'licence_id' => $lid, 'mailed' => $mailed, 'email' => $email];
+}
+
+// POST action=issue. The key goes to the session flash (shown once by the issue tab), never into the URL or the log.
+function palette_admin_do_issue(mysqli $c, array $session, array $post): array
+{
+    $str = fn(string $k) => is_string($post[$k] ?? null) ? $post[$k] : '';
+    $r = palette_admin_issue($c, (int)($session['user_id'] ?? 0), $str('email'), $str('plan'), $str('reason'), $str('ref'), $str('note'),
+        $str('notify') !== '', $str('lang') !== '' ? $str('lang') : 'en');
+    if (!$r['ok']) {
+        // Keep what was typed (nothing secret in it) so the admin does not type it again.
+        $_SESSION['palette_admin_issue_form'] = array_map(fn($v) => mb_substr($v, 0, 500),
+            ['email' => $str('email'), 'plan' => $str('plan'), 'reason' => $str('reason'), 'ref' => $str('ref'), 'note' => $str('note'), 'lang' => $str('lang'), 'notify' => $str('notify')]);
+        return ['err' => (string)$r['error'], 'tab' => 'issue'];
+    }
+    unset($_SESSION['palette_admin_issue_form']);
+    $_SESSION['palette_admin_issued'] = ['key' => $r['key'], 'licence_id' => $r['licence_id'], 'existing' => $r['existing'], 'mailed' => $r['mailed'], 'email' => $r['email']];
+    return ['ok' => $r['existing'] ? 'issued_existing' : 'issued', 'tab' => 'issue'];
+}
+
+function palette_admin_json(array $body): array
+{
+    return ['status' => 200, 'body' => json_encode($body, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT),
+            'headers' => ['Content-Type' => 'application/json; charset=utf-8', 'Cache-Control' => 'no-store', 'X-Content-Type-Options' => 'nosniff', 'X-Robots-Tag' => 'noindex']];
+}
+
+function palette_admin_tab_issue(mysqli $c, array $session, array $query): array
+{
+    if (array_key_exists('lookup', $query)) {
+        return ['response' => palette_admin_json(palette_admin_ref_lookup($c, is_string($query['lookup']) ? $query['lookup'] : ''))];
+    }
+    // The flash: the key made by the last POST, shown on this one render only.
+    $done = $session['palette_admin_issued'] ?? null;
+    $form = is_array($session['palette_admin_issue_form'] ?? null) ? $session['palette_admin_issue_form'] : [];
+    unset($_SESSION['palette_admin_issued'], $_SESSION['palette_admin_issue_form']);
+    $v = fn(string $k) => is_string($form[$k] ?? null) ? $form[$k] : (is_string($query[$k] ?? null) ? mb_substr($query[$k], 0, 190) : '');
+
+    $after = '';
+    if (is_array($done) && is_string($done['key'] ?? null) && preg_match(PALETTE_KEY_RE, $done['key'])) {
+        $sent = !empty($done['mailed'])
+            ? '<p class="ok-line">' . palette_icon('check', 14) . '<span>Email sent to ' . palette_h((string)($done['email'] ?? '')) . '</span></p>'
+            : '<p class="hint">No email was sent. Copy the key to send it yourself.</p>';
+        $after = '<aside class="card card-pad issue-done" aria-labelledby="issued-h"><h2 id="issued-h">' . (!empty($done['existing']) ? 'Existing key' : 'Key ready') . '</h2>'
+            . '<p>' . (!empty($done['existing']) ? 'This payment or request already had a key; no second key was made.' : 'Copy it to send it yourself, or it is already on its way.') . '</p>'
+            . '<div class="key-row"><code id="issued-key" class="keybox">' . palette_h($done['key']) . '</code>'
+            . '<button class="btn btn-sm" type="button" data-copy-from="issued-key">' . palette_icon('copy', 14) . '<span>Copy</span></button></div>'
+            . '<p class="hint" id="copy-status" role="status"></p>' . $sent
+            . '<a class="btn btn-sm" href="' . palette_h(palette_admin_url('licence', ['id' => (int)($done['licence_id'] ?? 0)])) . '">Open the licence</a></aside>';
+    }
+
+    $sel = fn(string $name, string $id, string $label, array $opts, string $cur) => '<div class="fld"><label for="' . $id . '">' . palette_h($label) . '</label>'
+        . preg_replace('/^<select /', '<select id="' . $id . '" ', palette_admin_select($name, $label, $opts, $cur)) . '</div>';
+    $notify = $form ? (($form['notify'] ?? '') !== '') : true;
+    $html = '<a class="back" href="' . palette_h(palette_admin_url('licences')) . '">Licences</a><div class="issue-grid">'
+        . '<section class="card card-pad" aria-label="Issue a key">'
+        . '<form class="stack" method="post" action="' . PALETTE_ADMIN_PAGE . '">' . palette_admin_csrf_field($session) . '<input type="hidden" name="action" value="issue">'
+        . '<div class="fld"><label for="em">Customer email</label><input id="em" type="email" name="email" required maxlength="190" autocomplete="off" value="' . palette_h($v('email')) . '"></div>'
+        . '<div class="two">' . $sel('plan', 'pl', 'Plan', ['pro' => 'Pro (lifetime)', 'ai' => 'Pro + AI (one month)'], $v('plan') ?: 'pro')
+        . $sel('reason', 'why', 'Why', PALETTE_ADMIN_REASONS, $v('reason') ?: 'paid_no_key') . '</div>'
+        . '<div class="fld"><label for="ref">Payment reference <span class="muted">(optional)</span></label>'
+        . '<input id="ref" class="mono-in" type="text" name="ref" maxlength="80" autocomplete="off" spellcheck="false" value="' . palette_h($v('ref')) . '" aria-describedby="ref-hint" data-lookup="'
+        . palette_h(palette_admin_url('issue', ['lookup' => ''])) . '">'
+        . '<span class="hint" id="ref-hint" role="status">A Stripe cs_ or pi_ reference is looked up: a paid palette order gets its key linked and marked fulfilled.</span></div>'
+        . $sel('lang', 'lg', 'Language of a new key and its email', PALETTE_LANG_NAMES, $v('lang') ?: 'en')
+        . '<div class="fld"><label for="nt">Note (kept in history)</label><textarea id="nt" name="note" rows="2" maxlength="500" required>' . palette_h($v('note')) . '</textarea></div>'
+        . '<label class="check"><input type="checkbox" name="notify" value="1"' . ($notify ? ' checked' : '') . '> Email the key to the customer now</label>'
+        . '<div class="actions"><a class="btn" href="' . palette_h(palette_admin_url('licences')) . '">Cancel</a>'
+        . '<button class="btn btn-accent" type="submit">Issue key</button></div></form></section>' . $after . '</div>';
+    return ['title' => 'Issue a key', 'html' => $html];
+}
+
+// ---- payments tab
+
+// Recent payments across Stripe, PayPal and admin orders plus subscription payments: problems first (paid with no key,
+// failed with money touched), then newest. Each: at, email, amount ('$1.49'), provider (stripe|paypal|admin), status
+// (paid|unfulfilled|failed|refunded|reversed), licence_id (?int), ref, livemode, problem. Abandoned checkouts are left out.
+function palette_admin_payments(mysqli $c, int $limit = 100): array
+{
+    $limit = max(1, min(500, $limit));
+    $out = [];
+    $q = $c->query("SELECT id, order_id, email, amount_usd, status, provider, license_id, livemode, stripe_payment_intent, stripe_session, capture_id, created_at, captured_at,
+            (status = 'failed' OR license_id IS NULL) AS problem
+        FROM palette_orders
+        WHERE status = 'captured' OR (status = 'failed' AND (COALESCE(stripe_payment_intent, '') <> '' OR COALESCE(capture_id, '') <> ''))
+        ORDER BY problem DESC, COALESCE(captured_at, created_at) DESC, id DESC LIMIT $limit");
+    foreach ($q as $o) {
+        $out[] = ['at' => (string)($o['captured_at'] ?? $o['created_at']), 'email' => (string)$o['email'], 'amount' => palette_admin_usd((string)$o['amount_usd']),
+            'provider' => (string)$o['provider'], 'status' => $o['status'] === 'failed' ? 'failed' : ($o['license_id'] === null ? 'unfulfilled' : 'paid'),
+            'licence_id' => $o['license_id'] === null ? null : (int)$o['license_id'], 'livemode' => (int)$o['livemode'], 'problem' => (bool)$o['problem'],
+            'ref' => (string)($o['stripe_payment_intent'] ?: ($o['capture_id'] ?: ($o['stripe_session'] ?: $o['order_id'])))];
+    }
+    $q = $c->query("SELECT p.sale_id, p.subscription_id, p.amount_usd, p.status, p.paid_at, s.email AS s_email, s.provider AS s_provider, s.livemode AS s_live,
+            l.id AS lid, l.email AS l_email, l.livemode AS l_live
+        FROM palette_sub_payments p
+        LEFT JOIN palette_subscriptions s ON s.subscription_id = p.subscription_id
+        LEFT JOIN palette_licenses l ON l.id = COALESCE(s.license_id, (SELECT l2.id FROM palette_licenses l2 WHERE l2.subscription_id = p.subscription_id ORDER BY l2.id LIMIT 1))
+        ORDER BY p.paid_at DESC, p.id DESC LIMIT $limit");
+    foreach ($q as $p) {
+        $out[] = ['at' => (string)$p['paid_at'], 'email' => (string)($p['l_email'] ?? $p['s_email'] ?? ''), 'amount' => palette_admin_usd((string)$p['amount_usd']),
+            'provider' => (string)($p['s_provider'] ?? (str_starts_with((string)$p['subscription_id'], 'sub_') ? 'stripe' : 'paypal')),
+            'status' => ['completed' => 'paid', 'refunded' => 'refunded', 'reversed' => 'reversed'][$p['status']] ?? (string)$p['status'],
+            'licence_id' => $p['lid'] === null ? null : (int)$p['lid'], 'livemode' => (int)($p['l_live'] ?? $p['s_live'] ?? 1), 'problem' => false, 'ref' => (string)$p['sale_id']];
+    }
+    usort($out, fn($a, $b) => [$b['problem'], $b['at']] <=> [$a['problem'], $a['at']]);
+    return array_slice($out, 0, $limit);
+}
+
+const PALETTE_ADMIN_PAY_STATES = ['paid' => ['Paid', 'pill-ok'], 'unfulfilled' => ['Paid, no key', 'pill-bad'], 'failed' => ['Failed', 'pill-warn'],
+    'refunded' => ['Refunded', 'pill-plain'], 'reversed' => ['Reversed', 'pill-plain']];
+
+function palette_admin_tab_payments(mysqli $c, array $session, array $query): array
+{
+    $body = '';
+    foreach (palette_admin_payments($c) as $p) {
+        [$label, $cls] = PALETTE_ADMIN_PAY_STATES[$p['status']] ?? [$p['status'], 'pill-plain'];
+        $test = $p['livemode'] === 0 ? ' <span class="badge badge-test">Test</span>' : '';
+        if ($p['licence_id'] !== null) {
+            $link = '<a class="btn btn-sm" href="' . palette_h(palette_admin_url('licence', ['id' => $p['licence_id']])) . '">Open licence</a>';
+        } elseif ($p['problem']) {
+            $link = '<a class="btn btn-sm" href="' . palette_h(palette_admin_url('issue', ['email' => $p['email'], 'ref' => $p['ref']])) . '">Issue a key</a>';
+        } else {
+            $link = '';
+        }
+        $body .= '<tr><td class="muted">' . palette_h(palette_admin_date($p['at'], 'j M Y, H:i')) . '</td><td>' . palette_h($p['email']) . '</td>'
+            . '<td>' . palette_h($p['amount']) . '</td><td>' . palette_h(['stripe' => 'Stripe', 'paypal' => 'PayPal', 'admin' => 'Admin'][$p['provider']] ?? $p['provider']) . $test . '</td>'
+            . '<td><span class="pill ' . $cls . '">' . palette_h($label) . '</span></td><td class="mono muted">' . palette_h(palette_admin_short($p['ref'])) . '</td>'
+            . '<td class="end">' . $link . '</td></tr>';
+    }
+    if ($body === '') $body = '<tr><td colspan="7" class="empty-cell">No payments yet.</td></tr>';
+    return ['title' => 'Payments', 'html' => '<section class="card"><p class="hint card-note">Paid without a key and failed payments first, then the newest. Times are UTC.</p>'
+        . '<div class="table-wrap"><table><thead><tr><th>Date</th><th>Email</th><th>Amount</th><th>Provider</th><th>Status</th><th>Reference</th>'
+        . '<th><span class="sr-only">Licence</span></th></tr></thead><tbody>' . $body . '</tbody></table></div></section>'];
+}
+
+// ---- move a PayPal subscriber to card
+// Token = base64url("<licence id>.<expires unix>") . "." . base64url(HMAC-SHA256("palette-move:<licence id>.<expires>", palette_sub_secret)).
+// Valid 7 days, one use: when a move fulfils, palette_st_fulfil_sub writes a 'move_used' admin log row for the licence, and every
+// token minted before that row is spent.
+
+const PALETTE_MOVE_TTL = 7 * 86400;
+const PALETTE_MOVE_URL = 'https://vietnamcos.com/palette/checkout?move=';
+// Stripe Checkout refuses a subscription trial_end less than 48 hours ahead: paid days closer than that are not carried over.
+const PALETTE_MOVE_MIN_TRIAL = 48 * 3600;
+
+function palette_b64url(string $s): string
+{
+    return rtrim(strtr(base64_encode($s), '+/', '-_'), '=');
+}
+
+function palette_admin_move_sig(mysqli $c, string $payload): string
+{
+    return palette_b64url(hash_hmac('sha256', 'palette-move:' . $payload, palette_sub_secret($c), true));
+}
+
+function palette_admin_move_token(mysqli $c, int $licenceId, int $expires): string
+{
+    $payload = $licenceId . '.' . $expires;
+    return palette_b64url($payload) . '.' . palette_admin_move_sig($c, $payload);
+}
+
+// The live PayPal subscription row a licence can move from, or null: a Pro + AI licence, not revoked, currently backed by an
+// active or suspended PayPal subscription.
+function palette_admin_move_paypal_row(mysqli $c, ?array $lic): ?array
+{
+    if (!$lic || $lic['plan'] !== 'ai' || $lic['revoked_at'] !== null) return null;
+    $row = palette_admin_sub_row($c, (int)$lic['id']);
+    if (!$row || ($row['provider'] ?? 'paypal') !== 'paypal' || !in_array($row['status'], ['active', 'suspended'], true)) return null;
+    return $row['subscription_id'] === $lic['subscription_id'] ? $row : null;
+}
+
+function palette_admin_move_used(mysqli $c, int $licenceId, int $mintedAt): bool
+{
+    $since = gmdate('Y-m-d H:i:s', $mintedAt);
+    $st = $c->prepare("SELECT 1 FROM palette_admin_log WHERE action = 'move_used' AND license_id = ? AND created_at >= ? LIMIT 1");
+    $st->bind_param('is', $licenceId, $since);
+    $st->execute();
+    $used = $st->get_result()->num_rows > 0;
+    $st->close();
+    return $used;
+}
+
+// ['ok' => true, 'licence' => row, 'expires' => int, 'paypal' => subscription row] or ['ok' => false, 'error' => invalid|expired|used|not_eligible].
+function palette_admin_move_check(mysqli $c, string $token, ?int $now = null): array
+{
+    $now ??= time();
+    $bad = ['ok' => false, 'error' => 'invalid'];
+    if (strlen($token) > 120 || !preg_match('/^([A-Za-z0-9_-]{4,40})\.([A-Za-z0-9_-]{43})$/D', $token, $m)) return $bad;
+    $payload = base64_decode(strtr($m[1], '-_', '+/'), true);
+    if (!is_string($payload) || !preg_match('/^([1-9]\d{0,9})\.(\d{1,12})$/D', $payload, $p)) return $bad;
+    if (!hash_equals(palette_admin_move_sig($c, $payload), $m[2])) return $bad;
+    $id = (int)$p[1];
+    $exp = (int)$p[2];
+    if ($exp > $now + PALETTE_MOVE_TTL + 300) return $bad;   // never minted for longer than 7 days
+    if ($exp < $now) return ['ok' => false, 'error' => 'expired'];
+    if (palette_admin_move_used($c, $id, $exp - PALETTE_MOVE_TTL)) return ['ok' => false, 'error' => 'used'];
+    $lic = palette_admin_licence_row($c, $id);
+    $pp = palette_admin_move_paypal_row($c, $lic);
+    if (!$pp) return ['ok' => false, 'error' => 'not_eligible'];
+    return ['ok' => true, 'licence' => $lic, 'expires' => $exp, 'paypal' => $pp];
+}
+
+// The Stripe trial_end (unix seconds, as a string) that carries the PayPal paid-through over, or null to charge at once.
+function palette_admin_move_trial_end(array $lic, ?int $now = null): ?string
+{
+    $now ??= time();
+    $t = is_string($lic['paid_through'] ?? null) ? strtotime($lic['paid_through'] . ' UTC') : false;
+    return $t !== false && $t >= $now + PALETTE_MOVE_MIN_TRIAL ? (string)$t : null;
+}
+
+// Emails the licence's owner the one-use move link in their language. ['ok' => true] or ['ok' => false, 'error' => not_found|not_paypal|mail].
+function palette_admin_move_link(mysqli $c, int $adminId, int $licenceId, string $note): array
+{
+    $lic = palette_admin_licence_row($c, $licenceId);
+    if (!$lic) return ['ok' => false, 'error' => 'not_found'];
+    if (!palette_admin_move_paypal_row($c, $lic)) return ['ok' => false, 'error' => 'not_paypal'];
+    $exp = time() + PALETTE_MOVE_TTL;
+    $lang = palette_lang((string)$lic['lang']);
+    $url = PALETTE_MOVE_URL . palette_admin_move_token($c, $licenceId, $exp) . '&lang=' . rawurlencode($lang);
+    $trial = palette_admin_move_trial_end($lic);
+    $m = palette_move_email($url, $lang, $trial === null ? null : gmdate('Y-m-d', (int)$trial));
+    if (!palette_mail((string)$lic['email'], $m['subject'], $m['html'])) {
+        error_log('PALETTE_MAIL_FAILED admin_move_link licence=' . $licenceId);
+        return ['ok' => false, 'error' => 'mail'];
+    }
+    $note = trim($note);
+    palette_admin_log($c, $adminId, 'move_link', $licenceId, null, ['expires' => gmdate('Y-m-d H:i:s', $exp), 'trial' => $trial !== null], $note !== '' ? $note : null);
+    return ['ok' => true, 'error' => null];
+}
+
+function palette_admin_do_move_link(mysqli $c, array $session, array $post): array
+{
+    $id = palette_admin_post_id($post);
+    $note = is_string($post['note'] ?? null) ? $post['note'] : '';
+    return palette_admin_result(palette_admin_move_link($c, (int)($session['user_id'] ?? 0), $id, $note), $id, 'move_sent');
+}
+
+// Licence page: a warning for each PayPal subscription a move to card could not cancel, while PayPal may still bill it.
+function palette_admin_move_warnings(mysqli $c, int $licenceId): string
+{
+    $out = '';
+    $st = $c->prepare("SELECT DISTINCT order_ref FROM palette_admin_log WHERE action = 'move_paypal_cancel_failed' AND license_id = ?");
+    $st->bind_param('i', $licenceId);
+    $st->execute();
+    foreach ($st->get_result() as $r) {
+        $pp = palette_sub_row($c, 'subscription_id', (string)$r['order_ref']);
+        if (!$pp || !in_array($pp['status'], ['active', 'suspended'], true)) continue;
+        $out .= '<p class="flash flash-err" role="alert">The customer moved to card, but PayPal could not cancel subscription <span class="mono">'
+            . palette_h((string)$r['order_ref']) . '</span>. Cancel it in PayPal now so they are not charged twice.</p>';
+    }
+    $st->close();
+    return $out;
 }
