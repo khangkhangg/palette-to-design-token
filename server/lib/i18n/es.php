@@ -247,6 +247,8 @@ return [
     'acct_cancel_ask_revoked' => 'Esta clave se reembolsó y ya no da acceso. ¿Detener la suscripción para que PayPal no vuelva a cobrarte?',
     'acct_cancel_yes' => 'Sí, cancelar',
     'acct_cancel_keep' => 'Mantenerla',
+    'co_manage_billing' => 'Gestionar facturación',
+    'acct_billing_note' => 'Actualiza tu tarjeta, consulta las facturas o reanuda una suscripción cancelada en el portal seguro de Stripe.',
     'acct_cancel_by_h' => 'Cancelar con la clave',
     'acct_cancel_by_text' => '¿No has iniciado sesión? Introduce tu clave y el correo con el que te suscribiste.',
     'acct_sub_email' => 'Correo de la suscripción',

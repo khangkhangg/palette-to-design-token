@@ -4,7 +4,7 @@
 // (companies' helpers are session based); $req['session'] supplies the logged-in user.
 // Returns ['status','headers','body'] plus 'defer' (a callable to run after the response is flushed) for resend.
 
-const PALETTE_API_POST_ACTIONS = ['create', 'capture', 'resend', 'claim', 'verify', 'analyse', 'subscribe_start', 'subscribe_confirm', 'sub_cancel', 'st_checkout', 'st_confirm'];
+const PALETTE_API_POST_ACTIONS = ['create', 'capture', 'resend', 'claim', 'verify', 'analyse', 'subscribe_start', 'subscribe_confirm', 'sub_cancel', 'st_portal', 'st_checkout', 'st_confirm'];
 // Called from the extension's own origin: CORS for the allowed extension ids, and no CSRF token.
 const PALETTE_API_EXTENSION_ACTIONS = ['verify', 'analyse'];
 
@@ -69,7 +69,7 @@ function palette_api_owns_st(string $kind, int $rowId): bool
 // sub_cancel comes from the account page, whose form token is 'palette_account'.
 function palette_api_csrf_form(string $action): string
 {
-    return $action === 'sub_cancel' ? 'palette_account' : 'palette_checkout';
+    return in_array($action, ['sub_cancel', 'st_portal'], true) ? 'palette_account' : 'palette_checkout';
 }
 
 function palette_api_handle(array $req): array
@@ -173,6 +173,13 @@ function palette_api_handle(array $req): array
             // A19: a refunded key had no access to keep; its cancel only stops PayPal billing.
             return palette_api_reply(200, ['ok' => true, 'ends_on' => $r['ends_on'], 'revoked' => $r['revoked'],
                 'message' => $r['revoked'] ? palette_t($lang, 'sub_cancel_ok_revoked') : palette_t($lang, 'sub_cancel_ok', ['date' => (string)$r['ends_on']])]);
+        case 'st_portal':
+            if (!palette_rate_hit('st:portal:ip:' . (string)($req['ip'] ?? ''), 10, 3600)) return palette_api_error(429, 'api_rate_limited', $lang);
+            $uid = $req['session']['user_id'] ?? null;
+            $uid = (is_int($uid) || (is_string($uid) && ctype_digit($uid))) && (int)$uid > 0 ? (int)$uid : null;
+            $r = palette_st_portal_url($conn, $str('key'), $uid, $str('email') !== '' ? $str('email') : null);
+            if (!$r['ok']) return palette_api_error(['err_invalid_key' => 400, 'err_not_owner' => 403][$r['error']] ?? 502, $r['error'], $lang);
+            return palette_api_reply(200, ['ok' => true, 'url' => $r['url']]);
         case 'st_checkout':
             if (!palette_rate_hit('create:ip:' . (string)($req['ip'] ?? ''), 20, 3600)) return palette_api_error(429, 'api_rate_limited', $lang);
             $mode = palette_checkout_mode((array)($req['session'] ?? []), ['test' => $str('test')]);

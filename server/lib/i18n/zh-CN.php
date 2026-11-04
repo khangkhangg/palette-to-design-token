@@ -247,6 +247,8 @@ return [
     'acct_cancel_ask_revoked' => '此密钥已退款，不再提供任何功能。要停止订阅，避免 PayPal 再次扣款吗？',
     'acct_cancel_yes' => '是，取消订阅',
     'acct_cancel_keep' => '保留订阅',
+    'co_manage_billing' => '管理账单',
+    'acct_billing_note' => '在 Stripe 的安全门户中更新银行卡、查看发票，或恢复已取消的订阅。',
     'acct_cancel_by_h' => '通过密钥取消',
     'acct_cancel_by_text' => '未登录？请输入你的密钥和订阅时使用的邮箱。',
     'acct_sub_email' => '订阅邮箱',

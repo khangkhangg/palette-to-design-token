@@ -595,6 +595,21 @@
       }
     });
 
+    document.addEventListener('click', function (e) {
+      var t = e.target.closest ? e.target.closest('[data-portal]') : null;
+      if (!t) return;
+      var row = t.closest('.keyrow');
+      var msg = t.closest('.billing-panel').querySelector('.sub-msg');
+      t.disabled = true;
+      msg.textContent = '';
+      api('st_portal', { key: row.getAttribute('data-key'), csrf: csrf }).then(function (r) {
+        if (r.ok && r.url) { window.location.href = r.url; return; }
+        t.disabled = false;
+        msg.textContent = r.message || '';
+        msg.className = 'sub-msg is-error';
+      });
+    });
+
     var form = $('cancel-by');
     if (!form) return;
     form.addEventListener('submit', function (e) {

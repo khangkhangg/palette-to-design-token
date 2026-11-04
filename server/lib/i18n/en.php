@@ -248,6 +248,8 @@ return [
     'acct_cancel_ask_revoked' => 'This key was refunded and gives no access. Stop the subscription so PayPal does not bill you again?',
     'acct_cancel_yes' => 'Yes, cancel subscription',
     'acct_cancel_keep' => 'Keep subscription',
+    'co_manage_billing' => 'Manage billing',
+    'acct_billing_note' => 'Update your card, see invoices or resume a cancelled subscription in the secure Stripe portal.',
     'acct_cancel_by_h' => 'Cancel by key',
     'acct_cancel_by_text' => 'Not signed in? Enter your key and the email you subscribed with.',
     'acct_sub_email' => 'Subscription email',

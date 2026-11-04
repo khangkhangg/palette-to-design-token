@@ -607,6 +607,7 @@ function palette_render_account(array $ctx): string
                 . ($k['revoked'] ? '<span class="badge">' . $t('acct_revoked') . '</span>' : '') . '</span>'
                 . palette_account_plan_line($lang, $k) . '</div>'
                 . '<button type="button" class="btn btn-quiet btn-sm" data-copy="' . palette_h($k['key']) . '">' . palette_icon('copy', 14) . '<span>' . $t('co_copy') . '</span></button>'
+                . palette_account_billing_panel($lang, $k)
                 . palette_account_cancel_panel($lang, $k)
                 . '</li>';
         }
@@ -670,6 +671,17 @@ function palette_account_plan_line(string $lang, array $k): string
     $status = $state === 'cancelled' ? palette_t_html($lang, 'acct_st_cancelled', ['date' => $date]) : palette_h(palette_t($lang, 'acct_st_' . $state));
     return '<span class="keyrow-plan">' . $chip('Pro + AI') . '<span class="sub-status is-' . $state . '" data-sub-status>' . $status . '</span>'
         . ($state === 'active' ? '<span data-sub-renews>' . palette_t_html($lang, 'acct_renews', ['date' => $date]) . '</span>' : '') . '</span>';
+}
+
+// Stripe subscribers: a button to Stripe's billing portal (card, invoices, resume). PayPal and manual keys have none.
+function palette_account_billing_panel(string $lang, array $k): string
+{
+    if ($k['plan'] !== 'ai' || ($k['source'] ?? null) !== 'stripe' || !empty($k['revoked'])) return '';
+    if (!in_array(palette_account_sub_state($k), ['active', 'pending', 'suspended', 'cancelled'], true)) return '';
+    return '<div class="billing-panel">'
+        . '<button type="button" class="btn btn-quiet btn-sm" data-portal>' . palette_icon('card', 14) . '<span>' . palette_h(palette_t($lang, 'co_manage_billing')) . '</span></button>'
+        . '<p class="hint">' . palette_h(palette_t($lang, 'acct_billing_note')) . '</p>'
+        . '<p class="sub-msg" role="status"></p></div>';
 }
 
 // Cancel button + in-page confirm step (no window.confirm); only for a live subscription that is not already cancelled,

@@ -678,11 +678,10 @@ function palette_sub_refund(mysqli $c, string $type, array $res): string
     return 'revoked';
 }
 
-// Owner = the signed-in user the key is claimed by, or whoever knows the key and the subscribing email.
-// A revoked (refunded) key is accepted too, so its owner can still stop billing when the refund's PayPal cancel failed;
-// its access already ended, so ends_on is the revoke date.
-// ['ok' => true, 'ends_on' => 'Y-m-d'] or ['ok' => false, 'error' => err_invalid_key|err_not_owner|err_paypal].
-function palette_sub_cancel(mysqli $c, string $rawKey, ?int $userId, ?string $email): array
+// The subscription row + licence fields for a key, when the caller owns it: the signed-in user the key is claimed by,
+// or whoever knows the key and the subscribing email. A revoked (refunded) key is accepted too, so its owner can still
+// stop billing when the refund's cancel failed. ['ok' => true, 'row' => ...] or ['ok' => false, 'error' => err_invalid_key|err_not_owner].
+function palette_sub_owned_row(mysqli $c, string $rawKey, ?int $userId, ?string $email): array
 {
     $key = palette_normalise_key($rawKey);
     if ($key === null) return ['ok' => false, 'error' => 'err_invalid_key'];
@@ -696,13 +695,33 @@ function palette_sub_cancel(mysqli $c, string $rawKey, ?int $userId, ?string $em
     $byUser = $userId !== null && $userId > 0 && $row['user_id'] !== null && (int)$row['user_id'] === $userId;
     $byEmail = $email !== null && trim($email) !== '' && strcasecmp(trim($email), (string)$row['email']) === 0;
     if (!$byUser && !$byEmail) return ['ok' => false, 'error' => 'err_not_owner'];
+    return ['ok' => true, 'row' => $row];
+}
+
+// Owner = see palette_sub_owned_row. A revoked key's access already ended, so ends_on is the revoke date.
+// ['ok' => true, 'ends_on' => 'Y-m-d'] or ['ok' => false, 'error' => err_invalid_key|err_not_owner|err_paypal|err_stripe].
+// A Stripe subscription is set to cancel at period end (the webhook then confirms it); a PayPal one is cancelled at once.
+function palette_sub_cancel(mysqli $c, string $rawKey, ?int $userId, ?string $email): array
+{
+    $o = palette_sub_owned_row($c, $rawKey, $userId, $email);
+    if (!$o['ok']) return $o;
+    $row = $o['row'];
     $end = $row['revoked_at'] ?? $row['paid_through'];
     $endsOn = $end === null ? null : date('Y-m-d', strtotime($end));
     $revoked = $row['revoked_at'] !== null;
     if ($row['status'] === 'cancelled' || $row['status'] === 'expired') return ['ok' => true, 'ends_on' => $endsOn, 'revoked' => $revoked];
 
     $sid = (string)$row['subscription_id'];
-    if (!palette_sub_paypal_cancel($c, $sid, PALETTE_SUB_CANCEL_REASON)) return ['ok' => false, 'error' => 'err_paypal'];
+    if (($row['provider'] ?? 'paypal') === 'stripe') {
+        $mode = (int)$row['livemode'] === 1 ? 'live' : 'test';
+        $r = palette_stripe_ready($c, $mode) ? palette_st_api($c, $mode, 'POST', 'subscriptions/' . rawurlencode($sid), ['cancel_at_period_end' => 'true']) : ['status' => 0];
+        if ($r['status'] < 200 || $r['status'] >= 300) {
+            error_log("PALETTE_STRIPE_ERROR cancel subscription=$sid http=" . (int)$r['status']);
+            return ['ok' => false, 'error' => 'err_stripe'];
+        }
+    } elseif (!palette_sub_paypal_cancel($c, $sid, PALETTE_SUB_CANCEL_REASON)) {
+        return ['ok' => false, 'error' => 'err_paypal'];
+    }
     palette_sub_set_status($c, $row, 'cancelled', ['active', 'suspended']);
     $m = palette_sub_cancel_email((string)$endsOn, (string)$row['lang']);
     if (!palette_mail((string)$row['email'], $m['subject'], $m['html'])) error_log("PALETTE_MAIL_FAILED cancel=$sid");
@@ -720,7 +739,7 @@ function palette_sub_reconcile(mysqli $c): array
     $limit = PALETTE_SUB_RECONCILE_BATCH;
     $st = $c->prepare("SELECT s.*, l.period_start AS lic_period_start, l.revoked_at AS lic_revoked_at
                        FROM palette_subscriptions s JOIN palette_licenses l ON l.id = s.license_id
-                       WHERE s.subscription_id IS NOT NULL
+                       WHERE s.subscription_id IS NOT NULL AND s.provider = 'paypal'
                          AND ((l.revoked_at IS NULL AND (s.status IN ('active', 'suspended') OR (s.status = 'cancelled' AND l.paid_through >= ?)))
                            OR (l.revoked_at IS NOT NULL AND s.status IN ('active', 'suspended')))
                        ORDER BY s.updated_at, s.id LIMIT ?");
@@ -774,5 +793,7 @@ function palette_sub_reconcile(mysqli $c): array
             $out['failed']++;
         }
     }
+    $sx = palette_st_reconcile($c, PALETTE_SUB_RECONCILE_BATCH);   // Stripe rows, after the PayPal pass (own limit)
+    foreach (['checked', 'changed', 'failed'] as $f) $out[$f] += $sx[$f];
     return $out;
 }

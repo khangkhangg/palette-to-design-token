@@ -247,6 +247,8 @@ return [
     'acct_cancel_ask_revoked' => 'Cette clé a été remboursée et ne donne plus accès. Arrêter l\'abonnement pour que PayPal ne vous facture plus ?',
     'acct_cancel_yes' => 'Oui, résilier',
     'acct_cancel_keep' => 'Le conserver',
+    'co_manage_billing' => 'Gérer la facturation',
+    'acct_billing_note' => 'Mettez à jour votre carte, consultez vos factures ou reprenez un abonnement résilié dans le portail sécurisé de Stripe.',
     'acct_cancel_by_h' => 'Résilier avec la clé',
     'acct_cancel_by_text' => 'Pas connecté ? Saisissez votre clé et l\'e-mail utilisé pour l\'abonnement.',
     'acct_sub_email' => 'E-mail de l\'abonnement',

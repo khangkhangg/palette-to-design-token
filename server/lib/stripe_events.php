@@ -332,3 +332,112 @@ function palette_st_cancel_sub(mysqli $c, string $mode, array $row, string $why)
     error_log("PALETTE_CANCEL_FAILED subscription=$subId after $why (HTTP " . (int)$r['status'] . '); cancel it in Stripe by hand');
     return false;
 }
+
+// ---- billing portal and the nightly reconcile (Task 6)
+
+// A Stripe Customer Portal session for a Stripe subscription's owner (ownership as palette_sub_cancel).
+// ['ok' => true, 'url'] or ['ok' => false, 'error' => err_invalid_key|err_not_owner|err_stripe].
+function palette_st_portal_url(mysqli $c, string $rawKey, ?int $userId, ?string $email): array
+{
+    $o = palette_sub_owned_row($c, $rawKey, $userId, $email);
+    if (!$o['ok']) return $o;
+    $row = $o['row'];
+    if (($row['provider'] ?? '') !== 'stripe') return ['ok' => false, 'error' => 'err_invalid_key'];   // a PayPal subscription has no Stripe portal
+    $cus = (string)($row['stripe_customer'] ?? '');
+    $mode = (int)$row['livemode'] === 1 ? 'live' : 'test';
+    if ($cus === '' || !palette_stripe_ready($c, $mode)) return ['ok' => false, 'error' => 'err_stripe'];
+    $r = palette_st_api($c, $mode, 'POST', 'billing_portal/sessions', ['customer' => $cus, 'return_url' => PALETTE_STRIPE_BASE . '/account']);
+    $url = (string)($r['json']['url'] ?? '');
+    if ($r['status'] < 200 || $r['status'] >= 300 || !str_starts_with($url, 'https://')) {
+        error_log('PALETTE_STRIPE_ERROR portal http=' . (int)$r['status']);
+        return ['ok' => false, 'error' => 'err_stripe'];
+    }
+    return ['ok' => true, 'url' => $url];
+}
+
+// Nightly, after the PayPal pass. Two jobs, each up to $limit rows:
+//  1. Stripe subscriptions (active|suspended|cancelled, paid_through not older than 3 days): GET the subscription with
+//     its latest invoice and run the webhook handlers on it (invoice.paid, then updated/deleted), so a missed event
+//     is repaired by exactly the rules the webhook uses. Rows in their own livemode; a mode not ready is skipped.
+//  2. Purchases the webhook missed: Stripe orders 'created' and subscriptions 'pending' with a session, 10 minutes to
+//     7 days old, go through palette_st_confirm (which fulfils only a paid session).
+// ['checked', 'changed', 'failed'].
+function palette_st_reconcile(mysqli $c, int $limit = 200): array
+{
+    $out = ['checked' => 0, 'changed' => 0, 'failed' => 0];
+    $limit = max(0, $limit);
+    $since = date('Y-m-d H:i:s', time() - 3 * 86400);
+    $st = $c->prepare("SELECT s.* FROM palette_subscriptions s JOIN palette_licenses l ON l.id = s.license_id
+                       WHERE s.provider = 'stripe' AND s.subscription_id IS NOT NULL AND s.status IN ('active', 'suspended', 'cancelled')
+                         AND l.paid_through >= ? ORDER BY s.updated_at, s.id LIMIT ?");
+    $st->bind_param('si', $since, $limit);
+    $st->execute();
+    $rows = $st->get_result()->fetch_all(MYSQLI_ASSOC);
+    $st->close();
+    $changedBy = ['renewed', 'suspended', 'cancelled', 'active', 'expired', 'unfulfilled'];
+    $ready = [];
+    foreach ($rows as $row) {
+        $mode = (int)$row['livemode'] === 1 ? 'live' : 'test';
+        $ready[$mode] ??= palette_stripe_ready($c, $mode);
+        if (!$ready[$mode]) continue;
+        $out['checked']++;
+        $rid = (int)$row['id'];
+        $c->query("UPDATE palette_subscriptions SET updated_at = '" . $c->real_escape_string(palette_sub_now()) . "' WHERE id = $rid");   // rotate the batch
+        try {
+            palette_st_ev_ref('reconcile');
+            $sid = (string)$row['subscription_id'];
+            $sub = palette_st_ev_get($c, $mode, 'subscriptions/' . rawurlencode($sid), ['expand' => ['latest_invoice']], $fail);
+            if ($sub === null || palette_st_id($sub['id'] ?? null, 'sub') !== $sid) {
+                $out['failed']++;
+                continue;
+            }
+            $changed = false;
+            $inv = $sub['latest_invoice'] ?? null;
+            if (is_array($inv) && ($inv['status'] ?? '') === 'paid') {
+                $inv['subscription'] ??= $sid;
+                $res = palette_st_ev_invoice_paid($c, $mode, $inv);
+                if ($res === 'retry') { $out['failed']++; continue; }
+                $changed = in_array($res, $changedBy, true);
+            }
+            $res = palette_st_ev_subscription($c, $mode, $sub, false);
+            if ($res === 'retry') { $out['failed']++; continue; }
+            if (in_array($res, $changedBy, true)) $changed = true;
+            if ($changed) $out['changed']++;
+        } catch (Throwable $e) {
+            error_log("palette: Stripe reconcile of subscription {$row['subscription_id']} failed (" . get_class($e) . ')');
+            $out['failed']++;
+        }
+    }
+
+    // 2. Missed purchases.
+    $lo = date('Y-m-d H:i:s', time() - 7 * 86400);
+    $hi = date('Y-m-d H:i:s', time() - 600);
+    $found = [];
+    $st = $c->prepare("SELECT stripe_session, livemode FROM palette_orders WHERE provider = 'stripe' AND status = 'created' AND stripe_session IS NOT NULL AND stripe_session <> ''
+                       AND created_at < NOW() - INTERVAL 10 MINUTE AND created_at > NOW() - INTERVAL 7 DAY ORDER BY id DESC LIMIT ?");
+    $st->bind_param('i', $limit);
+    $st->execute();
+    foreach ($st->get_result() as $r) $found[] = $r;
+    $st->close();
+    $st = $c->prepare("SELECT stripe_session, livemode FROM palette_subscriptions WHERE provider = 'stripe' AND status = 'pending' AND stripe_session IS NOT NULL AND stripe_session <> ''
+                       AND created_at < ? AND created_at > ? ORDER BY id DESC LIMIT ?");
+    $st->bind_param('ssi', $hi, $lo, $limit);
+    $st->execute();
+    foreach ($st->get_result() as $r) $found[] = $r;
+    $st->close();
+    foreach ($found as $r) {
+        $mode = (int)$r['livemode'] === 1 ? 'live' : 'test';
+        $ready[$mode] ??= palette_stripe_ready($c, $mode);
+        if (!$ready[$mode]) continue;
+        $out['checked']++;
+        try {
+            $res = palette_st_confirm($c, (string)$r['stripe_session']);
+            if ($res['state'] === 'paid') $out['changed']++;
+            elseif ($res['state'] === 'error') $out['failed']++;
+        } catch (Throwable $e) {
+            error_log('palette: Stripe reconcile of a pending checkout failed (' . get_class($e) . ')');
+            $out['failed']++;
+        }
+    }
+    return $out;
+}
