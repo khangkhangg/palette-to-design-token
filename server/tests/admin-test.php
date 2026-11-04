@@ -119,10 +119,8 @@ $r = palette_admin_page($conn, $admin, ['q' => '"><img src=x onerror=1>'], [], '
 ok('search term is escaped in the form', $r['status'] === 200 && !str_contains($r['body'], '"><img') && str_contains($r['body'], '&quot;&gt;&lt;img'));
 $r = palette_admin_page($conn, $admin, ['tab' => 'licences', 'plan' => 'ai', 'status' => 'bogus', 'page' => '-3'], [], 'GET');
 ok('bad filter / page values are tolerated', $r['status'] === 200);
-foreach (['settings'] as $tab) {
-    $r = palette_admin_page($conn, $admin, ['tab' => $tab], [], 'GET');
-    ok("$tab tab: placeholder inside shell", $r['status'] === 200 && str_contains($r['body'], 'Coming in a later task') && str_contains($r['body'], 'Issue a key'));
-}
+$r = palette_admin_page($conn, $admin, ['tab' => 'settings'], [], 'GET');
+ok('settings tab renders inside shell (details in admin-settings-test)', $r['status'] === 200 && str_contains($r['body'], 'Live mode') && str_contains($r['body'], 'Issue a key'));
 $r = palette_admin_page($conn, $admin, ['tab' => 'nonsense'], [], 'GET');
 ok('unknown tab -> 404 inside shell', $r['status'] === 404 && str_contains($r['body'], 'Licences'));
 

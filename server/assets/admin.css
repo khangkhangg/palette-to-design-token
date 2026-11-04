@@ -192,3 +192,19 @@ td.bad { color: var(--fail-ink); font-weight: 600; }
 .card-note { padding: 12px 16px; border-block-end: 1px solid var(--line-soft); }
 @media (max-width: 860px) { .issue-grid, .two { grid-template-columns: 1fr; } }
 .card-title { margin: 0; padding: 14px 16px 0; font-size: 16px; font-weight: 700; }
+
+/* Settings: Stripe connection */
+.st-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-block-end: 16px; align-items: start; }
+.st-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.st-card .kvs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.card-pad fieldset.fld { border: 0; padding: 0; margin: 0; min-inline-size: 0; }
+.card-pad fieldset.fld legend { font-weight: 600; font-size: 13px; padding: 0; margin-block-end: 6px; }
+.st-actions form { margin: 0; }
+.st-checks { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.check-line { display: flex; gap: 8px; align-items: flex-start; }
+.check-line svg { flex: 0 0 auto; margin-block-start: 2px; }
+.check-pass { color: var(--pass-ink); }
+.check-fail { color: var(--fail-ink); }
+.st-confirm { border: 1px solid var(--fail-ink); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.st-confirm p, .st-confirm form { margin: 0; }
+@media (max-width: 860px) { .st-grid, .st-card .kvs { grid-template-columns: 1fr; } }

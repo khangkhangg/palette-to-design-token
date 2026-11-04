@@ -26,6 +26,10 @@ const PALETTE_ADMIN_ACTIONS = [
     'billing_link' => 'palette_admin_do_billing_link',
     'move_link'    => 'palette_admin_do_move_link',
     'issue'        => 'palette_admin_do_issue',
+    'st_connect'    => 'palette_admin_do_st_connect',
+    'st_check'      => 'palette_admin_do_st_check',
+    'st_disconnect' => 'palette_admin_do_st_disconnect',
+    'methods'       => 'palette_admin_do_methods',
 ];
 
 // ---- access, CSRF, log
@@ -212,6 +216,9 @@ const PALETTE_ADMIN_MESSAGES = [
         'move_sent'    => 'The move-to-card link was emailed to the customer. It works once, for 7 days.',
         'issued'       => 'Key issued.',
         'issued_existing' => 'That payment already has a key. It is shown below; no second key was made.',
+        'st_connected'    => 'Stripe is connected.',
+        'st_disconnected' => 'Stripe is disconnected.',
+        'methods_saved'   => 'Checkout payment methods saved.',
     ],
     'err' => [
         'note_required' => 'Write a reason (1 to 500 characters).',
@@ -234,6 +241,8 @@ const PALETTE_ADMIN_MESSAGES = [
         'bad_ref'       => 'A payment reference may hold letters, digits and _ - . : / only (Stripe: cs_... or pi_...).',
         'ref_other_email' => 'That payment reference already has a key for a different email. Check the reference, or leave it empty.',
         'order_pending' => 'That Stripe checkout is not paid yet but may still complete, and then it gets its own key. Check it in Stripe, or issue the key once the checkout has expired.',
+        'st_disconnect_failed' => "Stripe refused or failed; nothing was changed. Try again or check the key's webhook permission.",
+        'st_bad_mode'   => 'Choose Live or Test.',
         'stripe_not_live' => 'Card payments are not on: connect Stripe Live and turn Stripe on in the checkout methods first.',
     ],
 ];
@@ -281,8 +290,6 @@ function palette_admin_placeholder(string $title): array
 {
     return ['title' => $title, 'html' => '<section class="card"><div class="empty">' . palette_icon('info', 16) . '<span>Coming in a later task.</span></div></section>'];
 }
-
-function palette_admin_tab_settings(mysqli $c, array $session, array $query): array { return palette_admin_placeholder('Settings'); }
 
 function palette_admin_tab_sites(mysqli $c, array $session, array $query): array
 {
@@ -1462,4 +1469,170 @@ function palette_admin_move_warnings(mysqli $c, int $licenceId): string
     }
     $st->close();
     return $out;
+}
+
+// ---- settings tab: Stripe connection (2026-11-04)
+// Results that must not travel in the URL (a check's six lines, a Stripe error text, the disconnect confirm step) live in the
+// session for one render. Secrets are only ever written (st_connect); the page receives hints and statuses.
+
+function palette_admin_st_mode(array $post): ?string
+{
+    $m = is_string($post['mode'] ?? null) ? $post['mode'] : '';
+    return in_array($m, ['live', 'test'], true) ? $m : null;
+}
+
+function palette_admin_st_notice(string $text): void
+{
+    $_SESSION['palette_admin_st_notice'] = mb_substr($text, 0, 300);
+}
+
+function palette_admin_do_st_connect(mysqli $c, array $session, array $post): array
+{
+    $mode = palette_admin_st_mode($post);
+    if ($mode === null) return ['err' => 'st_bad_mode', 'tab' => 'settings'];
+    $source = $mode === 'live' && ($post['source'] ?? '') === 'shared' ? 'shared' : 'own';
+    $secret = is_string($post['secret'] ?? null) ? $post['secret'] : '';
+    $r = palette_stripe_connect($c, $mode, $source, $secret);
+    palette_admin_log($c, (int)($session['user_id'] ?? 0), 'st_connect', null, null,
+        ['mode' => $mode, 'source' => $source, 'ok' => $r['ok'], 'error' => $r['ok'] ? null : 'connect_failed'], null);
+    if (!$r['ok']) {
+        palette_admin_st_notice((string)$r['error']);
+        return ['tab' => 'settings'];
+    }
+    return ['ok' => 'st_connected', 'tab' => 'settings'];
+}
+
+function palette_admin_do_st_check(mysqli $c, array $session, array $post): array
+{
+    $mode = palette_admin_st_mode($post);
+    if ($mode === null) return ['err' => 'st_bad_mode', 'tab' => 'settings'];
+    $r = palette_stripe_check($c, $mode);
+    $_SESSION['palette_admin_st_check'] = ['mode' => $mode, 'ok' => $r['ok'], 'checks' => $r['checks']];
+    palette_admin_log($c, (int)($session['user_id'] ?? 0), 'st_check', null, null,
+        ['mode' => $mode, 'ok' => $r['ok'], 'error' => $r['ok'] ? null : 'check_failed'], null);
+    return ['tab' => 'settings'];
+}
+
+function palette_admin_do_st_disconnect(mysqli $c, array $session, array $post): array
+{
+    $mode = palette_admin_st_mode($post);
+    if ($mode === null) return ['err' => 'st_bad_mode', 'tab' => 'settings'];
+    if (($post['confirm'] ?? '') !== '1') {
+        $_SESSION['palette_admin_st_confirm'] = $mode;   // step one: the page asks, nothing is touched
+        return ['tab' => 'settings'];
+    }
+    $r = palette_stripe_disconnect($c, $mode);
+    palette_admin_log($c, (int)($session['user_id'] ?? 0), 'st_disconnect', null, null,
+        ['mode' => $mode, 'ok' => $r['ok'], 'error' => $r['ok'] ? null : 'disconnect_failed'], null);
+    return $r['ok'] ? ['ok' => 'st_disconnected', 'tab' => 'settings'] : ['err' => 'st_disconnect_failed', 'tab' => 'settings'];
+}
+
+function palette_admin_do_methods(mysqli $c, array $session, array $post): array
+{
+    $picked = is_array($post['methods'] ?? null) ? array_values(array_filter($post['methods'], 'is_string')) : [];
+    $order = ($post['order'] ?? '') === 'paypal_first' ? ['paypal', 'stripe'] : ['stripe', 'paypal'];
+    $chosen = array_values(array_intersect($order, $picked));
+    $r = palette_stripe_set_methods($c, $chosen);
+    palette_admin_log($c, (int)($session['user_id'] ?? 0), 'methods', null, null,
+        ['methods' => $chosen, 'ok' => $r['ok'], 'error' => $r['ok'] ? null : 'refused'], null);
+    if (!$r['ok']) {
+        palette_admin_st_notice((string)$r['error']);
+        return ['tab' => 'settings'];
+    }
+    return ['ok' => 'methods_saved', 'tab' => 'settings'];
+}
+
+function palette_admin_st_card(array $session, string $mode, array $p, ?array $check, bool $confirm): string
+{
+    $label = $mode === 'live' ? 'Live' : 'Test';
+    $has = $p['key_hint'] !== '' || $p['webhook'];
+    [$pill, $cls] = $p['error'] !== '' ? ['Error', 'pill-bad'] : ($p['connected'] ? ['Connected', 'pill-ok'] : ['Not connected', 'pill-plain']);
+    $row = fn(string $k, string $v) => '<div class="kv"><span>' . $k . '</span><b>' . $v . '</b></div>';
+    $out = '<section class="card card-pad st-card" aria-labelledby="st-' . $mode . '"><div class="st-head"><h2 id="st-' . $mode . '">' . $label . ' mode</h2>'
+        . '<span class="pill ' . $cls . '">' . $pill . '</span></div>'
+        . '<div class="kvs">' . $row('Key', $p['key_hint'] !== '' ? '<span class="mono">' . palette_h($p['key_hint']) . '</span>' : 'None')
+        . $row('Webhook', 'Webhook: ' . ($p['webhook'] ? 'registered' : 'missing'))
+        . $row('Last checked', $p['checked_at'] !== '' ? palette_h(palette_admin_date($p['checked_at'], 'j M Y H:i') . ' UTC') : 'Never') . '</div>';
+    if ($p['error'] !== '') $out .= '<p class="hint is-bad" role="alert">' . palette_icon('alert', 14) . ' ' . palette_h($p['error']) . '</p>';
+
+    if ($check !== null) {
+        $out .= '<ul class="st-checks" aria-label="Connection checks">';
+        foreach ($check['checks'] as $ch) {
+            $out .= '<li class="check-line ' . ($ch['ok'] ? 'check-pass' : 'check-fail') . '">' . palette_icon($ch['ok'] ? 'check' : 'alert', 16)
+                . '<span><b>' . palette_h($ch['label']) . '</b> <span class="muted">' . palette_h($ch['detail']) . '</span></span></li>';
+        }
+        $out .= '</ul>';
+    }
+
+    $form = fn(string $action) => '<form method="post" action="' . PALETTE_ADMIN_PAGE . '">' . palette_admin_csrf_field($session)
+        . '<input type="hidden" name="action" value="' . $action . '"><input type="hidden" name="mode" value="' . $mode . '">';
+    $own = $p['source'] === 'own';
+    $out .= $form('st_connect') . '<div class="stack">';
+    if ($mode === 'live') {
+        $out .= '<fieldset class="fld st-src"><legend>Which Stripe account</legend>'
+            . '<label class="check"><input type="radio" name="source" value="shared"' . ($own ? '' : ' checked') . '> Use the vietnamcos.com Stripe account</label>'
+            . '<label class="check"><input type="radio" name="source" value="own"' . ($own ? ' checked' : '') . '> Use a separate key</label></fieldset>';
+    } else {
+        $out .= '<input type="hidden" name="source" value="own">';
+    }
+    $out .= '<div class="fld"><label for="sec-' . $mode . '">' . ($mode === 'live' ? 'Separate secret key (only for "Use a separate key")' : 'Test secret or restricted key') . '</label>'
+        . '<input id="sec-' . $mode . '" class="mono-in" type="password" name="secret" autocomplete="off" spellcheck="false" placeholder="' . ($mode === 'live' ? 'sk_live_… or rk_live_…' : 'sk_test_… or rk_test_…') . '" aria-describedby="help-' . $mode . '"></div>'
+        . '<div class="actions"><button class="btn btn-accent" type="submit">' . ($has ? 'Connect again' : 'Connect') . '</button></div></div></form>';
+
+    $out .= '<div class="actions st-actions">' . $form('st_check') . '<button class="btn" type="submit">Test connection</button></form>';
+    if ($has && !$confirm) $out .= $form('st_disconnect') . '<button class="btn btn-danger" type="submit">Disconnect</button></form>';
+    $out .= '</div>';
+    if ($confirm) {
+        $out .= '<div class="st-confirm" role="alertdialog" aria-labelledby="cf-' . $mode . '"><p id="cf-' . $mode . '"><b>Disconnect ' . $label . '? Checkout stops taking card payments.</b></p>'
+            . $form('st_disconnect') . '<input type="hidden" name="confirm" value="1"><div class="actions">'
+            . '<a class="btn" href="' . palette_h(palette_admin_url('settings')) . '">Keep it connected</a>'
+            . '<button class="btn btn-danger" type="submit">Disconnect ' . $label . '</button></div></form></div>';
+    }
+
+    $out .= '<p class="hint" id="help-' . $mode . '">Get keys at <span class="mono">dashboard.stripe.com/apikeys</span>'
+        . ($mode === 'test' ? ' (switch the dashboard to test mode first)' : '') . '. A restricted key needs Balance read and Webhook endpoints write.</p>';
+    if ($mode === 'test') {
+        $out .= '<p class="hint"><a href="/palette/checkout?test=1">Open the test checkout</a> (admins only; pay with card 4242 4242 4242 4242).</p>';
+    }
+    return $out . '</section>';
+}
+
+function palette_admin_tab_settings(mysqli $c, array $session, array $query): array
+{
+    // One-render flashes from the last POST.
+    $check = is_array($session['palette_admin_st_check'] ?? null) ? $session['palette_admin_st_check'] : null;
+    $confirm = is_string($session['palette_admin_st_confirm'] ?? null) ? $session['palette_admin_st_confirm'] : '';
+    $notice = is_string($session['palette_admin_st_notice'] ?? null) ? $session['palette_admin_st_notice'] : '';
+    unset($_SESSION['palette_admin_st_check'], $_SESSION['palette_admin_st_confirm'], $_SESSION['palette_admin_st_notice']);
+
+    $pub = palette_stripe_public($c);
+    $html = $notice !== '' ? '<p class="flash flash-err" role="alert">' . palette_h($notice) . '</p>' : '';
+    $html .= '<div class="st-grid">';
+    foreach (['live', 'test'] as $mode) {
+        $html .= palette_admin_st_card($session, $mode, $pub[$mode], ($check['mode'] ?? '') === $mode ? $check : null, $confirm === $mode);
+    }
+    $html .= '</div>';
+
+    // Checkout methods: a method that is not connected cannot be switched on (the control says why).
+    $on = $pub['checkout_methods'];
+    $ready = ['stripe' => $pub['live']['connected'], 'paypal' => pp_ready(pp_settings($c))];
+    $why = ['stripe' => 'Connect Stripe Live first.', 'paypal' => 'PayPal is not set up.'];
+    $boxes = '';
+    foreach (['stripe' => 'Stripe (card)', 'paypal' => 'PayPal'] as $k => $name) {
+        $chk = in_array($k, $on, true);
+        $off = !$ready[$k] && !$chk;
+        $boxes .= '<label class="check"><input type="checkbox" name="methods[]" value="' . $k . '"' . ($chk ? ' checked' : '') . ($off ? ' disabled' : '') . '> ' . $name
+            . ($off ? ' <span class="muted">' . $why[$k] . '</span>' : '') . '</label>';
+    }
+    $first = ($on[0] ?? 'stripe') === 'paypal' ? 'paypal_first' : 'stripe_first';
+    $opts = '';
+    foreach (['stripe_first' => 'Stripe first', 'paypal_first' => 'PayPal first'] as $v => $name) {
+        $opts .= '<option value="' . $v . '"' . ($v === $first ? ' selected' : '') . '>' . $name . '</option>';
+    }
+    $html .= '<section class="card card-pad" aria-labelledby="st-methods"><h2 id="st-methods">Payment methods on checkout</h2>'
+        . '<form class="stack" method="post" action="' . PALETTE_ADMIN_PAGE . '">' . palette_admin_csrf_field($session) . '<input type="hidden" name="action" value="methods">'
+        . '<fieldset class="fld"><legend>Offer these methods</legend>' . $boxes . '</fieldset>'
+        . '<div class="fld"><label for="st-order">When both are on, show first</label><select id="st-order" name="order">' . $opts . '</select></div>'
+        . '<div class="actions"><button class="btn btn-accent" type="submit">Save methods</button></div></form></section>';
+    return ['title' => 'Settings', 'html' => $html];
 }
