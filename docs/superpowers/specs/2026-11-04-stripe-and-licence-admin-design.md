@@ -13,8 +13,8 @@ needed. The owner gets an admin page to find any licence, change it, and issue k
 ## Owner decisions
 
 - Stripe takes both plans. Pro + AI is a real Stripe subscription.
-- The checkout page shows Stripe only. PayPal code stays and is switched off by a setting
-  (`paypal_on_checkout`, default false). Existing PayPal licences and subscriptions keep working
+- The checkout page shows Stripe only for now. Admin chooses the methods checkout offers (Stripe,
+  PayPal or both) in Settings; PayPal code stays. Existing PayPal licences and subscriptions keep working
   (webhook, cron, cancel).
 - Admin can change a licence's access and payment status, its plan and its Pro + AI end date,
   issue a key and email it, resend a key, and cancel a subscription. Every change is logged.
@@ -30,7 +30,8 @@ needed. The owner gets an admin page to find any licence, change it, and issue k
 - No card form on our pages (Stripe's hosted page only).
 - No Stripe Billing products or prices set up in the dashboard; prices are sent per session.
 - No change to companies files. No refunds issued from our admin (they are done in Stripe).
-- No migration of PayPal subscribers to Stripe.
+- No bulk migration of PayPal subscribers to Stripe (one at a time from admin, by the customer's
+  own payment, is in scope).
 
 ## Architecture
 
@@ -133,7 +134,10 @@ Stripe's message), key hint (`sk_live_…a1B2`), webhook status, last checked ti
 - **Disconnect**: deletes palette's webhook endpoint in that mode and clears the stored key.
 - **Checkout uses**: Live / Test switch. In Test, the checkout page shows a "Test mode — use card
   4242 4242 4242 4242" banner to everyone, and admin pages show a test badge.
-- **Show PayPal on checkout**: off.
+- **Payment methods on checkout**: Stripe only / PayPal only / both, and which shows first when
+  both (setting `checkout_methods`, replacing the `paypal_on_checkout` flag; starts as Stripe only).
+  A method that is not connected cannot be switched on; the control says why. If every chosen
+  method is disconnected, checkout shows "Payments are paused".
 
 Secrets are only ever written, never echoed back; the page receives hints and statuses.
 
@@ -152,6 +156,13 @@ All require an admin session, CSRF on every POST, and log to `palette_admin_log`
   - Pro + AI access until (date, +1 month); plan switch Pro ↔ Pro + AI.
   - Resend key email (in the licence's language).
   - Cancel subscription (Stripe or PayPal, at period end).
+  - Send billing link (Stripe subscribers): emails a Stripe customer-portal link so the customer
+    changes their own card. Admin never sees or enters card details.
+  - Move to card (PayPal subscribers): emails a one-use link (HMAC-signed, 7 days) to subscribe by
+    Stripe. On payment the same key moves to the Stripe subscription; the Stripe trial is set to
+    the PayPal `paid_through` so paid days carry over and nothing is charged twice; the PayPal
+    subscription is cancelled. If the PayPal cancel fails, `PALETTE_CANCEL_FAILED` is logged and
+    the licence page shows it.
   - Each action takes a reason (required for status, payment and plan changes) and an optional
     "email the customer" tick.
 - **Issue a key**: email, plan, reason (paid, key not issued / paid another way / free / replacement),
