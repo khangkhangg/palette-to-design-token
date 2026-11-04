@@ -32,7 +32,8 @@ function palette_mask_email(string $email): string
 
 // $ai = null issues a one-time Pro key. For a subscription pass ['subscription_id', 'paid_through', 'period_start']
 // (PHP-time DATETIME strings, ruling A4): the key gets plan 'ai' and sub_status 'active'.
-function palette_issue_license(mysqli $c, string $email, string $orderId, string $lang, ?array $ai = null): array
+// $source ('paypal'|'stripe'|'admin', null for unknown) and $livemode (0 for a test-mode payment) are recorded as given.
+function palette_issue_license(mysqli $c, string $email, string $orderId, string $lang, ?array $ai = null, ?string $source = null, int $livemode = 1): array
 {
     $email = strtolower(trim($email));
     $lang = palette_lang($lang);
@@ -43,9 +44,9 @@ function palette_issue_license(mysqli $c, string $email, string $orderId, string
     $start = $ai === null ? null : (string)$ai['period_start'];
     for ($try = 0; $try < 10; $try++) {
         $key = palette_new_key();
-        $st = $c->prepare('INSERT INTO palette_licenses (license_key, email, order_id, lang, created_at, plan, subscription_id, sub_status, paid_through, period_start)
-                           VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?)');
-        $st->bind_param('sssssssss', $key, $email, $orderId, $lang, $plan, $subId, $status, $paid, $start);
+        $st = $c->prepare('INSERT INTO palette_licenses (license_key, email, order_id, lang, created_at, plan, subscription_id, sub_status, paid_through, period_start, source, livemode)
+                           VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?)');
+        $st->bind_param('ssssssssssi', $key, $email, $orderId, $lang, $plan, $subId, $status, $paid, $start, $source, $livemode);
         try {
             $st->execute();
             $id = (int)$c->insert_id;
