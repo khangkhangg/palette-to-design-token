@@ -1,7 +1,6 @@
 <?php
-// Admin only: the private site list (spec 8) as a table, or ?format=csv. Logic in lib/sites.php.
-require __DIR__ . '/bootstrap.php';
-$res = palette_admin_sites_page($conn, $_SESSION ?? [], $_GET);
-http_response_code($res['status']);
-foreach ($res['headers'] as $k => $v) header("$k: $v");
-echo $res['body'];
+// Moved: the site list is the Sites tab of the admin (admin.php). Old bookmarks and the CSV link keep working.
+$target = 'admin.php?tab=sites' . (($_GET['format'] ?? '') === 'csv' ? '&format=csv' : '');
+http_response_code(301);
+header('Location: ' . $target);
+header('Cache-Control: no-store');
