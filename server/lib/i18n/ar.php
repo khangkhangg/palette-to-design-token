@@ -285,7 +285,9 @@ return [
     'co_manage_billing_note' => 'غيّر بطاقتك أو اطّلع على الإيصالات أو ألغِ الاشتراك على صفحة Stripe الآمنة.',
     // Admin licence page (2026-11-04): change notice and billing-link emails.
     'em_admin_change_subject' => 'تم تحديث ترخيص Site to Design Token الخاص بك',
-    'em_admin_change_body_access' => 'غيّرنا صلاحية استخدام مفتاح Site to Design Token الخاص بك. افتح الإضافة لمعرفة حالته الحالية.',
+    'em_admin_change_body_revoked' => 'تم إيقاف مفتاح Site to Design Token الخاص بك ولم يعد يعمل. إذا كنت تعتقد أن هذا خطأ، فردّ على هذه الرسالة.',
+    'em_admin_change_body_restored' => 'عاد مفتاح Site to Design Token الخاص بك إلى العمل. افتح الإضافة للمتابعة.',
+    'em_admin_change_body_refunded' => 'تمت إعادة مبلغ الدفع إليك، لذلك لم يعد مفتاح Site to Design Token الخاص بك يعمل.',
     'em_admin_change_body_payment' => 'حدّثنا سجل الدفع في ترخيص Site to Design Token الخاص بك. المفتاح نفسه لم يتغير.',
     'em_admin_change_body_until' => 'أصبح وصولك إلى Pro + AI ساريًا حتى {date}.',
     'em_admin_change_body_plan' => 'أصبحت خطة Site to Design Token الخاصة بك الآن {plan}.',

@@ -285,7 +285,9 @@ return [
     'co_manage_billing_note' => 'Stripe-এর নিরাপদ পেজে কার্ড বদলান, রসিদ দেখুন বা সাবস্ক্রিপশন বাতিল করুন।',
     // Admin licence page (2026-11-04): change notice and billing-link emails.
     'em_admin_change_subject' => 'আপনার Site to Design Token লাইসেন্স আপডেট করা হয়েছে',
-    'em_admin_change_body_access' => 'আমরা আপনার Site to Design Token কী ব্যবহারের অনুমতি বদলেছি। বর্তমান অবস্থা দেখতে এক্সটেনশনটি খুলুন।',
+    'em_admin_change_body_revoked' => 'আপনার Site to Design Token কী বন্ধ করা হয়েছে এবং আর কাজ করে না। এটি ভুল মনে হলে এই ইমেইলের উত্তর দিন।',
+    'em_admin_change_body_restored' => 'আপনার Site to Design Token কী আবার কাজ করছে। চালিয়ে যেতে এক্সটেনশনটি খুলুন।',
+    'em_admin_change_body_refunded' => 'আপনার পেমেন্ট ফেরত দেওয়া হয়েছে, তাই আপনার Site to Design Token কী আর কাজ করে না।',
     'em_admin_change_body_payment' => 'আমরা আপনার Site to Design Token লাইসেন্সের পেমেন্ট রেকর্ড আপডেট করেছি। কী নিজে বদলায়নি।',
     'em_admin_change_body_until' => 'আপনার Pro + AI অ্যাক্সেস এখন {date} পর্যন্ত চলবে।',
     'em_admin_change_body_plan' => 'আপনার Site to Design Token প্ল্যান এখন {plan}।',

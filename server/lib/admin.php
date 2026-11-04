@@ -220,6 +220,9 @@ const PALETTE_ADMIN_MESSAGES = [
         'stripe'        => 'Stripe could not do that. Try again in a moment.',
         'paypal'        => 'PayPal could not cancel the subscription. Try again in a moment.',
         'mail'          => 'The email could not be sent.',
+        'plan_needs_until' => 'To switch to Pro + AI, set an access date in the future in the same save.',
+        'cancel_first'  => 'Cancel the subscription first.',
+        'cancel_failed' => 'Access was revoked, but the provider could not cancel the subscription. Cancel it in Stripe or PayPal now.',
     ],
 ];
 
@@ -395,24 +398,59 @@ function palette_admin_note_ok(string $note): bool
     return $n >= 1 && $n <= 500;
 }
 
-function palette_admin_notify(array $lic, string $kind, array $vars = []): bool
+// One email for one or more changes, in the licence's language: $items = [[kind, vars], ...], kind = revoked|restored|refunded|
+// payment|until|plan (em_admin_change_body_<kind>). The subject is always em_admin_change_subject.
+function palette_admin_notify_many(array $lic, array $items): bool
 {
+    if (!$items) return true;
     $lang = palette_lang((string)$lic['lang']);
-    $html = '<h1 style="font-size:20px;margin:0 0 12px">' . palette_h(palette_t($lang, 'em_admin_change_subject')) . '</h1>'
-        . '<p style="margin:0 0 8px">' . palette_h(palette_t($lang, 'em_admin_change_body_' . $kind, $vars)) . '</p>'
-        . palette_email_footer($lang);
+    $html = '<h1 style="font-size:20px;margin:0 0 12px">' . palette_h(palette_t($lang, 'em_admin_change_subject')) . '</h1>';
+    foreach ($items as [$kind, $vars]) {
+        $html .= '<p style="margin:0 0 8px">' . palette_h(palette_t($lang, 'em_admin_change_body_' . $kind, $vars)) . '</p>';
+    }
+    $html .= palette_email_footer($lang);
     $ok = palette_mail((string)$lic['email'], palette_t($lang, 'em_admin_change_subject'), palette_email_shell($lang, $html));
     if (!$ok) error_log('PALETTE_MAIL_FAILED admin_change licence=' . (int)$lic['id']);
     return $ok;
 }
 
-// Shared tail of the four change functions: $applied is the result of the compare-and-swap UPDATE.
-function palette_admin_changed(mysqli $c, int $adminId, array $lic, string $action, bool $applied, array $before, array $after, string $note, bool $notify, array $vars = []): array
+// Shared tail of the change functions: $applied is the result of the compare-and-swap UPDATE. $items are the mail sentences
+// (also returned as 'mail', so a caller applying several changes can send them as one email). $extra goes into the log detail.
+function palette_admin_changed(mysqli $c, int $adminId, array $lic, string $action, bool $applied, array $before, array $after, string $note, bool $notify, array $items, array $extra = []): array
 {
     if (!$applied) return ['ok' => true, 'error' => null, 'nochange' => true];
-    palette_admin_log($c, $adminId, $action, (int)$lic['id'], null, ['before' => $before, 'after' => $after], trim($note));
-    if ($notify) palette_admin_notify($lic, $action, $vars);
-    return ['ok' => true, 'error' => null];
+    palette_admin_log($c, $adminId, $action, (int)$lic['id'], null, ['before' => $before, 'after' => $after] + $extra, trim($note));
+    if ($notify) palette_admin_notify_many($lic, $items);
+    return ['ok' => true, 'error' => null, 'mail' => $items];
+}
+
+// Revoking a subscriber ends their billing in the same action (otherwise the provider keeps charging, or the webhook/reconcile
+// cancels later). Stripe: DELETE the subscription now; PayPal: the existing cancel. A failure is logged (PALETTE_CANCEL_FAILED by
+// the helpers) and never undoes the revoke. null when the licence has no active or suspended subscription, else
+// ['was' => status, 'ok' => bool].
+function palette_admin_end_billing(mysqli $c, array $lic): ?array
+{
+    $row = palette_admin_sub_row($c, (int)$lic['id']);
+    if (!$row || !in_array($row['status'], ['active', 'suspended'], true)) return null;
+    $sid = (string)$row['subscription_id'];
+    if (($row['provider'] ?? 'paypal') === 'stripe') {
+        $mode = (int)$row['livemode'] === 1 ? 'live' : 'test';
+        if (palette_stripe_ready($c, $mode)) {
+            $ok = palette_st_cancel_sub($c, $mode, $row, 'admin revoke');
+        } else {
+            error_log("PALETTE_CANCEL_FAILED subscription=$sid after admin revoke (Stripe $mode not connected); cancel it in Stripe by hand");
+            $ok = false;
+        }
+    } else {
+        $ok = palette_sub_stop_billing($c, $row, $sid, 'admin revoke');
+    }
+    return ['was' => (string)$row['status'], 'ok' => $ok];
+}
+
+// Log detail and result flags for an end-billing outcome.
+function palette_admin_billing_extra(?array $b): array
+{
+    return $b === null ? [] : ['subscription' => ['before' => $b['was'], 'after' => $b['ok'] ? 'cancelled' : $b['was'], 'cancel_failed' => !$b['ok']]];
 }
 
 function palette_admin_set_access(mysqli $c, int $adminId, int $id, bool $active, string $note, bool $notify): array
@@ -429,10 +467,15 @@ function palette_admin_set_access(mysqli $c, int $adminId, int $id, bool $active
     $st->execute();
     $applied = $st->affected_rows === 1;
     $st->close();
-    return palette_admin_changed($c, $adminId, $lic, 'access', $applied, ['revoked' => $was], ['revoked' => !$active], $note, $notify);
+    $b = $applied && !$active ? palette_admin_end_billing($c, $lic) : null;
+    $r = palette_admin_changed($c, $adminId, $lic, 'access', $applied, ['revoked' => $was], ['revoked' => !$active], $note, $notify,
+        [[$active ? 'restored' : 'revoked', []]], palette_admin_billing_extra($b));
+    if ($b !== null && !$b['ok']) $r['warn'] = 'cancel_failed';
+    return $r;
 }
 
-// $payStatus: provider|manual_paid|comp|refunded. Records only (the money moves in Stripe/PayPal); 'refunded' also revokes.
+// $payStatus: provider|manual_paid|comp|refunded. Records only (the money moves in Stripe/PayPal); 'refunded' also revokes
+// (and, like a revoke, ends a live subscription's billing).
 function palette_admin_set_payment(mysqli $c, int $adminId, int $id, string $payStatus, string $note, bool $notify): array
 {
     if (!palette_admin_note_ok($note)) return ['ok' => false, 'error' => 'note_required'];
@@ -448,22 +491,57 @@ function palette_admin_set_payment(mysqli $c, int $adminId, int $id, string $pay
     $applied = $st->affected_rows === 1;
     $st->close();
     $wasRevoked = $lic['revoked_at'] !== null;
-    return palette_admin_changed($c, $adminId, $lic, 'payment', $applied,
-        ['pay_status' => $lic['pay_status'], 'revoked' => $wasRevoked], ['pay_status' => $payStatus, 'revoked' => $wasRevoked || $revoke], $note, $notify);
+    $b = $applied && $revoke ? palette_admin_end_billing($c, $lic) : null;
+    $r = palette_admin_changed($c, $adminId, $lic, 'payment', $applied,
+        ['pay_status' => $lic['pay_status'], 'revoked' => $wasRevoked], ['pay_status' => $payStatus, 'revoked' => $wasRevoked || $revoke], $note, $notify,
+        [[$revoke ? 'refunded' : 'payment', []]], palette_admin_billing_extra($b));
+    if ($b !== null && !$b['ok']) $r['warn'] = 'cancel_failed';
+    return $r;
 }
 
-// Pro + AI only: paid_through = that day 23:59:59 (UTC), and the status goes back to 'active' when that moment is ahead.
+// "YYYY-MM-DD 23:59:59" for a valid Y-m-d string, else null.
+function palette_admin_until_stamp(string $dateYmd): ?string
+{
+    $d = DateTimeImmutable::createFromFormat('!Y-m-d', $dateYmd, new DateTimeZone('UTC'));
+    return $d && $d->format('Y-m-d') === $dateYmd ? $dateYmd . ' 23:59:59' : null;
+}
+
+function palette_admin_is_future(?string $stamp): bool
+{
+    return $stamp !== null && strtotime($stamp . ' UTC') > time();
+}
+
+// max(current paid_through, now) + one calendar month (UTC), the day clamped to the target month's length. Y-m-d.
+function palette_admin_plus_month(?string $paidThrough, ?int $now = null): string
+{
+    $now ??= time();
+    $t = $paidThrough !== null && $paidThrough !== '' ? strtotime($paidThrough . ' UTC') : false;
+    $base = new DateTimeImmutable('@' . max($now, $t === false ? 0 : $t));
+    [$y, $m, $d] = array_map('intval', explode('-', $base->format('Y-n-j')));
+    $m++;
+    if ($m > 12) { $m = 1; $y++; }
+    $d = min($d, (int)(new DateTimeImmutable(sprintf('%04d-%02d-01', $y, $m)))->format('t'));
+    return sprintf('%04d-%02d-%02d', $y, $m, $d);
+}
+
+// 'active' only when the subscription row itself is active/suspended (or there is none) and the date is ahead; otherwise unchanged.
+function palette_admin_until_status(array $lic, ?array $subRow, string $stamp): ?string
+{
+    $live = $subRow === null || in_array($subRow['status'], ['active', 'suspended'], true);
+    return palette_admin_is_future($stamp) && $live ? 'active' : $lic['sub_status'];
+}
+
+// Pro + AI only: paid_through = that day 23:59:59 (UTC). The licence goes back to 'active' when that moment is ahead and the
+// subscription row is not cancelled/expired. The subscription row and the provider are not touched.
 function palette_admin_set_until(mysqli $c, int $adminId, int $id, string $dateYmd, string $note, bool $notify): array
 {
     if (!palette_admin_note_ok($note)) return ['ok' => false, 'error' => 'note_required'];
     $lic = palette_admin_licence_row($c, $id);
     if (!$lic) return ['ok' => false, 'error' => 'not_found'];
     if ($lic['plan'] !== 'ai') return ['ok' => false, 'error' => 'until_pro'];
-    $d = DateTimeImmutable::createFromFormat('!Y-m-d', $dateYmd, new DateTimeZone('UTC'));
-    if (!$d || $d->format('Y-m-d') !== $dateYmd) return ['ok' => false, 'error' => 'until_bad'];
-    $to = $dateYmd . ' 23:59:59';
-    $future = strtotime($to . ' UTC') > time();
-    $newStatus = $future ? 'active' : $lic['sub_status'];
+    $to = palette_admin_until_stamp($dateYmd);
+    if ($to === null) return ['ok' => false, 'error' => 'until_bad'];
+    $newStatus = palette_admin_until_status($lic, palette_admin_sub_row($c, $id), $to);
     if ($lic['paid_through'] === $to && $lic['sub_status'] === $newStatus) return ['ok' => true, 'error' => null, 'nochange' => true];
     $st = $c->prepare('UPDATE palette_licenses SET paid_through = ?, sub_status = ? WHERE id = ? AND plan = \'ai\' AND paid_through <=> ? AND sub_status <=> ?');
     $st->bind_param('ssiss', $to, $newStatus, $id, $lic['paid_through'], $lic['sub_status']);
@@ -471,23 +549,48 @@ function palette_admin_set_until(mysqli $c, int $adminId, int $id, string $dateY
     $applied = $st->affected_rows === 1;
     $st->close();
     return palette_admin_changed($c, $adminId, $lic, 'until', $applied,
-        ['paid_through' => $lic['paid_through'], 'sub_status' => $lic['sub_status']], ['paid_through' => $to, 'sub_status' => $newStatus], $note, $notify, ['date' => $dateYmd]);
+        ['paid_through' => $lic['paid_through'], 'sub_status' => $lic['sub_status']], ['paid_through' => $to, 'sub_status' => $newStatus], $note, $notify,
+        [['until', ['date' => $dateYmd]]]);
 }
 
-// Changing the plan edits the licence only: it does not touch a Stripe or PayPal subscription (cancel that separately).
-function palette_admin_set_plan(mysqli $c, int $adminId, int $id, string $plan, string $note, bool $notify): array
+// Changing the plan edits the licence only (the provider is not touched).
+//  - To Pro + AI the licence needs a future paid_through, or it would have no access at all (Pro has none): pass $untilYmd (a future
+//    date, applied in the same UPDATE) or the licence must already have a future paid_through; else plan_needs_until.
+//  - To Pro while the subscription is active or suspended is refused (cancel_first): billing would continue.
+function palette_admin_set_plan(mysqli $c, int $adminId, int $id, string $plan, string $note, bool $notify, ?string $untilYmd = null): array
 {
     if (!palette_admin_note_ok($note)) return ['ok' => false, 'error' => 'note_required'];
     if (!in_array($plan, ['pro', 'ai'], true)) return ['ok' => false, 'error' => 'bad_plan'];
     $lic = palette_admin_licence_row($c, $id);
     if (!$lic) return ['ok' => false, 'error' => 'not_found'];
     if ($lic['plan'] === $plan) return ['ok' => true, 'error' => null, 'nochange' => true];
-    $st = $c->prepare('UPDATE palette_licenses SET plan = ? WHERE id = ? AND plan = ?');
-    $st->bind_param('sis', $plan, $id, $lic['plan']);
+    $row = palette_admin_sub_row($c, $id);
+    $to = $lic['paid_through'];
+    $status = $lic['sub_status'];
+    $items = [['plan', ['plan' => $plan === 'ai' ? 'Pro + AI' : 'Pro']]];
+    if ($plan === 'pro') {
+        if ($row && in_array($row['status'], ['active', 'suspended'], true)) return ['ok' => false, 'error' => 'cancel_first'];
+    } elseif ($untilYmd !== null && $untilYmd !== '') {
+        $to = palette_admin_until_stamp($untilYmd);
+        if ($to === null) return ['ok' => false, 'error' => 'until_bad'];
+        if (!palette_admin_is_future($to)) return ['ok' => false, 'error' => 'plan_needs_until'];
+        $status = palette_admin_until_status($lic, $row, $to);
+        $items[] = ['until', ['date' => $untilYmd]];
+    } elseif (!palette_admin_is_future($lic['paid_through'])) {
+        return ['ok' => false, 'error' => 'plan_needs_until'];
+    }
+    $st = $c->prepare('UPDATE palette_licenses SET plan = ?, paid_through = ?, sub_status = ? WHERE id = ? AND plan = ?');
+    $st->bind_param('sssis', $plan, $to, $status, $id, $lic['plan']);
     $st->execute();
     $applied = $st->affected_rows === 1;
     $st->close();
-    return palette_admin_changed($c, $adminId, $lic, 'plan', $applied, ['plan' => $lic['plan']], ['plan' => $plan], $note, $notify, ['plan' => $plan === 'ai' ? 'Pro + AI' : 'Pro']);
+    $before = ['plan' => $lic['plan']];
+    $after = ['plan' => $plan];
+    if ($to !== $lic['paid_through'] || $status !== $lic['sub_status']) {
+        $before += ['paid_through' => $lic['paid_through'], 'sub_status' => $lic['sub_status']];
+        $after += ['paid_through' => $to, 'sub_status' => $status];
+    }
+    return palette_admin_changed($c, $adminId, $lic, 'plan', $applied, $before, $after, $note, $notify, $items);
 }
 
 function palette_admin_resend(mysqli $c, int $adminId, int $id): array
@@ -557,11 +660,14 @@ function palette_admin_result(array $res, int $id, string $okCode): array
     $gone = !$res['ok'] && $res['error'] === 'not_found';
     $where = $gone || $id <= 0 ? ['tab' => 'licences', 'params' => []] : ['tab' => 'licence', 'params' => ['id' => $id]];
     if (!$res['ok']) return ['err' => (string)$res['error']] + $where;
+    if (!empty($res['warn'])) return ['err' => (string)$res['warn']] + $where;   // done, but the admin must act (cancel_failed)
     return ['ok' => !empty($res['nochange']) ? 'nochange' : $okCode] + $where;
 }
 
-// The "Change this licence" form: applies only the fields that differ from the stored state, one function each (and one
-// log row each), plan first so a Pro -> Pro + AI switch can take an access date in the same save.
+// The "Change this licence" form. Works out which fields differ from the stored state, validates ALL of them before applying
+// any (an invalid request changes nothing), then applies plan, access, payment, until in that order: one function and one log
+// row each, but ONE email to the customer (when ticked) listing every change. "+1 month" (plus_month) sets until to
+// max(paid_through, now) + 1 month. Switching to Pro + AI takes its access date in the same save (set_plan).
 function palette_admin_do_change(mysqli $c, array $session, array $post): array
 {
     $id = palette_admin_post_id($post);
@@ -571,26 +677,49 @@ function palette_admin_do_change(mysqli $c, array $session, array $post): array
     $str = fn(string $k) => is_string($post[$k] ?? null) ? trim($post[$k]) : '';
     $note = $str('note');
     $notify = $str('notify') !== '';
-    $steps = [];
-    $plan = $str('plan');
-    if ($plan !== '' && $plan !== $lic['plan']) $steps[] = fn() => palette_admin_set_plan($c, $adminId, $id, $plan, $note, $notify);
-    $access = $str('access');
-    if (in_array($access, ['active', 'revoked'], true) && ($access === 'revoked') !== ($lic['revoked_at'] !== null)) {
-        $steps[] = fn() => palette_admin_set_access($c, $adminId, $id, $access === 'active', $note, $notify);
-    }
+
+    $plan = $str('plan') !== '' ? $str('plan') : (string)$lic['plan'];
+    if (!in_array($plan, ['pro', 'ai'], true)) return palette_admin_result(['ok' => false, 'error' => 'bad_plan'], $id, 'saved');
+    $toAi = $plan === 'ai' && $lic['plan'] !== 'ai';
+    $toPro = $plan === 'pro' && $lic['plan'] !== 'pro';
     $pay = $str('pay_status');
-    if ($pay !== '' && $pay !== $lic['pay_status']) $steps[] = fn() => palette_admin_set_payment($c, $adminId, $id, $pay, $note, $notify);
-    $until = $str('until');
+    if ($pay !== '' && !in_array($pay, ['provider', 'manual_paid', 'comp', 'refunded'], true)) return palette_admin_result(['ok' => false, 'error' => 'bad_status'], $id, 'saved');
+    $access = $str('access');
+    $until = $str('plus_month') !== '' ? palette_admin_plus_month($lic['paid_through']) : $str('until');
     $curUntil = $lic['paid_through'] === null ? '' : substr((string)$lic['paid_through'], 0, 10);
-    if ($until !== '' && $until !== $curUntil) $steps[] = fn() => palette_admin_set_until($c, $adminId, $id, $until, $note, $notify);
-    if (!$steps) return palette_admin_result(['ok' => true, 'nochange' => true], $id, 'saved');
-    if (!palette_admin_note_ok($note)) return palette_admin_result(['ok' => false, 'error' => 'note_required'], $id, 'saved');
+
+    $wantAccess = in_array($access, ['active', 'revoked'], true) && ($access === 'revoked') !== ($lic['revoked_at'] !== null);
+    $wantPay = $pay !== '' && $pay !== $lic['pay_status'];
+    $wantUntil = $until !== '' && ($until !== $curUntil || $toAi);
+    if (!$toAi && !$toPro && !$wantAccess && !$wantPay && !$wantUntil) return palette_admin_result(['ok' => true, 'nochange' => true], $id, 'saved');
+
+    // Validate everything first.
+    $err = null;
+    $stamp = $until !== '' ? palette_admin_until_stamp($until) : null;
+    if (!palette_admin_note_ok($note)) $err = 'note_required';
+    elseif ($wantUntil && $stamp === null) $err = 'until_bad';
+    elseif ($wantUntil && $plan !== 'ai') $err = 'until_pro';
+    elseif ($toAi && !($wantUntil ? palette_admin_is_future($stamp) : palette_admin_is_future($lic['paid_through']))) $err = 'plan_needs_until';
+    elseif ($toPro && (($row = palette_admin_sub_row($c, $id)) && in_array($row['status'], ['active', 'suspended'], true))) $err = 'cancel_first';
+    if ($err !== null) return palette_admin_result(['ok' => false, 'error' => $err], $id, 'saved');
+
+    $steps = [];
+    if ($toAi || $toPro) $steps[] = fn() => palette_admin_set_plan($c, $adminId, $id, $plan, $note, false, $toAi && $wantUntil ? $until : null);
+    if ($wantAccess) $steps[] = fn() => palette_admin_set_access($c, $adminId, $id, $access === 'active', $note, false);
+    if ($wantPay) $steps[] = fn() => palette_admin_set_payment($c, $adminId, $id, $pay, $note, false);
+    if ($wantUntil && !$toAi) $steps[] = fn() => palette_admin_set_until($c, $adminId, $id, $until, $note, false);
+
     $res = ['ok' => true, 'error' => null, 'nochange' => true];
+    $mail = [];
     foreach ($steps as $step) {
         $r = $step();
         if (!$r['ok']) return palette_admin_result($r, $id, 'saved');
-        if (empty($r['nochange'])) $res = ['ok' => true, 'error' => null];
+        if (!empty($r['nochange'])) continue;
+        $res['nochange'] = false;
+        $mail = array_merge($mail, $r['mail'] ?? []);
+        if (!empty($r['warn'])) $res['warn'] = $r['warn'];
     }
+    if ($notify && $mail) palette_admin_notify_many($lic, $mail);
     return palette_admin_result($res, $id, 'saved');
 }
 
@@ -763,13 +892,19 @@ function palette_admin_tab_licence(mysqli $c, array $session, array $query): arr
     $histHtml = '<section class="card card-pad"><h2>History</h2><ol class="history">' . $hist . '</ol></section>';
 
     $sel = fn(string $name, string $label, array $opts, string $cur) => '<label class="fld"><span>' . palette_h($label) . '</span>' . palette_admin_select($name, $label, $opts, $cur) . '</label>';
-    $until = $isAi ? '<label class="fld"><span>Pro + AI access until</span><input type="date" name="until" value="'
-        . palette_h($lic['paid_through'] === null ? '' : substr((string)$lic['paid_through'], 0, 10)) . '"></label>' : '';
-    $form = palette_admin_form_open($session, $id, 'change') . '<h2>Change this licence</h2>'
+    $liveSub = $sub !== null && in_array($sub['status'], ['active', 'suspended'], true);
+    $untilLabel = $isAi ? 'Pro + AI access until' : 'Pro + AI access until (needed when switching to Pro + AI)';
+    $until = '<div class="fld"><label for="until">' . palette_h($untilLabel) . '</label><div class="row"><input id="until" type="date" name="until" value="'
+        . palette_h($lic['paid_through'] === null ? '' : substr((string)$lic['paid_through'], 0, 10)) . '">'
+        . '<button class="btn btn-sm" type="submit" name="plus_month" value="1">+1 month</button></div>'
+        . ($liveSub ? '<span class="hint">An earlier date is replaced at the next renewal.</span>' : '') . '</div>';
+    $form = palette_admin_form_open($session, $id, 'change')
+        . '<button class="sr-only" type="submit" tabindex="-1" aria-hidden="true">Save changes</button><h2>Change this licence</h2>'
         . $sel('access', 'Access', ['active' => 'Active', 'revoked' => 'Revoked'], $lic['revoked_at'] === null ? 'active' : 'revoked')
+        . '<p class="hint">Revoking a subscriber also ends their subscription now. Restoring access later does not restart billing.</p>'
         . $sel('pay_status', 'Payment', PALETTE_ADMIN_PAY_LABELS, (string)$lic['pay_status'])
         . '<p class="hint">Changes our records only. Refund the money in Stripe or PayPal; "Refunded" also revokes access.</p>'
-        . $until . $sel('plan', 'Plan', ['pro' => 'Pro', 'ai' => 'Pro + AI'], (string)$lic['plan'])
+        . $sel('plan', 'Plan', ['pro' => 'Pro', 'ai' => 'Pro + AI'], (string)$lic['plan']) . $until
         . '<label class="fld"><span>Reason (kept in history)</span><textarea name="note" rows="2" maxlength="500"></textarea></label>'
         . '<label class="check"><input type="checkbox" name="notify" value="1"> Email the customer about this change</label>'
         . '<button class="btn btn-accent" type="submit">Save changes</button></form>';

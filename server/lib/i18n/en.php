@@ -286,7 +286,9 @@ return [
     'co_manage_billing_note' => 'Change your card, see receipts or cancel on Stripe\'s secure page.',
     // Admin licence page (2026-11-04): change notice and billing-link emails.
     'em_admin_change_subject' => 'Your Site to Design Token licence was updated',
-    'em_admin_change_body_access' => 'We changed who can use your Site to Design Token key. Open the extension to see its current state.',
+    'em_admin_change_body_revoked' => 'Your Site to Design Token key has been switched off and no longer works. If you think this is a mistake, reply to this email.',
+    'em_admin_change_body_restored' => 'Your Site to Design Token key works again. Open the extension to continue.',
+    'em_admin_change_body_refunded' => 'Your payment was refunded, so your Site to Design Token key no longer works.',
     'em_admin_change_body_payment' => 'We updated the payment record on your Site to Design Token licence. Your key itself is unchanged.',
     'em_admin_change_body_until' => 'Your Pro + AI access now runs until {date}.',
     'em_admin_change_body_plan' => 'Your Site to Design Token plan is now {plan}.',

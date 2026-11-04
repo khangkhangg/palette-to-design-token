@@ -53,7 +53,7 @@ ok('access: one log row with before/after and note', count($l) === 1 && $l[0]['a
     && $l[0]['note'] === 'Chargeback' && $d['before']['revoked'] === false && $d['after']['revoked'] === true);
 ok('access: log carries no email or key', !str_contains((string)$l[0]['detail'], 'linh@') && !str_contains((string)$l[0]['detail'], 'SDT-'));
 ok('access: notify sends exactly one mail, in the licence language', al_mails() === 1 && $GLOBALS['mails'][0]['to'] === ['linh@example.com']
-    && $GLOBALS['mails'][0]['subject'] === palette_t('fr', 'em_admin_change_subject') && str_contains($GLOBALS['mails'][0]['html'], palette_t('fr', 'em_admin_change_body_access')));
+    && $GLOBALS['mails'][0]['subject'] === palette_t('fr', 'em_admin_change_subject') && str_contains($GLOBALS['mails'][0]['html'], palette_t('fr', 'em_admin_change_body_revoked')));
 $r = palette_admin_set_access($conn, AL_ADMIN, $pro, false, 'Again', true);
 ok('access: double submit is a no-op (no second log row, no mail)', $r['ok'] === true && !empty($r['nochange']) && count(al_logs($conn, $pro)) === 1 && al_mails() === 1);
 $GLOBALS['mails'] = [];
@@ -108,12 +108,134 @@ $p2 = al_lic($conn, 'SDT-CCCC-CCCC-CCCC', 'chen@example.cn', 'pro', ['lang' => '
 ok('plan: note required', palette_admin_set_plan($conn, AL_ADMIN, $p2, 'ai', '', false)['error'] === 'note_required');
 ok('plan: unknown plan', palette_admin_set_plan($conn, AL_ADMIN, $p2, 'gold', 'x', false)['error'] === 'bad_plan');
 $r = palette_admin_set_plan($conn, AL_ADMIN, $p2, 'ai', 'Upgrade deal', true);
+ok('plan: Pro -> Pro + AI without a date is refused (plan_needs_until), nothing changes', $r === ['ok' => false, 'error' => 'plan_needs_until']
+    && al_lrow($conn, $p2)['plan'] === 'pro' && !al_logs($conn, $p2) && al_mails() === 0);
+$r = palette_admin_set_plan($conn, AL_ADMIN, $p2, 'ai', 'Upgrade deal', true, gmdate('Y-m-d', time() - 86400));
+ok('plan: a past date is refused too', $r['error'] === 'plan_needs_until' && al_lrow($conn, $p2)['plan'] === 'pro');
+$r = palette_admin_set_plan($conn, AL_ADMIN, $p2, 'ai', 'Upgrade deal', true, $future);
+$row = al_lrow($conn, $p2);
 $l = al_logs($conn, $p2);
 $d = json_decode($l[0]['detail'], true);
-ok('plan: pro to ai', $r['ok'] === true && al_lrow($conn, $p2)['plan'] === 'ai' && $d['before']['plan'] === 'pro' && $d['after']['plan'] === 'ai' && count($l) === 1);
-ok('plan: notify mail names the plan', al_mails() === 1 && str_contains($GLOBALS['mails'][0]['html'], 'Pro + AI') && $GLOBALS['mails'][0]['subject'] === palette_t('zh-CN', 'em_admin_change_subject'));
-$r = palette_admin_set_plan($conn, AL_ADMIN, $p2, 'ai', 'Again', true);
+ok('plan: pro to ai with a future date, one log row', $r['ok'] === true && $row['plan'] === 'ai' && $row['paid_through'] === "$future 23:59:59" && $row['sub_status'] === 'active'
+    && $d['before']['plan'] === 'pro' && $d['after']['plan'] === 'ai' && $d['after']['paid_through'] === "$future 23:59:59" && count($l) === 1);
+$acc = palette_licence_access($row);
+ok('plan: after the switch the customer has Pro and AI access', $acc['pro'] === true && $acc['ai'] === true);
+ok('plan: notify mail names the plan and the date, in the licence language', al_mails() === 1 && str_contains($GLOBALS['mails'][0]['html'], 'Pro + AI')
+    && str_contains($GLOBALS['mails'][0]['html'], $future) && $GLOBALS['mails'][0]['subject'] === palette_t('zh-CN', 'em_admin_change_subject'));
+$r = palette_admin_set_plan($conn, AL_ADMIN, $p2, 'ai', 'Again', true, $future);
 ok('plan: double submit no-op', !empty($r['nochange']) && count(al_logs($conn, $p2)) === 1 && al_mails() === 1);
+$p3 = al_lic($conn, 'SDT-CCCC-CCCC-C333', 'p3@example.cn', 'pro', ['lang' => 'en']);
+$conn->query("UPDATE palette_licenses SET plan = 'ai', paid_through = '" . gmdate('Y-m-d H:i:s', time() + 86400 * 3) . "' WHERE id = $p3");
+$r = palette_admin_set_plan($conn, AL_ADMIN, $p3, 'pro', 'Downgrade', false);
+ok('plan: Pro + AI -> Pro with no subscription is fine', $r['ok'] === true && al_lrow($conn, $p3)['plan'] === 'pro');
+
+// AI -> Pro while a subscription is live keeps billing: cancel_first. A cancelled row is fine.
+$cf = al_lic($conn, 'SDT-CF00-CF00-CF00', 'cf@example.com', 'ai', ['sub_status' => 'active', 'subscription_id' => 'sub_CF', 'paid_through' => gmdate('Y-m-d H:i:s', time() + 5 * 86400)]);
+al_sub($conn, $cf, 'sub_CF', 'stripe');
+$r = palette_admin_set_plan($conn, AL_ADMIN, $cf, 'pro', 'Downgrade', true);
+ok('plan: ai -> pro with an active subscription -> cancel_first, unchanged', $r === ['ok' => false, 'error' => 'cancel_first'] && al_lrow($conn, $cf)['plan'] === 'ai' && !al_logs($conn, $cf));
+$conn->query("UPDATE palette_subscriptions SET status = 'suspended' WHERE license_id = $cf");
+ok('plan: a suspended subscription also needs cancelling first', palette_admin_set_plan($conn, AL_ADMIN, $cf, 'pro', 'Downgrade', true)['error'] === 'cancel_first');
+$conn->query("UPDATE palette_subscriptions SET status = 'cancelled' WHERE license_id = $cf");
+ok('plan: a cancelled subscription allows the downgrade', palette_admin_set_plan($conn, AL_ADMIN, $cf, 'pro', 'Downgrade', false)['ok'] === true);
+
+// ---- revoke ends billing
+$rv = al_lic($conn, 'SDT-RV00-RV00-RV00', 'rv@example.com', 'ai', ['sub_status' => 'active', 'subscription_id' => 'sub_RV', 'paid_through' => gmdate('Y-m-d H:i:s', time() + 5 * 86400)]);
+al_sub($conn, $rv, 'sub_RV', 'stripe');
+$GLOBALS['st_calls'] = [];
+$GLOBALS['st_routes']['DELETE /v1/subscriptions/sub_RV'] = ['status' => 200, 'json' => ['id' => 'sub_RV', 'status' => 'canceled']];
+$r = palette_admin_set_access($conn, AL_ADMIN, $rv, false, 'Abuse', false);
+$l = al_logs($conn, $rv);
+$d = json_decode($l[0]['detail'], true);
+ok('revoke subscriber (Stripe): DELETE the subscription now, row and licence cancelled', $r['ok'] === true && empty($r['warn'])
+    && ($GLOBALS['st_calls'][0]['method'] ?? '') === 'DELETE' && ($GLOBALS['st_calls'][0]['path'] ?? '') === '/v1/subscriptions/sub_RV'
+    && palette_sub_row($conn, 'subscription_id', 'sub_RV')['status'] === 'cancelled' && al_lrow($conn, $rv)['sub_status'] === 'cancelled' && al_lrow($conn, $rv)['revoked_at'] !== null);
+ok('revoke subscriber: same log row records the subscription', count($l) === 1 && $d['subscription']['before'] === 'active' && $d['subscription']['after'] === 'cancelled' && $d['subscription']['cancel_failed'] === false);
+$rf = al_lic($conn, 'SDT-RF00-RF00-RF00', 'rf@example.com', 'ai', ['sub_status' => 'active', 'subscription_id' => 'sub_RF', 'paid_through' => gmdate('Y-m-d H:i:s', time() + 5 * 86400)]);
+al_sub($conn, $rf, 'sub_RF', 'stripe');
+@unlink(sys_get_temp_dir() . '/palette-admin-licence-test.log');
+$GLOBALS['st_routes']['DELETE /v1/subscriptions/sub_RF'] = ['status' => 500, 'json' => []];
+$r = palette_admin_set_access($conn, AL_ADMIN, $rf, false, 'Abuse', false);
+$l = al_logs($conn, $rf);
+$d = json_decode($l[0]['detail'] ?? 'null', true);
+ok('revoke subscriber, Stripe fails: still revoked, warn cancel_failed, row stays active', $r['ok'] === true && ($r['warn'] ?? '') === 'cancel_failed'
+    && al_lrow($conn, $rf)['revoked_at'] !== null && palette_sub_row($conn, 'subscription_id', 'sub_RF')['status'] === 'active');
+ok('revoke subscriber, Stripe fails: logged in the same row and PALETTE_CANCEL_FAILED written', count($l) === 1 && $d['subscription']['cancel_failed'] === true
+    && str_contains((string)@file_get_contents(sys_get_temp_dir() . '/palette-admin-licence-test.log'), 'PALETTE_CANCEL_FAILED subscription=sub_RF'));
+$rt = palette_admin_page($conn, $admin, [], ['csrf' => str_repeat('a', 64), 'action' => 'change', 'id' => (string)$rf, 'access' => 'active', 'note' => 'Back'], 'POST');
+ok('restore access does not touch billing', str_contains($rt['headers']['Location'], 'ok=saved') && palette_sub_row($conn, 'subscription_id', 'sub_RF')['status'] === 'active'
+    && count(array_filter($GLOBALS['st_calls'], fn($x) => $x['path'] === '/v1/subscriptions/sub_RF')) === 1);
+$rr = al_lic($conn, 'SDT-RR00-RR00-RR00', 'rr@example.com', 'ai', ['sub_status' => 'active', 'subscription_id' => 'sub_RR', 'paid_through' => gmdate('Y-m-d H:i:s', time() + 5 * 86400)]);
+al_sub($conn, $rr, 'sub_RR', 'stripe');
+$GLOBALS['st_routes']['DELETE /v1/subscriptions/sub_RR'] = ['status' => 500, 'json' => []];
+$rt = palette_admin_page($conn, $admin, [], ['csrf' => str_repeat('a', 64), 'action' => 'change', 'id' => (string)$rr, 'access' => 'revoked', 'note' => 'Abuse'], 'POST');
+ok('revoke via the router with a failed cancel -> ?err=cancel_failed', str_contains($rt['headers']['Location'], 'err=cancel_failed') && al_lrow($conn, $rr)['revoked_at'] !== null);
+// refund also ends billing
+$rd = al_lic($conn, 'SDT-RD00-RD00-RD00', 'rd@example.com', 'ai', ['sub_status' => 'active', 'subscription_id' => 'sub_RD', 'paid_through' => gmdate('Y-m-d H:i:s', time() + 5 * 86400)]);
+al_sub($conn, $rd, 'sub_RD', 'stripe');
+$GLOBALS['st_routes']['DELETE /v1/subscriptions/sub_RD'] = ['status' => 200, 'json' => []];
+$r = palette_admin_set_payment($conn, AL_ADMIN, $rd, 'refunded', 'Refunded in Stripe', false);
+ok('refund of a subscriber also ends billing', $r['ok'] === true && palette_sub_row($conn, 'subscription_id', 'sub_RD')['status'] === 'cancelled');
+
+// ---- refund / restore mails
+$GLOBALS['mails'] = [];
+$mf = al_lic($conn, 'SDT-MF00-MF00-MF00', 'mf@example.com', 'pro');
+palette_admin_set_payment($conn, AL_ADMIN, $mf, 'refunded', 'Refunded', true);
+ok('refund mail says the key stopped working, not that it is unchanged', al_mails() === 1 && str_contains($GLOBALS['mails'][0]['html'], palette_h(palette_t('en', 'em_admin_change_body_refunded')))
+    && !str_contains($GLOBALS['mails'][0]['html'], palette_h(palette_t('en', 'em_admin_change_body_payment'))) && !str_contains(strtolower($GLOBALS['mails'][0]['html']), 'unchanged'));
+$GLOBALS['mails'] = [];
+palette_admin_set_access($conn, AL_ADMIN, $mf, true, 'Mistake', true);
+ok('restore mail has its own sentence', al_mails() === 1 && str_contains($GLOBALS['mails'][0]['html'], palette_h(palette_t('en', 'em_admin_change_body_restored'))));
+$allKeys = ['em_admin_change_subject', 'em_admin_change_body_revoked', 'em_admin_change_body_restored', 'em_admin_change_body_refunded', 'em_admin_change_body_payment',
+            'em_admin_change_body_until', 'em_admin_change_body_plan'];
+$missing = 0;
+foreach (PALETTE_LANGS as $lg) foreach ($allKeys as $k) if (!isset(palette_strings($lg)[$k])) $missing++;
+ok('admin change mail keys exist in all 7 languages', $missing === 0 && !isset(palette_strings('en')['em_admin_change_body_access']));
+
+// ---- until on a cancelled subscription row keeps the licence status
+$uc = al_lic($conn, 'SDT-UC00-UC00-UC00', 'uc@example.com', 'ai', ['sub_status' => 'cancelled', 'subscription_id' => 'sub_UC', 'paid_through' => '2026-11-01 10:00:00']);
+al_sub($conn, $uc, 'sub_UC', 'stripe', 'cancelled');
+$r = palette_admin_set_until($conn, AL_ADMIN, $uc, $future, 'Goodwill', false);
+ok('until: a cancelled subscription keeps sub_status, paid_through moves', $r['ok'] === true && al_lrow($conn, $uc)['sub_status'] === 'cancelled' && al_lrow($conn, $uc)['paid_through'] === "$future 23:59:59");
+
+// ---- +1 month
+ok('plus month: from a future paid_through, clamped to the month length', palette_admin_plus_month('2037-01-31 10:00:00') === '2037-02-28');
+ok('plus month: from the past it starts at now', palette_admin_plus_month('2020-01-01 00:00:00', strtotime('2026-12-15 12:00:00 UTC')) === '2027-01-15'
+    && palette_admin_plus_month(null, strtotime('2026-12-31 UTC')) === '2027-01-31');
+$pm = al_lic($conn, 'SDT-PM00-PM00-PM00', 'pm@example.com', 'ai', ['sub_status' => 'active', 'paid_through' => '2037-01-31 10:00:00']);
+$GLOBALS['mails'] = [];
+$rt = palette_admin_page($conn, $admin, [], ['csrf' => str_repeat('a', 64), 'action' => 'change', 'id' => (string)$pm, 'until' => '2037-01-31', 'plus_month' => '1', 'note' => 'Goodwill', 'notify' => '1'], 'POST');
+ok('plus month through the router: same note and notify rules', str_contains($rt['headers']['Location'], 'ok=saved') && al_lrow($conn, $pm)['paid_through'] === '2037-02-28 23:59:59'
+    && al_mails() === 1 && str_contains($GLOBALS['mails'][0]['html'], '2037-02-28'));
+$rt = palette_admin_page($conn, $admin, [], ['csrf' => str_repeat('a', 64), 'action' => 'change', 'id' => (string)$pm, 'plus_month' => '1', 'note' => ''], 'POST');
+ok('plus month without a reason is refused', str_contains($rt['headers']['Location'], 'err=note_required') && al_lrow($conn, $pm)['paid_through'] === '2037-02-28 23:59:59');
+
+// ---- several changes in one save: one mail, one log row each; validation before anything is applied
+$mc = al_lic($conn, 'SDT-MC00-MC00-MC00', 'mc@example.com', 'ai', ['sub_status' => 'active', 'paid_through' => '2037-01-31 10:00:00']);
+$GLOBALS['mails'] = [];
+$rt = palette_admin_page($conn, $admin, [], ['csrf' => str_repeat('a', 64), 'action' => 'change', 'id' => (string)$mc, 'access' => 'revoked', 'pay_status' => 'comp',
+    'plan' => 'ai', 'until' => '2037-03-01', 'note' => 'Bundle', 'notify' => '1'], 'POST');
+$mcl = al_logs($conn, $mc);
+ok('three changes in one save: 3 log rows, exactly 1 mail listing each', str_contains($rt['headers']['Location'], 'ok=saved') && count($mcl) === 3 && al_mails() === 1
+    && str_contains($GLOBALS['mails'][0]['html'], palette_h(palette_t('en', 'em_admin_change_body_revoked'))) && str_contains($GLOBALS['mails'][0]['html'], palette_h(palette_t('en', 'em_admin_change_body_payment')))
+    && str_contains($GLOBALS['mails'][0]['html'], '2037-03-01'));
+$ap = al_lic($conn, 'SDT-AP00-AP00-AP00', 'ap@example.com', 'pro');
+$GLOBALS['mails'] = [];
+$rt = palette_admin_page($conn, $admin, [], ['csrf' => str_repeat('a', 64), 'action' => 'change', 'id' => (string)$ap, 'plan' => 'ai', 'until' => '2026-13-40', 'access' => 'revoked',
+    'pay_status' => 'comp', 'note' => 'x', 'notify' => '1'], 'POST');
+ok('plan switch + bad date: nothing applied, no mail', str_contains($rt['headers']['Location'], 'err=until_bad') && al_lrow($conn, $ap)['plan'] === 'pro' && al_lrow($conn, $ap)['revoked_at'] === null
+    && al_lrow($conn, $ap)['pay_status'] === 'provider' && !al_logs($conn, $ap) && al_mails() === 0);
+$rt = palette_admin_page($conn, $admin, [], ['csrf' => str_repeat('a', 64), 'action' => 'change', 'id' => (string)$ap, 'plan' => 'ai', 'access' => 'revoked', 'note' => 'x', 'notify' => '1'], 'POST');
+ok('plan switch without a date + other changes: plan_needs_until, nothing applied', str_contains($rt['headers']['Location'], 'err=plan_needs_until') && al_lrow($conn, $ap)['revoked_at'] === null && !al_logs($conn, $ap));
+$rt = palette_admin_page($conn, $admin, [], ['csrf' => str_repeat('a', 64), 'action' => 'change', 'id' => (string)$ap, 'until' => gmdate('Y-m-d', time() + 86400), 'access' => 'revoked', 'note' => 'x'], 'POST');
+ok('a date on a Pro licence that stays Pro: until_pro, nothing applied', str_contains($rt['headers']['Location'], 'err=until_pro') && al_lrow($conn, $ap)['revoked_at'] === null);
+$conn->query("UPDATE palette_licenses SET plan = 'ai' WHERE id = $cf");
+$conn->query("UPDATE palette_subscriptions SET status = 'active' WHERE license_id = $cf");
+$GLOBALS['mails'] = [];
+$rt = palette_admin_page($conn, $admin, [], ['csrf' => str_repeat('a', 64), 'action' => 'change', 'id' => (string)$cf, 'plan' => 'pro', 'access' => 'revoked', 'note' => 'x'], 'POST');
+ok('ai -> pro with a live subscription + revoke: cancel_first, nothing applied', str_contains($rt['headers']['Location'], 'err=cancel_first') && al_lrow($conn, $cf)['revoked_at'] === null && al_lrow($conn, $cf)['plan'] === 'ai');
+$rt = palette_admin_page($conn, $admin, [], ['csrf' => str_repeat('a', 64), 'action' => 'change', 'id' => (string)$ap, 'plan' => 'ai', 'until' => gmdate('Y-m-d', time() + 5 * 86400), 'note' => 'Deal'], 'POST');
+ok('router: Pro -> Pro + AI with a date works and leaves working access', str_contains($rt['headers']['Location'], 'ok=saved') && palette_licence_access(al_lrow($conn, $ap))['ai'] === true);
 
 // ---- resend
 $GLOBALS['mails'] = [];
@@ -222,6 +344,14 @@ $r = palette_admin_page($conn, $admin, ['tab' => 'licence', 'id' => (string)$pro
 ok('flash: unknown code is not echoed', !str_contains($r['body'], 'evil'));
 $r = palette_admin_page($conn, $admin, ['tab' => 'licence', 'id' => (string)$pro, 'err' => 'note_required'], [], 'GET');
 ok('flash: err code -> fixed English message', str_contains($r['body'], 'Write a reason'));
+
+// ---- form hints and controls
+$h = palette_admin_page($conn, $admin, ['tab' => 'licence', 'id' => (string)$mf], [], 'GET')['body'];
+ok('page: Pro licence shows the date input with the switching label, +1 month and the revoke hint', str_contains($h, 'Pro + AI access until (needed when switching to Pro + AI)')
+    && str_contains($h, 'name="plus_month"') && str_contains($h, 'Revoking a subscriber also ends their subscription now. Restoring access later does not restart billing.'));
+$h = palette_admin_page($conn, $admin, ['tab' => 'licence', 'id' => (string)$rf], [], 'GET')['body'];
+ok('page: live subscriber sees the renewal hint', str_contains($h, 'An earlier date is replaced at the next renewal.'));
+ok('page: Pro without a subscription has no renewal hint', !str_contains(palette_admin_page($conn, $admin, ['tab' => 'licence', 'id' => (string)$mf], [], 'GET')['body'], 'replaced at the next renewal'));
 
 st_stub_reset($conn);
 $conn->query('DELETE FROM palette_ai_usage');

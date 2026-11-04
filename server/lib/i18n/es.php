@@ -285,7 +285,9 @@ return [
     'co_manage_billing_note' => 'Cambia tu tarjeta, consulta los recibos o cancela en la página segura de Stripe.',
     // Admin licence page (2026-11-04): change notice and billing-link emails.
     'em_admin_change_subject' => 'Tu licencia de Site to Design Token se ha actualizado',
-    'em_admin_change_body_access' => 'Hemos cambiado quién puede usar tu clave de Site to Design Token. Abre la extensión para ver su estado actual.',
+    'em_admin_change_body_revoked' => 'Tu clave de Site to Design Token se ha desactivado y ya no funciona. Si crees que es un error, responde a este correo.',
+    'em_admin_change_body_restored' => 'Tu clave de Site to Design Token vuelve a funcionar. Abre la extensión para continuar.',
+    'em_admin_change_body_refunded' => 'Se te ha reembolsado el pago, por lo que tu clave de Site to Design Token ya no funciona.',
     'em_admin_change_body_payment' => 'Hemos actualizado el registro de pago de tu licencia de Site to Design Token. La clave en sí no ha cambiado.',
     'em_admin_change_body_until' => 'Tu acceso a Pro + AI ahora dura hasta el {date}.',
     'em_admin_change_body_plan' => 'Tu plan de Site to Design Token ahora es {plan}.',
