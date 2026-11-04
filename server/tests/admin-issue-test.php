@@ -152,9 +152,17 @@ ok('issue pi_ ref: sessions listed by payment_intent, order fulfilled', $r['ok']
 $r2 = palette_admin_issue($conn, AI_ADMIN, 'kofi@example.gh', 'pro', 'paid_no_key', 'pi_3ByIntent', 'again', false);
 ok('issue pi_ ref: second time existing', $r2['existing'] === true && $r2['key'] === $r['key']);
 
-// ---- found but not paid -> admin licence, ref recorded
+// ---- found, not paid, but the checkout can still complete -> refused (order_pending), nothing issued
 $o = ai_order($conn, 'cs_live_NotPaid3', 'unpaid@example.com', 'es');
-$GLOBALS['st_routes']['GET /v1/checkout/sessions/cs_live_NotPaid3'] = ['status' => 200, 'json' => ai_paid_session($o, 'pi_x', 'unpaid')];
+$n = ai_count($conn, 'SELECT COUNT(*) FROM palette_licenses');
+foreach (['open' => ['status' => 'open', 'payment_status' => 'unpaid'], 'processing' => ['status' => 'complete', 'payment_status' => 'unpaid']] as $label => $over) {
+    $GLOBALS['st_routes']['GET /v1/checkout/sessions/cs_live_NotPaid3'] = ['status' => 200, 'json' => $over + ai_paid_session($o, 'pi_x', 'unpaid')];
+    $r = palette_admin_issue($conn, AI_ADMIN, 'unpaid@example.com', 'pro', 'paid_other', 'cs_live_NotPaid3', 'Paid by bank instead', false);
+    ok("issue order_pending: session $label -> refused, no licence, no log", $r === ['ok' => false, 'error' => 'order_pending']
+        && ai_count($conn, 'SELECT COUNT(*) FROM palette_licenses') === $n && !array_filter(ai_logs($conn, 'issue'), fn($x) => $x['order_ref'] === 'cs_live_NotPaid3'));
+}
+// ---- found, not paid, and the checkout expired -> admin licence, ref recorded
+$GLOBALS['st_routes']['GET /v1/checkout/sessions/cs_live_NotPaid3'] = ['status' => 200, 'json' => ['status' => 'expired'] + ai_paid_session($o, 'pi_x', 'unpaid')];
 $r = palette_admin_issue($conn, AI_ADMIN, 'unpaid@example.com', 'pro', 'paid_other', 'cs_live_NotPaid3', 'Paid by bank instead', false);
 $lic = $conn->query("SELECT * FROM palette_licenses WHERE license_key = '" . $r['key'] . "'")->fetch_assoc();
 $log = ai_logs($conn, 'issue');
@@ -163,6 +171,18 @@ ok('issue not paid in Stripe: admin licence, order untouched', $r['ok'] && $lic[
 ok('issue not paid in Stripe: ref and Stripe state in the log', end($log)['order_ref'] === 'cs_live_NotPaid3' && json_decode(end($log)['detail'], true)['stripe'] === 'not_paid');
 $r2 = palette_admin_issue($conn, AI_ADMIN, 'unpaid@example.com', 'pro', 'paid_other', 'cs_live_NotPaid3', 'Paid by bank instead', false);
 ok('issue not paid in Stripe: idempotent too', $r2['existing'] === true && $r2['key'] === $r['key']);
+
+// ---- a pending Pro + AI subscription checkout: open -> order_pending; expired -> admin licence
+$GLOBALS['st_routes']['POST /v1/checkout/sessions'] = ['status' => 200, 'json' => ['id' => 'cs_live_SubPend7', 'url' => 'https://checkout.stripe.com/c/pay/sp']];
+$sp = palette_st_sub_start($conn, 'live', 'subpend@example.com', 'en', true);
+$GLOBALS['st_routes']['GET /v1/checkout/sessions/cs_live_SubPend7'] = ['status' => 200, 'json' => ['id' => 'cs_live_SubPend7', 'status' => 'open', 'payment_status' => 'unpaid']];
+$r = palette_admin_issue($conn, AI_ADMIN, 'subpend@example.com', 'ai', 'paid_no_key', 'cs_live_SubPend7', 'x', false);
+ok('issue order_pending: open subscription checkout refused', $r === ['ok' => false, 'error' => 'order_pending']
+    && ai_count($conn, "SELECT COUNT(*) FROM palette_licenses WHERE email = 'subpend@example.com'") === 0);
+$GLOBALS['st_routes']['GET /v1/checkout/sessions/cs_live_SubPend7'] = ['status' => 200, 'json' => ['id' => 'cs_live_SubPend7', 'status' => 'expired', 'payment_status' => 'unpaid']];
+$r = palette_admin_issue($conn, AI_ADMIN, 'subpend@example.com', 'ai', 'paid_no_key', 'cs_live_SubPend7', 'x', false);
+ok('issue: expired subscription checkout -> admin licence', $r['ok'] === true && $r['existing'] === false
+    && $conn->query("SELECT source FROM palette_licenses WHERE license_key = '" . $r['key'] . "'")->fetch_row()[0] === 'admin');
 
 // ---- unknown cs_ (not a palette order): admin licence, no Stripe call
 $GLOBALS['st_calls'] = [];
@@ -232,6 +252,17 @@ $conn->query("INSERT INTO palette_orders (order_id, email, lang, amount_usd, sta
               VALUES ('ST-ABANDON', 'gone@example.com', 'en', 1.49, 'created', NOW(), '2026-11-04 10:00:00', 'stripe')");
 $l2 = palette_issue_license($conn, 'sub@example.com', 'sub_PAY1', 'fr', ['subscription_id' => 'sub_PAY1', 'paid_through' => '2026-12-04 00:00:00', 'period_start' => '2026-11-04 00:00:00'], 'stripe')['id'];
 $conn->query("INSERT INTO palette_sub_payments (subscription_id, sale_id, amount_usd, status, paid_at) VALUES ('sub_PAY1', 'in_PAY1', 3.99, 'completed', '2026-11-04 08:00:00')");
+$conn->query("INSERT INTO palette_subscriptions (subscription_id, email, lang, status, plan_id, license_id, consent_at, created_at, updated_at, provider, livemode, price_usd)
+              VALUES ('sub_PAY1', 'sub@example.com', 'fr', 'suspended', 'stripe', $l2, NOW(), NOW(), '2026-11-02 06:00:00', 'stripe', 1, 3.99),
+                     ('I-FAILEDPP1', 'pp-late@example.com', 'en', 'suspended', 'P-1', NULL, NOW(), NOW(), '2026-11-01 06:00:00', 'paypal', 1, 3.99),
+                     ('I-ACTIVEPP1', 'pp-ok@example.com', 'en', 'active', 'P-1', NULL, NOW(), NOW(), '2026-11-01 06:00:00', 'paypal', 1, 3.99)");
+$fr = palette_admin_failed_renewals($conn);
+ok('failed renewals: suspended Stripe and PayPal rows, oldest first', array_column($fr, 'email') === ['pp-late@example.com', 'sub@example.com']
+    && $fr[0]['provider'] === 'paypal' && $fr[1]['provider'] === 'stripe' && $fr[1]['price'] === '$3.99' && $fr[1]['licence_id'] === $l2 && $fr[0]['licence_id'] === null
+    && $fr[1]['since'] === '2026-11-02 06:00:00');
+$h = palette_admin_page($conn, $admin, ['tab' => 'payments'], [], 'GET')['body'];
+ok('payments tab: failed renewals listed above the payments', str_contains($h, 'Failed renewals') && strpos($h, 'Failed renewals') < strpos($h, '<th>Reference</th>')
+    && strpos($h, 'pp-late@example.com') < strpos($h, 'nokey@example.com') && !str_contains(substr($h, 0, strpos($h, '<th>Reference</th>')), 'pp-ok@example.com'));
 $rows = palette_admin_payments($conn);
 $emails = array_column($rows, 'email');
 ok('payments order: unfulfilled and failed first, then newest', $emails === ['nokey@example.com', 'fail@example.com', 'sub@example.com', 'paid@example.com']);
@@ -279,6 +310,16 @@ ok('move token: checked against a given clock', palette_admin_move_check($conn, 
 ok('move token: longer than 7 days refused', palette_admin_move_check($conn, palette_admin_move_token($conn, $mv, time() + 9 * 86400))['ok'] === false);
 $pro = palette_issue_license($conn, 'pro@example.com', 'ST-1', 'en', null, 'stripe')['id'];
 ok('move token: Pro licence not eligible', palette_admin_move_check($conn, palette_admin_move_token($conn, $pro, $exp)) === ['ok' => false, 'error' => 'not_eligible']);
+
+// ---- move link: refused unless Stripe is a checkout method and live is ready
+$stS = palette_stripe_settings($conn);
+foreach (['methods [paypal]' => ['checkout_methods' => ['paypal']], 'live not ready' => ['live' => ['error' => 'bad key'] + $stS['live']]] as $label => $over) {
+    palette_stripe_settings_put($conn, $over + $stS);
+    $GLOBALS['mails'] = [];
+    ok("move link: $label -> stripe_not_live, no mail, no log", palette_admin_move_link($conn, AI_ADMIN, $mv, '') === ['ok' => false, 'error' => 'stripe_not_live']
+        && !$GLOBALS['mails'] && !ai_logs($conn, 'move_link'));
+}
+palette_stripe_settings_put($conn, $stS);
 
 // ---- move link: emailed in the licence's language, logged without the token
 $GLOBALS['mails'] = [];
@@ -411,6 +452,61 @@ $fl = ai_logs($conn, 'move_paypal_cancel_failed');
 ok('move paypal cancel failure logged: admin log row on the licence', count($fl) === 1 && (int)$fl[0]['license_id'] === $cf);
 $h = palette_admin_page($conn, $admin, ['tab' => 'licence', 'id' => (string)$cf], [], 'GET')['body'];
 ok('move paypal cancel failure: the licence page shows it', str_contains($h, 'PayPal could not cancel') && str_contains($h, 'I-MOVEFAIL1'));
+
+// ---- C1: after a move, the customer's own cancel and portal act on the Stripe subscription, not the dead PayPal row
+$cfKey = ai_lic($conn, $cf)['license_key'];
+$GLOBALS['st_calls'] = [];
+$GLOBALS['st_routes']['POST /v1/subscriptions/sub_MOVED3'] = ['status' => 200, 'json' => ['id' => 'sub_MOVED3', 'cancel_at_period_end' => true]];
+$rc = palette_sub_cancel($conn, $cfKey, null, 'fail@example.es');
+ok('after move: customer cancel POSTs cancel_at_period_end to the Stripe subscription', $rc['ok'] === true
+    && in_array('POST /v1/subscriptions/sub_MOVED3', array_map(fn($x) => $x['method'] . ' ' . $x['path'], $GLOBALS['st_calls']), true)
+    && ($GLOBALS['st_calls'][0]['params']['cancel_at_period_end'] ?? '') === 'true');
+$conn->query("UPDATE palette_subscriptions SET status = 'active' WHERE subscription_id = 'sub_MOVED3'");
+$conn->query("UPDATE palette_licenses SET sub_status = 'active' WHERE id = $cf");
+$GLOBALS['st_routes']['POST /v1/billing_portal/sessions'] = ['status' => 200, 'json' => ['url' => 'https://billing.stripe.com/p/session/x']];
+$pr = palette_st_portal_url($conn, $cfKey, null, 'fail@example.es');
+ok('after move: the billing portal opens for the Stripe customer', $pr === ['ok' => true, 'url' => 'https://billing.stripe.com/p/session/x']);
+$sr = palette_admin_sub_row($conn, $cf);
+$h = palette_admin_page($conn, $admin, ['tab' => 'licence', 'id' => (string)$cf], [], 'GET')['body'];
+ok('after move: admin licence page shows the Stripe subscription', $sr['subscription_id'] === 'sub_MOVED3' && $sr['provider'] === 'stripe'
+    && str_contains($h, 'Send billing link') && !str_contains($h, 'value="move_link"'));
+
+// ---- reconcile retries the PayPal cancel the move could not do (licence untouched)
+$GLOBALS['pp_calls'] = [];
+$GLOBALS['pp_routes']['GET /v1/billing/subscriptions/I-MOVEFAIL1'] = ['status' => 200, 'json' => ['id' => 'I-MOVEFAIL1', 'status' => 'ACTIVE', 'plan_id' => 'P-1', 'billing_info' => []]];
+$GLOBALS['pp_routes']['POST /v1/billing/subscriptions/I-MOVEFAIL1/cancel'] = ['status' => 204, 'json' => []];
+$conn->query("UPDATE palette_subscriptions SET updated_at = '2000-01-01 00:00:00' WHERE subscription_id = 'I-MOVEFAIL1'");
+palette_sub_reconcile($conn);
+ok('reconcile after a move: the old PayPal subscription is cancelled, the licence stays on Stripe', palette_sub_row($conn, 'subscription_id', 'I-MOVEFAIL1')['status'] === 'cancelled'
+    && ai_lic($conn, $cf)['sub_status'] === 'active' && ai_lic($conn, $cf)['subscription_id'] === 'sub_MOVED3'
+    && !str_contains(palette_admin_page($conn, $admin, ['tab' => 'licence', 'id' => (string)$cf], [], 'GET')['body'], 'PayPal could not cancel'));
+
+// ---- I1: a refund of a PayPal payment made before the move does not revoke the Stripe-paid licence
+$conn->query("INSERT INTO palette_sub_payments (subscription_id, sale_id, amount_usd, status, paid_at) VALUES ('I-MOVEFAIL1', 'SALEOLD0001', 3.99, 'completed', '2026-10-01 00:00:00')");
+$out = palette_sub_event($conn, 'PAYMENT.SALE.REFUNDED', ['id' => 'REFUND0001', 'sale_id' => 'SALEOLD0001', 'amount' => ['total' => '3.99', 'currency' => 'USD']]);
+ok('old PayPal refund after move: licence not revoked', ai_lic($conn, $cf)['revoked_at'] === null);
+ok('old PayPal refund after move: refund recorded on the PayPal payment', $conn->query("SELECT status FROM palette_sub_payments WHERE sale_id = 'SALEOLD0001'")->fetch_row()[0] === 'refunded');
+ok('old PayPal refund after move: PALETTE_MOVE_OLD_REFUND logged and admin log row', str_contains(ai_errlog(), 'PALETTE_MOVE_OLD_REFUND licence=' . $cf)
+    && count(array_filter(ai_logs($conn, 'move_old_refund'), fn($x) => (int)$x['license_id'] === $cf)) === 1);
+ok('old PayPal refund after move: shown in the licence history', str_contains(palette_admin_page($conn, $admin, ['tab' => 'licence', 'id' => (string)$cf], [], 'GET')['body'], 'the key was not revoked'));
+
+// ---- I2: a refused move whose Stripe cancel fails transiently stays pending and retries
+$GLOBALS['st_routes']['POST /v1/checkout/sessions'] = ['status' => 200, 'json' => ['id' => 'cs_live_Move5', 'url' => 'https://checkout.stripe.com/c/pay/m5']];
+$or = ai_pp_licence($conn, 'or@example.es', 10 * 86400, 'I-MOVEORPH1');
+ai_api('st_checkout', ['plan' => 'ai', 'consent' => '1', 'move' => palette_admin_move_token($conn, $or, $exp)]);
+$srow5 = $conn->query("SELECT * FROM palette_subscriptions WHERE stripe_session = 'cs_live_Move5'")->fetch_assoc();
+$conn->query("UPDATE palette_licenses SET revoked_at = NOW() WHERE id = $or");
+$GLOBALS['st_routes']['DELETE /v1/subscriptions/sub_MOVED5'] = ['status' => 503, 'json' => []];
+$f = palette_st_fulfil_sub($conn, $srow5, ai_move_session($srow5, 'sub_MOVED5'));
+$r5 = palette_sub_row($conn, 'id', (int)$srow5['id']);
+ok('refused move, Stripe cancel 503: retry, row still pending, licence untouched', $f['ok'] === false && !empty($f['retry']) && $r5['status'] === 'pending'
+    && $r5['license_id'] === null && ai_lic($conn, $or)['subscription_id'] === 'I-MOVEORPH1');
+ok('refused move, Stripe cancel 503: admin log move_orphan_cancel_failed on the licence', count(array_filter(ai_logs($conn, 'move_orphan_cancel_failed'), fn($x) => (int)$x['license_id'] === $or)) === 1
+    && str_contains(ai_errlog(), 'PALETTE_CANCEL_FAILED subscription=sub_MOVED5'));
+$GLOBALS['st_routes']['DELETE /v1/subscriptions/sub_MOVED5'] = ['status' => 200, 'json' => ['id' => 'sub_MOVED5', 'status' => 'canceled']];
+$f = palette_st_fulfil_sub($conn, $srow5, ai_move_session($srow5, 'sub_MOVED5'));
+ok('refused move, retry: the cancel goes through and the row is closed', $f['ok'] === false && empty($f['retry'])
+    && palette_sub_row($conn, 'id', (int)$srow5['id'])['status'] === 'cancelled' && count(ai_logs($conn, 'move_orphan_cancel_failed')) === 1);
 
 // ---- move refused at fulfil: the licence changed hands meanwhile
 $GLOBALS['st_routes']['POST /v1/checkout/sessions'] = ['status' => 200, 'json' => ['id' => 'cs_live_Move4', 'url' => 'https://checkout.stripe.com/c/pay/m4']];

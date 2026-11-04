@@ -367,8 +367,7 @@ function palette_st_fulfil_sub(mysqli $c, array $row, array $session): array
                 : (strcasecmp((string)$k['email'], (string)$row['email']) !== 0 ? 'email differs' : ($used ? 'already moved' : null))));
             if ($refused !== null) {
                 $c->rollback();
-                palette_st_move_refused($c, $row, $sid, $cust, $refused);
-                return $no;
+                return palette_st_move_refused($c, $row, $move, $sid, $cust, $refused) ? $no : $no + ['retry' => true];
             }
             $oldSub = $k['subscription_id'];
             $livemode = (int)$row['livemode'];
@@ -399,19 +398,29 @@ function palette_st_fulfil_sub(mysqli $c, array $row, array $session): array
     return ['ok' => true, 'key' => $lic['key'], 'already' => false];
 }
 
-// A move-to-card subscription whose licence can no longer take it: nothing re-pointed, the Stripe subscription is cancelled
-// (it backs no key) and the row closed, so a webhook redelivery does not try again. The admin is alerted through the log.
-function palette_st_move_refused(mysqli $c, array $row, string $sid, ?string $cust, string $why): void
+// A move-to-card subscription whose licence can no longer take it: nothing re-pointed, and the Stripe subscription (it backs
+// no key, and a trial would charge later) is cancelled now. True when the row is closed. A DELETE that failed transiently
+// (0/429/5xx) returns false and leaves the row pending, so the caller answers retry: the webhook redelivers and the nightly
+// reconcile confirms it again, and each attempt retries the cancel. Any failed cancel also writes admin log
+// 'move_orphan_cancel_failed' on the licence, so the licence page shows it.
+function palette_st_move_refused(mysqli $c, array $row, int $licenceId, string $sid, ?string $cust, string $why): bool
 {
     $id = (int)$row['id'];
-    error_log("PALETTE_PAID_UNFULFILLED sub=$id move refused: $why; Stripe subscription $sid cancelled, refund it if it was charged");
+    error_log("PALETTE_PAID_UNFULFILLED sub=$id move refused: $why; cancelling Stripe subscription $sid, refund it if it was charged");
     $mode = (int)$row['livemode'] === 1 ? 'live' : 'test';
-    palette_st_cancel_sub($c, $mode, ['id' => $id, 'subscription_id' => $sid, 'license_id' => null], 'refused move to card');
+    $r = palette_st_api($c, $mode, 'DELETE', 'subscriptions/' . rawurlencode($sid));
+    $s = (int)$r['status'];
+    if (!(($s >= 200 && $s < 300) || $s === 404)) {
+        error_log("PALETTE_CANCEL_FAILED subscription=$sid after refused move to card (HTTP $s); cancel it in Stripe by hand");
+        palette_admin_log($c, 0, 'move_orphan_cancel_failed', $licenceId, $sid, ['row' => $id, 'why' => $why, 'http' => $s], null);
+        if ($s === 0 || $s === 429 || $s >= 500) return false;
+    }
     $now = palette_sub_now();
     $st = $c->prepare("UPDATE palette_subscriptions SET status = 'cancelled', subscription_id = ?, stripe_customer = ?, updated_at = ? WHERE id = ? AND status = 'pending'");
     $st->bind_param('sssi', $sid, $cust, $now, $id);
     $st->execute();
     $st->close();
+    return true;
 }
 
 // After a move to card: cancel the PayPal subscription the licence left. A failure logs PALETTE_CANCEL_FAILED and an admin log

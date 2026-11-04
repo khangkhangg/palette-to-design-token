@@ -233,7 +233,8 @@ const PALETTE_ADMIN_MESSAGES = [
         'bad_reason'    => 'Choose why the key is issued.',
         'bad_ref'       => 'A payment reference may hold letters, digits and _ - . : / only (Stripe: cs_... or pi_...).',
         'ref_other_email' => 'That payment reference already has a key for a different email. Check the reference, or leave it empty.',
-        'ref_subscription' => 'That Stripe checkout is a Pro + AI subscription that has no key yet. Its key is issued when Stripe confirms it; check it in Stripe first.',
+        'order_pending' => 'That Stripe checkout is not paid yet but may still complete, and then it gets its own key. Check it in Stripe, or issue the key once the checkout has expired.',
+        'stripe_not_live' => 'Card payments are not on: connect Stripe Live and turn Stripe on in the checkout methods first.',
     ],
 ];
 
@@ -392,7 +393,10 @@ function palette_admin_licence_row(mysqli $c, int $id): ?array
 // The subscription row of a licence with the licence fields palette_sub_cancel_row needs, or null.
 function palette_admin_sub_row(mysqli $c, int $licenceId): ?array
 {
+    // The row that backs the licence: the one whose subscription id the licence holds (a moved licence's old PayPal row keeps
+    // its license_id); the newest row only when the licence holds none.
     $st = $c->prepare('SELECT s.*, l.user_id, l.paid_through, l.revoked_at FROM palette_licenses l JOIN palette_subscriptions s ON s.license_id = l.id
+                         AND (l.subscription_id IS NULL OR s.subscription_id <=> l.subscription_id)
                        WHERE l.id = ? AND s.subscription_id IS NOT NULL ORDER BY s.id DESC LIMIT 1');
     $st->bind_param('i', $licenceId);
     $st->execute();
@@ -813,6 +817,8 @@ function palette_admin_log_text(array $r): string
         'move_link'    => 'Emailed a move-to-card link',
         'move_used'    => 'Moved to card payments with Stripe; the key stayed the same',
         'move_paypal_cancel_failed' => 'Could not cancel the PayPal subscription after the move to card',
+        'move_old_refund' => 'PayPal refunded a payment made before the move to card; the key was not revoked (decide by hand)',
+        'move_orphan_cancel_failed' => 'Could not cancel a refused move-to-card Stripe subscription; cancel it in Stripe',
         default        => ucfirst(str_replace('_', ' ', (string)$r['action'])),
     };
 }
@@ -1117,7 +1123,17 @@ function palette_admin_issue_locked(mysqli $c, int $adminId, string $email, stri
         if ($o && $o['license_id'] !== null && ($l = palette_admin_key_by($c, 'id', (int)$o['license_id']))) return $existing($l, ['linked' => true]);
         if (!$o && str_starts_with($ref, 'cs_') && ($s = palette_st_row_by_session($c, 'palette_subscriptions', $ref))) {
             if ($s['license_id'] !== null && ($l = palette_admin_key_by($c, 'id', (int)$s['license_id']))) return $existing($l, ['linked' => true]);
-            if ($s['status'] === 'pending') return ['ok' => false, 'error' => 'ref_subscription'];
+            if ($s['status'] === 'pending') {
+                // Ask Stripe (palette_st_confirm_sub fulfils a paid session exactly as the return page would).
+                $cf = palette_st_confirm_sub($c, $s, $ref);
+                if ($cf['state'] === 'error') return ['ok' => false, 'error' => 'stripe'];
+                if ($cf['state'] === 'waiting') return ['ok' => false, 'error' => 'order_pending'];
+                if ($cf['state'] === 'paid' && is_string($cf['key']) && ($l = palette_admin_key_by($c, 'key', $cf['key']))) {
+                    palette_admin_log($c, $adminId, 'issue', (int)$l['id'], $ref, $detail + ['linked' => true, 'existing' => false], $note);
+                    return ['ok' => true, 'key' => (string)$l['license_key'], 'existing' => false, 'licence_id' => (int)$l['id'], 'mailed' => true, 'email' => (string)$l['email']];
+                }
+                $detail['stripe'] = 'expired';   // failed: the session expired or was refused, nothing will complete it
+            }
         }
         if ($res['error'] !== null) return ['ok' => false, 'error' => 'stripe'];
         if ($o && $res['session'] !== null && ($res['session']['payment_status'] ?? '') === 'paid') {
@@ -1130,7 +1146,11 @@ function palette_admin_issue_locked(mysqli $c, int $adminId, string $email, stri
                 return ['ok' => true, 'key' => (string)$l['license_key'], 'existing' => false, 'licence_id' => (int)$l['id'], 'mailed' => true, 'email' => (string)$l['email']];
             }
             $detail['stripe'] = 'refused';   // paid, but the order could not take it (amount mismatch, failed order): issued by hand below
-        } else {
+        } elseif ($o && $o['status'] === 'created' && ($res['session']['status'] ?? '') !== 'expired') {
+            // Not paid yet, but the checkout can still complete (open, or an async payment processing): a key issued now would
+            // be a second one when it does.
+            return ['ok' => false, 'error' => 'order_pending'];
+        } elseif (!isset($detail['stripe'])) {   // (an expired subscription checkout above already set it)
             $detail['stripe'] = $o ? 'not_paid' : 'not_found';
         }
     }
@@ -1269,8 +1289,37 @@ function palette_admin_payments(mysqli $c, int $limit = 100): array
 const PALETTE_ADMIN_PAY_STATES = ['paid' => ['Paid', 'pill-ok'], 'unfulfilled' => ['Paid, no key', 'pill-bad'], 'failed' => ['Failed', 'pill-warn'],
     'refunded' => ['Refunded', 'pill-plain'], 'reversed' => ['Reversed', 'pill-plain']];
 
+// Subscriptions whose renewal failed (status 'suspended', Stripe or PayPal), oldest failure first. Only the row that backs its
+// licence (a moved licence's old PayPal row is not listed). Each: email, provider, price ('$3.99'), since (updated_at), licence_id.
+function palette_admin_failed_renewals(mysqli $c, int $limit = 100): array
+{
+    $limit = max(1, min(500, $limit));
+    $out = [];
+    $q = $c->query("SELECT s.email AS s_email, s.provider, s.price_usd, s.updated_at, s.livemode, l.id AS lid, l.email AS l_email
+        FROM palette_subscriptions s LEFT JOIN palette_licenses l ON l.id = s.license_id
+        WHERE s.status = 'suspended' AND (l.id IS NULL OR l.subscription_id IS NULL OR l.subscription_id = s.subscription_id)
+        ORDER BY s.updated_at, s.id LIMIT $limit");
+    foreach ($q as $r) {
+        $out[] = ['email' => (string)($r['l_email'] ?? $r['s_email']), 'provider' => (string)$r['provider'],
+            'price' => $r['price_usd'] === null ? '' : palette_admin_usd((string)$r['price_usd']), 'since' => (string)$r['updated_at'],
+            'licence_id' => $r['lid'] === null ? null : (int)$r['lid'], 'livemode' => (int)$r['livemode']];
+    }
+    return $out;
+}
+
 function palette_admin_tab_payments(mysqli $c, array $session, array $query): array
 {
+    $failed = '';
+    foreach (palette_admin_failed_renewals($c) as $f) {
+        $test = $f['livemode'] === 0 ? ' <span class="badge badge-test">Test</span>' : '';
+        $failed .= '<tr><td class="muted">' . palette_h(palette_admin_date($f['since'], 'j M Y, H:i')) . '</td><td>' . palette_h($f['email']) . '</td>'
+            . '<td>' . palette_h($f['price']) . '</td><td>' . palette_h($f['provider'] === 'stripe' ? 'Stripe' : 'PayPal') . $test . '</td>'
+            . '<td><span class="pill pill-warn">Renewal failed</span></td><td class="end">'
+            . ($f['licence_id'] !== null ? '<a class="btn btn-sm" href="' . palette_h(palette_admin_url('licence', ['id' => $f['licence_id']])) . '">Open licence</a>' : '') . '</td></tr>';
+    }
+    $failedHtml = $failed === '' ? '' : '<section class="card"><h2 class="card-title">Failed renewals</h2><p class="hint card-note">Subscriptions whose last renewal did not go through. '
+        . 'Access ends at the paid-through date unless a retried payment succeeds.</p><div class="table-wrap"><table><thead><tr><th>Since</th><th>Email</th>'
+        . '<th>Price</th><th>Provider</th><th>Status</th><th><span class="sr-only">Licence</span></th></tr></thead><tbody>' . $failed . '</tbody></table></div></section>';
     $body = '';
     foreach (palette_admin_payments($c) as $p) {
         [$label, $cls] = PALETTE_ADMIN_PAY_STATES[$p['status']] ?? [$p['status'], 'pill-plain'];
@@ -1288,7 +1337,7 @@ function palette_admin_tab_payments(mysqli $c, array $session, array $query): ar
             . '<td class="end">' . $link . '</td></tr>';
     }
     if ($body === '') $body = '<tr><td colspan="7" class="empty-cell">No payments yet.</td></tr>';
-    return ['title' => 'Payments', 'html' => '<section class="card"><p class="hint card-note">Paid without a key and failed payments first, then the newest. Times are UTC.</p>'
+    return ['title' => 'Payments', 'html' => $failedHtml . '<section class="card"><p class="hint card-note">Paid without a key and failed payments first, then the newest. Times are UTC.</p>'
         . '<div class="table-wrap"><table><thead><tr><th>Date</th><th>Email</th><th>Amount</th><th>Provider</th><th>Status</th><th>Reference</th>'
         . '<th><span class="sr-only">Licence</span></th></tr></thead><tbody>' . $body . '</tbody></table></div></section>'];
 }
@@ -1375,6 +1424,8 @@ function palette_admin_move_link(mysqli $c, int $adminId, int $licenceId, string
     $lic = palette_admin_licence_row($c, $licenceId);
     if (!$lic) return ['ok' => false, 'error' => 'not_found'];
     if (!palette_admin_move_paypal_row($c, $lic)) return ['ok' => false, 'error' => 'not_paypal'];
+    // The link leads to a live Stripe checkout: it must be able to take the card.
+    if (!in_array('stripe', palette_stripe_settings($c)['checkout_methods'], true) || !palette_stripe_ready($c, 'live')) return ['ok' => false, 'error' => 'stripe_not_live'];
     $exp = time() + PALETTE_MOVE_TTL;
     $lang = palette_lang((string)$lic['lang']);
     $url = PALETTE_MOVE_URL . palette_admin_move_token($c, $licenceId, $exp) . '&lang=' . rawurlencode($lang);

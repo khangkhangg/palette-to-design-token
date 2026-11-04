@@ -666,8 +666,17 @@ function palette_sub_refund(mysqli $c, string $type, array $res): string
         $ins->execute();
         $ins->close();
     }
-    if ($row['license_id'] !== null) {
-        $lid = (int)$row['license_id'];
+    $lid = $row['license_id'] !== null ? (int)$row['license_id'] : null;
+    $backs = $lid === null ? null : $c->query("SELECT subscription_id FROM palette_licenses WHERE id = $lid")->fetch_row();
+    if ($backs !== null && $backs[0] !== null && $backs[0] !== $sid) {
+        // A refund of a PayPal payment made before this licence moved to card: the licence is paid by Stripe now, so it is not
+        // revoked. Recorded above; the admin decides (licence page history).
+        error_log("PALETTE_MOVE_OLD_REFUND licence=$lid subscription=$sid sale=" . ($saleId ?? '-') . " $type; licence moved to card, not revoked");
+        palette_admin_log($c, 0, 'move_old_refund', $lid, $sid, ['sale' => $saleId, 'type' => $type], null);
+        if (in_array($row['status'], ['active', 'suspended'], true)) palette_sub_stop_billing($c, $row, $sid, $type);
+        return 'recorded';
+    }
+    if ($lid !== null) {
         $now = palette_sub_now();
         $rev = $c->prepare('UPDATE palette_licenses SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL');
         $rev->bind_param('si', $now, $lid);
@@ -690,8 +699,11 @@ function palette_sub_owned_row(mysqli $c, string $rawKey, ?int $userId, ?string 
 {
     $key = palette_normalise_key($rawKey);
     if ($key === null) return ['ok' => false, 'error' => 'err_invalid_key'];
+    // The row that backs the licence (after a move to card the old PayPal row keeps its license_id): the one whose subscription
+    // id the licence holds; the newest row only when the licence holds none.
     $st = $c->prepare("SELECT s.*, l.user_id, l.paid_through, l.revoked_at FROM palette_licenses l JOIN palette_subscriptions s ON s.license_id = l.id
-                       WHERE l.license_key = ? AND l.plan = 'ai'");
+                         AND (l.subscription_id IS NULL OR s.subscription_id <=> l.subscription_id)
+                       WHERE l.license_key = ? AND l.plan = 'ai' ORDER BY s.id DESC LIMIT 1");
     $st->bind_param('s', $key);
     $st->execute();
     $row = $st->get_result()->fetch_assoc();
@@ -748,7 +760,7 @@ function palette_sub_reconcile(mysqli $c): array
 {
     $now = palette_sub_now();
     $limit = PALETTE_SUB_RECONCILE_BATCH;
-    $st = $c->prepare("SELECT s.*, l.period_start AS lic_period_start, l.revoked_at AS lic_revoked_at
+    $st = $c->prepare("SELECT s.*, l.period_start AS lic_period_start, l.revoked_at AS lic_revoked_at, l.subscription_id AS lic_subscription_id
                        FROM palette_subscriptions s JOIN palette_licenses l ON l.id = s.license_id
                        WHERE s.subscription_id IS NOT NULL AND s.provider = 'paypal'
                          AND ((l.revoked_at IS NULL AND (s.status IN ('active', 'suspended') OR (s.status = 'cancelled' AND l.paid_through >= ?)))
@@ -773,6 +785,14 @@ function palette_sub_reconcile(mysqli $c): array
             $sub = $g['sub'];
             $to = $map[$sub['status']];
             $changed = false;
+            if ($row['lic_subscription_id'] !== null && $row['lic_subscription_id'] !== $row['subscription_id']) {
+                // The licence moved to card and this PayPal subscription no longer backs it: while PayPal still bills it, the
+                // cancel the move could not do is retried; never extended. set_status leaves the licence alone (not its row).
+                if ($to === 'active' || $to === 'suspended') $changed = palette_sub_stop_billing($c, $row, (string)$row['subscription_id'], 'reconcile after a move to card');
+                else $changed = palette_sub_set_status($c, $row, $to, [$row['status']]);
+                if ($changed) $out['changed']++;
+                continue;
+            }
             if ($row['lic_revoked_at'] !== null) {
                 // Refunded, but PayPal may still bill: stop it; never extend.
                 if ($to === 'active' || $to === 'suspended') $changed = palette_sub_stop_billing($c, $row, (string)$row['subscription_id'], 'reconcile of a refunded subscription');
