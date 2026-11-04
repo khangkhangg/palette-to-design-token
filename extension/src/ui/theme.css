@@ -49,8 +49,6 @@
   --code-bg: light-dark(#14161C, #0B0D11);
   --code-ink: #D8DBE4;
   --perk-bg: light-dark(#EEF0FF, #232848);
-  --checkout: #FFC439;
-  --checkout-ink: #0B1D3A;
   --scrim: light-dark(rgba(16, 24, 40, .4), rgba(0, 0, 0, .6));
   --mark-tail: light-dark(#3B4BD8, #7C8BFF);
   /* AI insights */
@@ -463,9 +461,10 @@ body.sidepanel, body.sidepanel #app { block-size: 100vh; }
 /* Unlock sheet (overlay and full-panel) */
 .unlock-page { display: flex; flex-direction: column; block-size: 100%; overflow-y: auto; background: var(--bg); }
 .checkout-btn {
-  block-size: 48px; border: 0; border-radius: 12px; background: var(--checkout); color: var(--checkout-ink);
+  block-size: 48px; border: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent);
   display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 15px; font-weight: 700;
 }
+.checkout-btn:hover { background: var(--accent-hover); }
 .key-row { display: flex; gap: 8px; }
 .key-field { flex: 1; min-inline-size: 0; display: flex; }
 .key-input {
