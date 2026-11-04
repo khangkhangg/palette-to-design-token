@@ -65,8 +65,9 @@ Migration (idempotent, in `lib/db.php`):
   `pay_status ENUM('provider','manual_paid','comp','refunded') NOT NULL DEFAULT 'provider'`.
 - New `palette_admin_log`: `id, license_id NULL, order_id NULL, admin_user_id, action VARCHAR(40),
   detail JSON, note VARCHAR(500), created_at`. History on the licence page reads this plus payments.
+- `palette_licenses.livemode TINYINT(1) NOT NULL DEFAULT 1` (0 = bought in Stripe test mode).
 - Settings key `palette_stripe` (JSON, never printed, never sent to the browser in full):
-  `{"use": "live"|"test", "live": {"source": "shared"|"own", "secret", "webhook_id",
+  `{"live": {"source": "shared"|"own", "secret", "webhook_id",
   "webhook_secret", "checked_at", "error"}, "test": {...same, source always "own"}}`.
 
 Existing rows default to `paypal` / `provider`, so nothing changes for them.
@@ -104,7 +105,7 @@ Webhook events (palette's own endpoint, only rows it created; anything else answ
 |---|---|
 | `checkout.session.completed`, `checkout.session.async_payment_succeeded` | Fulfil order or subscription (above). |
 | `invoice.paid` | Record in `palette_sub_payments` (idempotent on invoice id); extend `paid_through` to the line's period end; reset the usage period when it moved. |
-| `invoice.payment_failed` | Status `past_due`; nothing else (the grace keeps access to `paid_through` + 48 h). |
+| `invoice.payment_failed` | Status `suspended` (the existing "payment problem" state; admin shows "Payment failed"); nothing else (the grace keeps access to `paid_through` + 48 h). |
 | `customer.subscription.updated` | Sync status and `cancel_at_period_end`. |
 | `customer.subscription.deleted` | Status `cancelled`/`expired`; access ends at `paid_through` + 48 h. |
 | `charge.refunded` (full), `charge.dispute.created` | Revoke the licence, as PayPal refunds do; cancel the subscription if any. |
@@ -132,8 +133,12 @@ Stripe's message), key hint (`sk_live_…a1B2`), webhook status, last checked ti
 - **Test connection**: re-checks the key, GETs the stored webhook endpoint (exists, enabled, right
   URL and events), and reports each check with a pass or fail line. Read-only.
 - **Disconnect**: deletes palette's webhook endpoint in that mode and clears the stored key.
-- **Checkout uses**: Live / Test switch. In Test, the checkout page shows a "Test mode — use card
-  4242 4242 4242 4242" banner to everyone, and admin pages show a test badge.
+- **Test checkout is admins only.** The public checkout always uses Live. A signed-in admin opens
+  `/palette/checkout?test=1` (linked from the Test card) to pay with the Test key; the page shows a
+  "Test mode — use card 4242 4242 4242 4242" banner. Anyone else asking for `?test=1` gets the
+  live page. Keys from test-mode payments are marked `test` (licence column `livemode=0`), expire
+  7 days after issue, and show a Test badge in admin. (Replaces a public Live/Test switch, which
+  would let anyone get a working key with Stripe's public test card.)
 - **Payment methods on checkout**: Stripe only / PayPal only / both, and which shows first when
   both (setting `checkout_methods`, replacing the `paypal_on_checkout` flag; starts as Stripe only).
   A method that is not connected cannot be switched on; the control says why. If every chosen
@@ -176,7 +181,7 @@ All require an admin session, CSRF on every POST, and log to `palette_admin_log`
 
 - One button per plan: "Pay $1.49 by card" / "Subscribe for $3.99 a month". A line under it:
   "Card, Apple Pay or Google Pay on Stripe's secure page. We never see your card."
-- "Payments are paused" only when the selected Stripe mode is not connected.
+- "Payments are paused" only when no chosen method is connected (Stripe: the Live connection).
 - Pro + AI is offered when Stripe is connected (no PayPal plan needed).
 - Return states: paid (key), waiting (Stripe still processing; the page polls for 30 s, then says the
   email will follow), cancelled (back to the form, nothing charged), failed.
@@ -199,15 +204,16 @@ All require an admin session, CSRF on every POST, and log to `palette_admin_log`
   return confirm, double fulfil race, mismatch, each webhook event, signature (good, bad, stale,
   test vs live secret), cancel branch, cron reconcile, connect / test connection / disconnect,
   settings never leaking secrets, every admin action and its log row, admin 403 for non-admins,
-  CSRF.
+  CSRF, `?test=1` ignored for non-admins, test keys expiring after 7 days.
 - Checkout e2e (Playwright, local PHP, fake Stripe): Stripe-only page, pay redirect, return states,
-  test-mode banner, 7 languages fit.
+  admin test-mode banner, 7 languages fit.
 - Extension: unit and e2e for the new copy; package check.
 - Live rehearsal after deploy: Test mode with 4242 card for both plans, renewal via Stripe's test
   clock or a manual invoice, cancel, refund → revoke; then switch checkout to Live.
 
 ## Rollout
 
-1. Deploy server (backup first, migrate), connect Test, rehearse on production in test mode.
-2. Owner reviews; connect Live (shared key), switch checkout to Live.
+1. Deploy server (backup first, migrate) with checkout methods still as today; connect Test and
+   rehearse on production through the admin-only test checkout.
+2. Owner reviews; connect Live (shared key) and set checkout methods to Stripe only.
 3. Publish extension 0.3.0 (direct zip now; Store upload by the owner).
