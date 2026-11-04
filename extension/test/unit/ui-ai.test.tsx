@@ -89,7 +89,7 @@ describe('AI section: not subscribed (G)', () => {
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByRole('heading', { name: 'Choose your plan' })).toBeTruthy();
     expect((within(dialog).getByRole('radio', { name: /Pro \+ AI/ }) as HTMLInputElement).checked).toBe(true);
-    fireEvent.click(within(dialog).getByRole('button', { name: /Subscribe with PayPal/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: /Subscribe/ }));
     expect(create).toHaveBeenCalledWith({ url: 'https://vietnamcos.com/palette/checkout?lang=en&ext=abcdefghijklmnopabcdefghijklmnop&plan=ai' });
     expect(mocks.analyse).not.toHaveBeenCalled();
   });
@@ -437,12 +437,12 @@ describe('PlanSheet (J)', () => {
     expect(screen.getByText(
       'All sales are final. Because Pro unlocks instantly and costs $1.49, we do not offer refunds after purchase.',
     )).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /Pay \$1\.49 with PayPal/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Pay \$1\.49/ }));
     expect(create).toHaveBeenLastCalledWith({ url: 'https://vietnamcos.com/palette/checkout?lang=en&ext=abcdefghijklmnopabcdefghijklmnop&plan=pro' });
     fireEvent.click(screen.getByRole('radio', { name: /Pro \+ AI/ }));
-    expect(screen.getByText(/Billed monthly through PayPal/)).toBeTruthy();
+    expect(screen.getByText(/Billed monthly by card/)).toBeTruthy();
     for (const item of ['Everything in Pro', '100 AI analyses a month', 'Cancel any time from your account']) expect(screen.getByText(item)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /Subscribe with PayPal/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Subscribe/ }));
     expect(create).toHaveBeenLastCalledWith({ url: expect.stringMatching(/&plan=ai$/) });
   });
 

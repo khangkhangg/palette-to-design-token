@@ -1,4 +1,4 @@
-# Submitting Site to Design Token 0.2.1 to the Chrome Web Store
+# Submitting Site to Design Token 0.3.0 to the Chrome Web Store
 
 A field-by-field guide for the Chrome Web Store Developer Dashboard, in the order the dashboard shows the tabs and
 fields. The item is already registered: its id is `jknkphgicofbpibajdcjncfdkbbehbgn`.
@@ -7,13 +7,13 @@ All paths are relative to the repository root. Text in code blocks is the exact 
 
 ## 1. Package
 
-Upload `extension/site-to-design-token-0.2.1.zip`.
+Upload `extension/site-to-design-token-0.3.0.zip`.
 
 - This is the Store build: its manifest has no `key` field (the Web Store assigns the id). Do not upload
   `site-to-design-token-0.1.0-direct.zip` or any `-direct` zip; those carry the key and are for loading unpacked.
 - Rebuild it with `npm run package` in `extension/` if the source has changed since 2026-10-17
   (`npm run package:check` verifies it).
-- Version 0.2.1. The title and the short description (summary) come from the package's `_locales/<lang>/messages.json`
+- Version 0.3.0. The title and the short description (summary) come from the package's `_locales/<lang>/messages.json`
   and cannot be edited in the dashboard. They match the "Title" and "Short description" sections of each
   `listing.<lang>.md`.
 
@@ -169,7 +169,7 @@ From the "Data disclosure" section of `docs/store/listing.en.md`. Tick these dat
   vietnamcos.com; used to deliver and resend licence keys and for billing). The dashboard lists email address under this
   type, not under Personal communications.
 - Health information: No.
-- Financial and payment information: No (PayPal handles payment on vietnamcos.com).
+- Financial and payment information: No (Stripe handles payment on vietnamcos.com; card details never reach us).
 - Authentication information: Yes (the licence key, to check that Pro or Pro + AI is active).
 - Personal communications: No.
 - Location: No.
@@ -194,7 +194,7 @@ https://vietnamcos.com/palette/privacy
 ## 4. Distribution
 
 - Payments: Free of charge. Tick "Contains in-app purchases": Pro (one-time $1.49) and Pro + AI ($3.99 a month) are
-  bought on vietnamcos.com through PayPal, not through the Chrome Web Store.
+  bought on vietnamcos.com by card, Apple Pay or Google Pay (processed by Stripe), not through the Chrome Web Store.
 - Visibility: Public.
 - Distribution: All regions.
 
@@ -209,15 +209,14 @@ Click the toolbar icon on any website to see its colours, type, spacing and cont
 
 ## Before you press Submit
 
-- [ ] PayPal is connected on vietnamcos.com, so the Buy buttons on the checkout page work.
-- [ ] Pro + AI shows "Coming soon" on the plan sheet and checkout until the server's `setup.php` has created the PayPal
-      subscription plan. That is fine to submit: the free features and Pro work, and Pro + AI turns on by itself once the
-      plan exists.
+- [ ] Stripe is connected in Live mode on vietnamcos.com (/palette/admin › Settings), so the Buy buttons on the checkout page work.
+- [ ] If Pro + AI shows "Coming soon" on the plan sheet and checkout, that is fine to submit: the free features and Pro
+      work, and Pro + AI turns on by itself once the server's Stripe price exists.
 - [ ] The store id `jknkphgicofbpibajdcjncfdkbbehbgn` is already registered on the server (the `extension_ids`
       setting, which allows that extension's origin to call the licence and analyse API). Nothing to change there.
 - [ ] https://vietnamcos.com/palette/, https://vietnamcos.com/palette/privacy and https://vietnamcos.com/palette/terms
       all load.
-- [ ] Uploaded `extension/site-to-design-token-0.2.1.zip` (no `key` in its manifest).
+- [ ] Uploaded `extension/site-to-design-token-0.3.0.zip` (no `key` in its manifest).
 - [ ] Every language has its description and five screenshots; English has the icon and both promo tiles.
 - [ ] Privacy tab: single purpose, four permission justifications, remote code No, data types ticked, three
       certifications, privacy policy URL.

@@ -346,9 +346,9 @@
         "scans": "Sitios guardados ilimitados"
       }
     },
-    "subscribe": "Suscribirse con PayPal",
-    "payPro": "Pagar 1,49 USD con PayPal",
-    "aiNote": "Se cobra cada mes a través de PayPal. Cancela cuando quieras; Pro y la IA siguen activos hasta el final del mes pagado.",
+    "subscribe": "Suscribirse",
+    "payPro": "Pagar 1,49 USD",
+    "aiNote": "Se cobra cada mes con tarjeta. Cancela cuando quieras; Pro y la IA siguen activos hasta el final del mes pagado.",
     "haveKey": "¿Ya tienes una clave?",
     "enterIt": "Introdúcela",
     "keyTitle": "Introduce tu clave de licencia",

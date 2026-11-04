@@ -338,9 +338,9 @@
         "scans": "无限保存网站"
       }
     },
-    "subscribe": "使用 PayPal 订阅",
-    "payPro": "使用 PayPal 支付 1.49 美元",
-    "aiNote": "每月通过 PayPal 扣费。可随时取消；Pro 和 AI 会保留到已付月份结束。",
+    "subscribe": "订阅",
+    "payPro": "支付 1.49 美元",
+    "aiNote": "每月通过银行卡扣费。可随时取消；Pro 和 AI 会保留到已付月份结束。",
     "haveKey": "已有密钥？",
     "enterIt": "输入密钥",
     "keyTitle": "输入许可证密钥",

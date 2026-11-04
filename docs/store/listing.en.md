@@ -38,7 +38,7 @@ Pro, a one-time $1.49 unlock
 Pro + AI, $3.99 a month
 - Everything in Pro.
 - AI insights: press Analyse on a site to get a verdict, what its colours mean, and similar and competitor sites found with a web search. Up to 100 analyses a month.
-- Billed monthly through PayPal. Cancel any time; Pro and AI stay on until the end of the month you paid for.
+- Billed monthly by card. Cancel any time; Pro and AI stay on until the end of the month you paid for.
 
 Privacy
 
@@ -66,7 +66,7 @@ Extract a website's colours, typography, spacing, radius, shadows and contrast r
 
 ## Pricing note
 
-Free to install and use, including copying the full design system. Pro, which adds file downloads, is a one-time $1.49 unlock and Pro + AI is a subscription at $3.99 a month. Both are paid through PayPal on vietnamcos.com, not through the Chrome Web Store. Pro + AI can be cancelled any time from https://vietnamcos.com/palette/account.
+Free to install and use, including copying the full design system. Pro, which adds file downloads, is a one-time $1.49 unlock and Pro + AI is a subscription at $3.99 a month. Both are paid on vietnamcos.com by card, Apple Pay or Google Pay (processed by Stripe), not through the Chrome Web Store. Pro + AI can be cancelled any time from https://vietnamcos.com/palette/account.
 
 ## Data disclosure
 
@@ -75,11 +75,11 @@ For the Privacy practices tab. Declare these data types as collected. The first 
 - Website content: the page title and description, and a summary of the design (colours, fonts, sizes, spacing). Used to write the AI analysis. On our server, before anything else happens, email addresses, links (anything starting with http, https or www, or containing a path), @handles and long digit runs such as phone numbers are removed from the title and description. Other words in the title are sent as they are.
 - Web history: the address of the analysed page, without its query string. Used to look up similar and competitor sites and to cache the result for 7 days. It is user-initiated: nothing is sent unless the user presses Analyse.
 - Authentication information: the licence key, to check that Pro or Pro + AI is active.
-- Personally identifiable information: the buyer's email address, only when buying Pro or Pro + AI on vietnamcos.com, used to deliver and resend licence keys and for billing (sent via Resend; payment via PayPal).
+- Personally identifiable information: the buyer's email address, only when buying Pro or Pro + AI on vietnamcos.com, used to deliver and resend licence keys and for billing (sent via Resend; payment processed by Stripe; card details go to Stripe and are never seen or stored by us).
 
 Third parties that process the analysis request on our behalf: Brave Search (web search) and DeepSeek (AI provider).
 
-Not collected: passwords, form contents, browsing history (only the address of the page the user analyses is sent, see Web history), or page content beyond what the user sends with Analyse (the title and description may contain whatever the site put there). Also not collected: health, financial or payment information (PayPal handles payments on the website), location, or user activity such as clicks and keystrokes.
+Not collected: passwords, form contents, browsing history (only the address of the page the user analyses is sent, see Web history), or page content beyond what the user sends with Analyse (the title and description may contain whatever the site put there). Also not collected: health, financial or payment information (Stripe processes payments on the website), location, or user activity such as clicks and keystrokes.
 
 Certifications to tick: the data is not sold to third parties outside the approved use cases; it is not used or transferred for purposes unrelated to the item's single purpose; it is not used or transferred to determine creditworthiness or for lending.
 

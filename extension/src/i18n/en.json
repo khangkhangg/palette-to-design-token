@@ -342,9 +342,9 @@
         "scans": "Unlimited saved sites"
       }
     },
-    "subscribe": "Subscribe with PayPal",
-    "payPro": "Pay $1.49 with PayPal",
-    "aiNote": "Billed monthly through PayPal. Cancel any time; Pro and AI stay on until the end of the month you paid for.",
+    "subscribe": "Subscribe",
+    "payPro": "Pay $1.49",
+    "aiNote": "Billed monthly by card. Cancel any time; Pro and AI stay on until the end of the month you paid for.",
     "haveKey": "Already have a key?",
     "enterIt": "Enter it",
     "keyTitle": "Enter your license key",

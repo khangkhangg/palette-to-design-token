@@ -49,8 +49,8 @@
   --code-bg: light-dark(#14161C, #0B0D11);
   --code-ink: #D8DBE4;
   --perk-bg: light-dark(#EEF0FF, #232848);
-  --paypal: #FFC439;
-  --paypal-ink: #0B1D3A;
+  --checkout: #FFC439;
+  --checkout-ink: #0B1D3A;
   --scrim: light-dark(rgba(16, 24, 40, .4), rgba(0, 0, 0, .6));
   --mark-tail: light-dark(#3B4BD8, #7C8BFF);
   /* AI insights */
@@ -462,8 +462,8 @@ body.sidepanel, body.sidepanel #app { block-size: 100vh; }
 
 /* Unlock sheet (overlay and full-panel) */
 .unlock-page { display: flex; flex-direction: column; block-size: 100%; overflow-y: auto; background: var(--bg); }
-.paypal {
-  block-size: 48px; border: 0; border-radius: 12px; background: var(--paypal); color: var(--paypal-ink);
+.checkout-btn {
+  block-size: 48px; border: 0; border-radius: 12px; background: var(--checkout); color: var(--checkout-ink);
   display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 15px; font-weight: 700;
 }
 .key-row { display: flex; gap: 8px; }
@@ -701,8 +701,8 @@ a.ai-site:hover .ai-site-name { color: var(--accent); }
 .plan-items li { display: flex; gap: 8px; font-size: 13px; line-height: 1.4; color: var(--ink); }
 .plan-items li > svg { flex-shrink: 0; margin-block-start: 2px; color: var(--accent); stroke-width: 3; }
 .plan-actions { margin-block-start: auto; display: flex; flex-direction: column; gap: 10px; padding-block-start: 6px; }
-.plan-actions .paypal { block-size: auto; min-block-size: 50px; padding: 8px 16px; cursor: pointer; }
-.plan-actions .paypal > svg { flex-shrink: 0; }
+.plan-actions .checkout-btn { block-size: auto; min-block-size: 50px; padding: 8px 16px; cursor: pointer; }
+.plan-actions .checkout-btn > svg { flex-shrink: 0; }
 .plan-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--muted-2); text-align: center; }
 .plan-key-link { font-size: 12px; padding: 0 2px; }
 .plan-lead { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink-2); }
