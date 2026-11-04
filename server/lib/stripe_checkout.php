@@ -124,9 +124,17 @@ function palette_st_fulfil_order(mysqli $c, array $order, array $session): array
 {
     $id = (int)$order['id'];
     $oid = (string)$order['order_id'];
+    // The session must be this order's own (the webhook passes event payloads): a foreign one is refused, order untouched.
+    if (($session['id'] ?? null) !== ($order['stripe_session'] ?? '') || ($session['client_reference_id'] ?? null) !== 'palette:order:' . $id
+        || (string)($session['metadata']['row'] ?? '') !== (string)$id || (int)!empty($session['livemode']) !== (int)$order['livemode']) {
+        error_log("PALETTE_PAID_UNFULFILLED order=$oid foreign session");
+        return ['ok' => false, 'key' => null, 'already' => false];
+    }
+    // Delayed payment methods complete the session unpaid; async_payment_succeeded fulfils later. Not a failure.
+    if (($session['payment_status'] ?? '') !== 'paid') return ['ok' => false, 'key' => null, 'already' => false, 'retry' => true];
     $paid = (int)($session['amount_total'] ?? -1);
     $want = palette_cents((string)$order['amount_usd']);
-    if (($session['payment_status'] ?? '') !== 'paid' || strtolower((string)($session['currency'] ?? '')) !== 'usd' || $want === null || $paid < $want) {
+    if (strtolower((string)($session['currency'] ?? '')) !== 'usd' || $want === null || $paid < $want) {
         palette_mark_failed($c, $id);
         error_log("PALETTE_PAID_UNFULFILLED order=$oid");
         return ['ok' => false, 'key' => null, 'already' => false];

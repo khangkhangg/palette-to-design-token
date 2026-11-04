@@ -25,7 +25,8 @@ function sc_order(mysqli $c, string $mode = 'live'): array
 function sc_session(array $row, array $over = []): array
 {
     return $over + ['id' => $row['stripe_session'], 'payment_status' => 'paid', 'status' => 'complete', 'currency' => 'usd',
-        'amount_total' => 149, 'payment_intent' => 'pi_123'];
+        'amount_total' => 149, 'payment_intent' => 'pi_123', 'client_reference_id' => 'palette:order:' . $row['id'],
+        'metadata' => ['palette' => 'order', 'row' => (string)$row['id']], 'livemode' => (int)$row['livemode'] === 1];
 }
 
 function sc_count(mysqli $c, string $sql): int
@@ -137,6 +138,25 @@ ok('wrong currency: failed', $f['ok'] === false && palette_order_by($conn, 'id',
 [$r, $row] = sc_order($conn);
 $f = palette_st_fulfil_order($conn, $row, sc_session($row, ['amount_total' => 200]));
 ok('overpay accepted', $f['ok'] === true && $f['key'] !== null);
+
+// ---- session binding and unpaid
+sc_reset($conn);
+[$r, $row] = sc_order($conn);
+$st_of = fn() => palette_order_by($conn, 'id', (int)$row['id'])['status'];
+$bad = [['client_reference_id' => 'palette:order:999'], ['metadata' => ['row' => '999']], ['id' => 'cs_live_other'], ['livemode' => false]];
+$allRefused = true;
+foreach ($bad as $over) {
+    $f = palette_st_fulfil_order($conn, $row, sc_session($row, $over));
+    $allRefused = $allRefused && $f['ok'] === false && empty($f['retry']) && $st_of() === 'created';
+}
+ok('foreign/livemode-mismatched session: no licence, order still created', $allRefused && sc_count($conn, 'SELECT COUNT(*) FROM palette_licenses') === 0 && !$GLOBALS['mails']);
+$log = (string)@file_get_contents(sys_get_temp_dir() . '/palette-test.log');
+ok('foreign session logged', str_contains($log, 'PALETTE_PAID_UNFULFILLED order=' . $row['order_id'] . ' foreign session'));
+$f = palette_st_fulfil_order($conn, $row, sc_session($row, ['payment_status' => 'unpaid']));
+ok('unpaid session: retry, order stays created, no licence', $f === ['ok' => false, 'key' => null, 'already' => false, 'retry' => true]
+    && $st_of() === 'created' && sc_count($conn, 'SELECT COUNT(*) FROM palette_licenses') === 0);
+$f = palette_st_fulfil_order($conn, $row, sc_session($row));
+ok('same session later paid: licence issued', $f['ok'] === true && $f['key'] !== null && $st_of() === 'captured' && sc_count($conn, 'SELECT COUNT(*) FROM palette_licenses') === 1);
 
 // ---- states
 sc_reset($conn);
