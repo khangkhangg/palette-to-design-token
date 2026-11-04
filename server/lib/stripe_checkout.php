@@ -283,9 +283,16 @@ function palette_st_fulfil_sub(mysqli $c, array $row, array $session): array
     if (($session['id'] ?? null) !== ($row['stripe_session'] ?? '') || ($session['client_reference_id'] ?? null) !== 'palette:sub:' . $id
         || (int)!empty($session['livemode']) !== (int)$row['livemode']) return $foreign();
     // Delayed payment methods complete the session unpaid. Not a failure: retry.
-    if (!in_array($session['payment_status'] ?? '', ['paid', 'no_payment_required'], true)) return $no + ['retry' => true];
+    // A trial (no payment yet) is only for a move-to-card, whose customer already paid PayPal for the current period.
+    $isMove = $row['move_license_id'] !== null;
+    $pay = (string)($session['payment_status'] ?? '');
+    if ($pay === 'no_payment_required' && !$isMove) {
+        error_log("PALETTE_PAID_UNFULFILLED sub=$id status=no_payment_required");
+        return $no;
+    }
+    if (!in_array($pay, ['paid', 'no_payment_required'], true)) return $no + ['retry' => true];
 
-    $sub = $session['subscription'] ?? null;
+    $sub =$session['subscription'] ?? null;
     if (is_string($sub) && preg_match('/^sub_[A-Za-z0-9_]{1,100}$/', $sub)) {   // not expanded (event payload): fetch it
         $mode = (int)$row['livemode'] === 1 ? 'live' : 'test';
         $r = palette_st_api($c, $mode, 'GET', 'subscriptions/' . $sub);
@@ -303,7 +310,7 @@ function palette_st_fulfil_sub(mysqli $c, array $row, array $session): array
     $item = $sub['items']['data'][0] ?? [];
     $paidCents = (int)($item['price']['unit_amount'] ?? -1);
     $currency = strtolower((string)($item['price']['currency'] ?? $sub['currency'] ?? $session['currency'] ?? ''));
-    if (!in_array($status, ['active', 'trialing'], true) || $currency !== 'usd' || $paidCents < palette_sub_row_price($c, $row)) {
+    if (!in_array($status, $isMove ? ['active', 'trialing'] : ['active'], true) || $currency !== 'usd' || $paidCents < palette_sub_row_price($c, $row)) {
         error_log("PALETTE_PAID_UNFULFILLED sub=$id status=$status");
         return $no;
     }

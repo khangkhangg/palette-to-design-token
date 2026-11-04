@@ -142,7 +142,15 @@ ss_reset($conn);
 $f = palette_st_fulfil_sub($conn, $row, ss_session($row, ['status' => 'canceled']));
 ok('sub canceled status refused, no retry', $f['ok'] === false && empty($f['retry']) && ss_count($conn, 'SELECT COUNT(*) FROM palette_licenses') === 0);
 $f = palette_st_fulfil_sub($conn, $row, ss_session($row, ['status' => 'trialing']));
-ok('sub trialing accepted', $f['ok'] === true && $f['key'] !== null);
+$log = (string)@file_get_contents(sys_get_temp_dir() . '/palette-test.log');
+ok('sub trialing on a fresh row refused: pending, nothing issued, logged', $f['ok'] === false && empty($f['retry']) && ss_count($conn, 'SELECT COUNT(*) FROM palette_licenses') === 0
+    && palette_sub_row($conn, 'id', (int)$row['id'])['status'] === 'pending' && !$GLOBALS['mails'] && str_contains($log, 'PALETTE_PAID_UNFULFILLED sub=' . $row['id'] . ' status=trialing'));
+$f = palette_st_fulfil_sub($conn, $row, ss_session($row, [], ['payment_status' => 'no_payment_required']));
+ok('no_payment_required on a fresh row refused', $f['ok'] === false && empty($f['retry']) && ss_count($conn, 'SELECT COUNT(*) FROM palette_licenses') === 0);
+$old2 = palette_issue_license($conn, 'buyer@studio.vn', 'I-TRIALMOVE1', 'en', ['subscription_id' => 'I-TRIALMOVE1', 'paid_through' => '2026-12-01 00:00:00', 'period_start' => '2026-11-01 00:00:00']);
+[$r, $mrow] = ss_start($conn, 'live', $old2['id']);
+$f = palette_st_fulfil_sub($conn, $mrow, ss_session($mrow, ['status' => 'trialing'], ['payment_status' => 'no_payment_required']));
+ok('trialing MOVE row accepted: existing key re-pointed', $f['ok'] === true && $f['key'] === $old2['key'] && palette_sub_row($conn, 'id', (int)$mrow['id'])['status'] === 'active');
 
 // ---- incomplete / unpaid -> waiting
 ss_reset($conn);
@@ -238,3 +246,34 @@ $owner = ss_call('st_confirm', ['session' => 'cs_live_apis']);
 $key = (string)$conn->query('SELECT license_key FROM palette_licenses')->fetch_row()[0];
 ok('api sub confirm: owner gets the key, plan ai', $owner['body']['state'] === 'paid' && $owner['body']['key'] === $key && $owner['body']['plan'] === 'ai'
     && !isset($owner['body']['row']) && !isset($owner['body']['kind']));
+
+// ---- availability gate on st_checkout
+foreach (['pro', 'ai'] as $plan) {
+    ss_reset($conn);
+    $st = palette_stripe_settings($conn);
+    $st['checkout_methods'] = ['paypal'];
+    palette_stripe_settings_put($conn, $st);
+    $GLOBALS['st_calls'] = [];
+    $r = ss_call('st_checkout', ['email' => 'me@x.vn', 'consent' => '1', 'plan' => $plan]);
+    ok("gate: methods [paypal], live ready -> err_paused for $plan, no Stripe call", $r['status'] === 503 && $r['body']['error'] === 'err_paused' && !$GLOBALS['st_calls']
+        && ss_count($conn, 'SELECT COUNT(*) FROM palette_orders') + ss_count($conn, 'SELECT COUNT(*) FROM palette_subscriptions') === 0);
+}
+$_SESSION['user_role'] = 'admin';
+$GLOBALS['st_routes']['POST /v1/checkout/sessions'] = ['status' => 200, 'json' => ['id' => 'cs_test_gate', 'url' => 'https://checkout.stripe.com/c/pay/g']];
+$r = ss_call('st_checkout', ['email' => 'me@x.vn', 'consent' => '1', 'plan' => 'ai', 'test' => '1']);
+ok('gate: admin test mode needs only test ready', $r['status'] === 200 && in_array('Authorization: Bearer sk_test_x', $GLOBALS['st_calls'][0]['headers'], true));
+$_SESSION = [];
+
+// ---- displayed price = charged price
+ss_reset($conn);
+palette_settings_put($conn, ['ai_price_usd' => '4.99', 'ai_paypal_plan_price' => '3.99'] + palette_settings($conn));
+ok('label shows the Stripe-charged price (4.99) when Stripe is first', str_contains(palette_ai_price_label('en'), '4.99') && !str_contains(palette_ai_price_label('en'), '3.99'));
+[$r, $row] = ss_start($conn);
+ok('Stripe session unit_amount is 499', str_contains((string)$GLOBALS['st_calls'][0]['raw'], 'unit_amount%5D=499'));
+$st = palette_stripe_settings($conn);
+$st['checkout_methods'] = ['paypal', 'stripe'];
+palette_stripe_settings_put($conn, $st);
+ok('label keeps the PayPal plan price when PayPal is first', str_contains(palette_ai_price_label('en'), '3.99'));
+
+// leave no Stripe config behind for the other test files
+$conn->query("DELETE FROM admin_settings WHERE setting_key IN ('palette', 'palette_stripe')");

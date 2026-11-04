@@ -218,7 +218,16 @@ function palette_price_label(string $lang): string
 // The Pro + AI monthly price as this language writes it.
 function palette_ai_price_label(string $lang): string
 {
-    return palette_usd($lang, palette_money(palette_ai_sale_cents(palette_settings($GLOBALS['conn']))));
+    return palette_usd($lang, palette_money(palette_ai_display_cents(palette_settings($GLOBALS['conn']))));
+}
+
+// The Pro + AI cents to show: when Stripe is the first checkout method and live is ready, exactly what
+// palette_st_sub_start charges (the ai_price_usd setting); otherwise the PayPal plan price.
+function palette_ai_display_cents(array $settings): int
+{
+    $conn = $GLOBALS['conn'];
+    if (palette_stripe_settings($conn)['checkout_methods'][0] === 'stripe' && palette_stripe_ready($conn, 'live')) return palette_sub_price_cents($settings);
+    return palette_ai_sale_cents($settings);
 }
 
 // Whether Pro + AI can be bought right now: live Stripe is an enabled checkout method and ready, or the PayPal plan
@@ -465,7 +474,7 @@ function palette_render_checkout(array $ctx): string
     $fr = $lang === 'fr';
     $usd = fn(string $amount): string => palette_usd($lang, $amount);
     $price = $usd(palette_money($money['price']));
-    $aiPrice = $usd(palette_money(palette_ai_sale_cents($settings)));
+    $aiPrice = $usd(palette_money(palette_ai_display_cents($settings)));
     $withTax = palette_total($settings, 'US', 'CA');
     $shown = $isAi ? $aiPrice : $price;
 

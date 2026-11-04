@@ -177,6 +177,10 @@ function palette_api_handle(array $req): array
             if (!palette_rate_hit('create:ip:' . (string)($req['ip'] ?? ''), 20, 3600)) return palette_api_error(429, 'api_rate_limited', $lang);
             $mode = palette_checkout_mode((array)($req['session'] ?? []), ['test' => $str('test')]);
             $ai = $str('plan') === 'ai';
+            // Public checkout needs Stripe enabled as a method and live ready; an admin's test checkout needs only test ready.
+            $open = $mode === 'test' ? palette_stripe_ready($conn, 'test')
+                : in_array('stripe', palette_stripe_settings($conn)['checkout_methods'], true) && palette_stripe_ready($conn, 'live');
+            if (!$open) return palette_api_error(503, 'err_paused', $lang);
             $r = $ai ? palette_st_sub_start($conn, $mode, $str('email'), $lang, $str('consent') === '1')
                      : palette_st_order_start($conn, $mode, $str('email'), $lang, $str('consent') === '1');
             if (!$r['ok']) return palette_api_error(['err_paused' => 503, 'err_stripe' => 502][$r['error']] ?? 400, $r['error'], $lang);
