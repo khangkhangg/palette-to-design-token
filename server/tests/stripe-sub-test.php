@@ -51,6 +51,7 @@ ok('sub start params: reference + subscription metadata + email', str_contains($
     && str_contains($raw, 'customer_email=buyer%40studio.vn') && !str_contains($raw, 'trial_end'));
 ok('sub start params: success url + live key', str_contains($d, 'success_url=https://vietnamcos.com/palette/checkout?st={CHECKOUT_SESSION_ID}&lang=en')
     && in_array('Authorization: Bearer sk_live_x', $GLOBALS['st_calls'][0]['headers'], true));
+ok('sub start params: both return URLs bring the buyer back on Pro + AI', str_contains($d, 'st={CHECKOUT_SESSION_ID}&lang=en&plan=ai') && str_contains($d, 'st=cancel&lang=en&plan=ai'));
 ok('sub start row', $row['provider'] === 'stripe' && $row['plan_id'] === 'stripe' && $row['status'] === 'pending' && $row['price_usd'] === '3.99'
     && (int)$row['livemode'] === 1 && $row['subscription_id'] === null && str_starts_with($row['stripe_session'], 'cs_live_') && $row['move_license_id'] === null);
 $GLOBALS['st_calls'] = [];
@@ -273,7 +274,9 @@ ok('Stripe session unit_amount is 499', str_contains((string)$GLOBALS['st_calls'
 $st = palette_stripe_settings($conn);
 $st['checkout_methods'] = ['paypal', 'stripe'];
 palette_stripe_settings_put($conn, $st);
-ok('label keeps the PayPal plan price when PayPal is first', str_contains(palette_ai_price_label('en'), '3.99'));
+// Task 7 review fix 1: PayPal first but its plan cannot sell (no plan for this mode / A18 price mismatch): only Stripe sells
+// Pro + AI, so the label is Stripe's charge, not the stale PayPal plan price.
+ok('label shows the Stripe charge when PayPal is first but its plan cannot sell', str_contains(palette_ai_price_label('en'), '4.99') && !str_contains(palette_ai_price_label('en'), '3.99'));
 
 // leave no Stripe config behind for the other test files
 $conn->query("DELETE FROM admin_settings WHERE setting_key IN ('palette', 'palette_stripe')");

@@ -21,6 +21,7 @@ return [
     'err_paused' => 'Los pagos están en pausa en este momento. Inténtalo de nuevo más tarde.',
     'err_paypal' => 'PayPal no pudo completar este paso. Inténtalo de nuevo o escribe a support@vietnamcos.com.',
     'err_stripe' => 'Stripe no pudo completar este paso. Inténtalo de nuevo o escribe a support@vietnamcos.com.',
+    'err_generic' => 'Algo salió mal. Inténtalo de nuevo.',
     'err_retry' => 'Recibimos el pago, pero tu clave aún no está lista. Revisa tu correo en unos minutos.',
     'err_login' => 'Inicia sesión para añadir esta clave a tu cuenta.',
     'err_csrf' => 'Tu sesión caducó. Recarga la página e inténtalo de nuevo.',

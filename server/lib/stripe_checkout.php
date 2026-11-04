@@ -43,7 +43,7 @@ function palette_st_order_start(mysqli $c, string $mode, string $email, string $
     $id = (int)$c->insert_id;
     $st->close();
 
-    $back = PALETTE_STRIPE_BASE . '/checkout?st=%s&lang=' . rawurlencode($lang) . ($mode === 'test' ? '&test=1' : '');
+    $back = PALETTE_STRIPE_BASE . '/checkout?st=%s&lang=' . rawurlencode($lang) . '&plan=pro' . ($mode === 'test' ? '&test=1' : '');
     $r = palette_st_api($c, $mode, 'POST', 'checkout/sessions', [
         'mode' => 'payment',
         'line_items' => [['price_data' => ['currency' => 'usd', 'unit_amount' => $cents, 'product_data' => ['name' => 'Site to Design Token Pro']], 'quantity' => 1]],
@@ -204,7 +204,7 @@ function palette_st_sub_start(mysqli $c, string $mode, string $email, string $la
     $id = (int)$c->insert_id;
     $st->close();
 
-    $back = PALETTE_STRIPE_BASE . '/checkout?st=%s&lang=' . rawurlencode($lang) . ($mode === 'test' ? '&test=1' : '');
+    $back = PALETTE_STRIPE_BASE . '/checkout?st=%s&lang=' . rawurlencode($lang) . '&plan=ai' . ($mode === 'test' ? '&test=1' : '');
     $subData = ['metadata' => ['palette' => 'sub', 'row' => $id]];
     if ($trialEnd !== null && ctype_digit($trialEnd)) $subData['trial_end'] = $trialEnd;
     $r = palette_st_api($c, $mode, 'POST', 'checkout/sessions', [

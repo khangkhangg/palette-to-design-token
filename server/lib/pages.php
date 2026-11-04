@@ -31,7 +31,7 @@ const PALETTE_SCRIPT_STRINGS = ['err_email', 'err_paused', 'err_consent', 'err_p
     // plan chooser (swapped in by checkout.js when the plan changes) and the account subscription panel
     'co_item', 'co_item_ai', 'co_refund', 'co_refund_ai', 'co_card_note', 'co_note_ai', 'co_sub_pending', 'co_success_title', 'co_success_title_ai', 'acct_st_cancelled',
     // Stripe: the PayPal block's note, the return states and Stripe's own error
-    'co_pp_note', 'co_st_waiting', 'co_st_failed', 'err_stripe'];
+    'co_pp_note', 'co_st_waiting', 'co_st_failed', 'err_stripe', 'err_generic'];
 
 // ?lang= when it is one of the 7; else the best Accept-Language match; else en.
 // The escaped string with {name} placeholders replaced by trusted HTML.
@@ -223,12 +223,17 @@ function palette_ai_price_label(string $lang): string
     return palette_usd($lang, palette_money(palette_ai_display_cents(palette_settings($GLOBALS['conn']))));
 }
 
-// The Pro + AI cents to show: when Stripe is the first checkout method and live is ready, exactly what
-// palette_st_sub_start charges (the ai_price_usd setting); otherwise the PayPal plan price.
+// The Pro + AI cents to show: exactly what palette_st_sub_start charges (the ai_price_usd setting) whenever live Stripe
+// is a listed, ready checkout method and either comes first or is the only one that can sell Pro + AI (PayPal not
+// listed, or its plan not sellable: A18); otherwise the PayPal plan price.
 function palette_ai_display_cents(array $settings): int
 {
     $conn = $GLOBALS['conn'];
-    if (palette_stripe_settings($conn)['checkout_methods'][0] === 'stripe' && palette_stripe_ready($conn, 'live')) return palette_sub_price_cents($settings);
+    $methods = palette_stripe_settings($conn)['checkout_methods'];
+    if (in_array('stripe', $methods, true) && palette_stripe_ready($conn, 'live')) {
+        $ppSells = in_array('paypal', $methods, true) && palette_ai_plan_ready($settings, pp_settings($conn));
+        if ($methods[0] === 'stripe' || !$ppSells) return palette_sub_price_cents($settings);
+    }
     return palette_ai_sale_cents($settings);
 }
 

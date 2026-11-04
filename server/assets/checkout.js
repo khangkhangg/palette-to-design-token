@@ -26,6 +26,8 @@
     el.appendChild(document.createTextNode(parts.slice(1).join(placeholder)));
   }
 
+  var PAYPAL_ACTIONS = ['create', 'capture', 'subscribe_start', 'subscribe_confirm'];
+
   // GET (no body) or POST JSON. Always resolves to {ok, status, message, ...body}.
   function api(action, body) {
     var init = { credentials: 'same-origin', headers: { Accept: 'application/json' } };
@@ -39,7 +41,7 @@
       return res.json().then(function (j) {
         if (!j || typeof j !== 'object') throw new Error('bad json');
         j.status = res.status;
-        if (!j.ok && !j.message) j.message = T.err_paypal;
+        if (!j.ok && !j.message) j.message = PAYPAL_ACTIONS.indexOf(action) >= 0 ? T.err_paypal : T.err_generic;
         return j;
       });
     }).catch(function () {
@@ -562,6 +564,13 @@
       });
     }
 
+    // Leaving for Stripe disabled the button; the browser's Back button can restore this very page from its cache.
+    window.addEventListener('pageshow', function (e) {
+      if (!e.persisted || !stBtn || locked) return;
+      isBusy = false;
+      stBtn.disabled = false;
+    });
+
     // Back from Stripe with ?st=cs_...: confirm now, then every 3 s for 30 s while Stripe still says waiting.
     var POLL_MS = 3000;
     var POLL_TRIES = 11;   // 0 s, 3 s ... 30 s
@@ -593,6 +602,7 @@
       show(form, true);
       if (saved.email) email.value = saved.email;
       showError(T.co_st_failed);
+      loadSdk();   // the normal form again: PayPal's buttons too when it is listed
     }
 
     // Still processing after 30 s: the webhook will fulfil it and email the key. Never offer a second payment.

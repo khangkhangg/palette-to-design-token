@@ -887,7 +887,8 @@ test('Stripe: Pro + AI by card shows the key and Manage billing opens the Stripe
   await page.locator('#st-pay').click();
   expect(((await start).postDataJSON() as Record<string, string>).plan).toBe('ai');
   await page.locator('#fake-pay').click();
-  await page.waitForURL(/\/palette\/checkout\?st=cs_fake_/);
+  await page.waitForURL(/\/palette\/checkout\?st=cs_fake_s\d+&lang=en&plan=ai/);   // the plan round-trips
+  await expect(page.locator('#done')).toBeVisible();
   await expect(page.locator('#done-title')).toHaveText("You're Pro + AI. Thank you.");
   const key = (await page.locator('#key').textContent()) ?? '';
   expect(key).toMatch(KEY_RE);
@@ -1017,4 +1018,63 @@ test('Stripe: 7 languages fit 360 px', async ({ page }) => {
     }
   }
   await page.request.get('/__dev/login?user_id=0');
+});
+
+// ---- Task 7 review fixes
+const ST_CHECKOUT = (u: URL) => u.pathname === '/palette/api.php' && u.searchParams.get('action') === 'st_checkout';
+test('Stripe: a cancelled Pro + AI attempt comes back on Pro + AI, with PayPal loaded beside the card button', async ({ page }) => {
+  await seedStripe(page, { methods: 'stripe,paypal', ai: 'ready' });
+  const sdk = await fakePayPal(page);
+  await fakeStripePages(page);
+  await page.goto('/palette/checkout?lang=en&plan=ai');
+  await fillForm(page, 'back@studio.vn');
+  await page.locator('#st-pay').click();
+  await page.locator('#fake-cancel').click();
+  await page.waitForURL(/\/palette\/checkout\?st=cancel&lang=en&plan=ai/);
+  await expect(page.locator('.plan-card[data-plan="ai"]')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('#st-pay')).toHaveText('Subscribe for $3.99 a month');
+  await expect(page.locator('#st-msg')).toHaveText('Payment cancelled. Nothing was charged.');
+  await expect(page.getByTestId('fake-paypal')).toBeVisible();
+  expect(sdk).toEqual([SDK_AI, SDK_AI]);   // before leaving for Stripe, and again on the way back
+});
+
+test('Stripe: a failed return with PayPal listed shows the form with PayPal buttons again, on the plan tried', async ({ page }) => {
+  await seedStripe(page, { methods: 'stripe,paypal' });
+  const sdk = await fakePayPal(page);
+  await fakeStripePages(page);
+  await page.goto('/palette/checkout?lang=en');
+  await fillForm(page, 'expired@studio.vn');
+  await page.locator('#st-pay').click();
+  await page.locator('#fake-pay').click();
+  await page.waitForURL(/\/palette\/checkout\?st=cs_fake_o\d+&lang=en&plan=pro/);
+  await expect(page.locator('#buy-error')).toHaveText("The payment didn't go through and nothing was charged. Please try again.");
+  await expect(page.getByTestId('fake-paypal')).toBeVisible();
+  await expect(page.locator('.pp-loading')).toHaveCount(0);
+  expect(sdk).toEqual([SDK, SDK]);   // before leaving for Stripe, and again once the form is back
+  await expect(page.locator('.plan-card[data-plan="pro"]')).toHaveAttribute('aria-checked', 'true');
+});
+
+test('Stripe: back to the page from the browser cache (bfcache) re-enables the card button', async ({ page }) => {
+  await seedStripe(page, { methods: 'stripe' });
+  await page.route(ST_CHECKOUT, () => { /* never answers: the page is on its way to Stripe */ });
+  await page.goto('/palette/checkout?lang=en');
+  await fillForm(page, 'bf@studio.vn');
+  await page.locator('#st-pay').click();
+  await expect(page.locator('#st-pay')).toBeDisabled();
+  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
+  await expect(page.locator('#st-pay')).toBeEnabled();
+  await page.unroute(ST_CHECKOUT);
+  // and it works again: the plan can change, and a second click starts a session
+  await page.locator('.plan-card[data-plan="ai"]').click();
+  await expect(page.locator('#st-pay')).toHaveText('Subscribe for $3.99 a month');
+});
+
+test('Stripe: a failure reply without a message says something neutral, not PayPal', async ({ page }) => {
+  await seedStripe(page, { methods: 'stripe' });
+  await page.route(ST_CHECKOUT, (r) => r.fulfill({ status: 500, contentType: 'application/json', body: '{"ok":false}' }));
+  await page.goto('/palette/checkout?lang=en');
+  await fillForm(page, 'neutral@studio.vn');
+  await page.locator('#st-pay').click();
+  await expect(page.locator('#buy-error')).toHaveText('Something went wrong. Please try again.');
+  await expect(page.locator('#st-pay')).toBeEnabled();
 });

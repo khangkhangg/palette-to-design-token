@@ -46,6 +46,8 @@ ok('start params: metadata + email + quantity', str_contains($raw, 'metadata%5Bp
     && str_contains($raw, 'customer_email=buyer%40studio.vn') && str_contains($raw, 'quantity%5D=1'));
 ok('start params: success url has the session template', str_contains(urldecode($raw), 'success_url=https://vietnamcos.com/palette/checkout?st={CHECKOUT_SESSION_ID}&lang=en')
     && str_contains(urldecode($raw), 'cancel_url=https://vietnamcos.com/palette/checkout?st=cancel&lang=en'));
+ok('start params: both return URLs bring the buyer back on Pro', str_contains(urldecode($raw), 'st={CHECKOUT_SESSION_ID}&lang=en&plan=pro')
+    && str_contains(urldecode($raw), 'st=cancel&lang=en&plan=pro'));
 ok('start params: uses the live key', in_array('Authorization: Bearer sk_live_x', $call['headers'] ?? [], true));
 ok('start row', $row['provider'] === 'stripe' && (int)$row['livemode'] === 1 && $row['status'] === 'created' && $row['amount_usd'] === '1.49'
     && preg_match('/^ST-[0-9A-F]{16}$/', $row['order_id']) === 1 && str_starts_with($row['stripe_session'], 'cs_live_') && $row['email'] === 'buyer@studio.vn');
@@ -54,7 +56,7 @@ $GLOBALS['st_calls'] = [];
 $GLOBALS['st_routes']['POST /v1/checkout/sessions'] = ['status' => 200, 'json' => ['id' => 'cs_test_1', 'url' => 'https://checkout.stripe.com/c/pay/y']];
 palette_st_order_start($conn, 'test', 'a@b.vn', 'zh-CN', true);
 $d = urldecode((string)$GLOBALS['st_calls'][0]['raw']);
-ok('test mode: &test=1 on success url, test key, zh locale', str_contains($d, 'lang=zh-CN&test=1') && str_contains($d, 'locale=zh')
+ok('test mode: &test=1 on success url, test key, zh locale', str_contains($d, 'lang=zh-CN&plan=pro&test=1') && str_contains($d, 'locale=zh')
     && in_array('Authorization: Bearer sk_test_x', $GLOBALS['st_calls'][0]['headers'], true));
 
 // ---- paused

@@ -21,6 +21,7 @@ return [
     'err_paused' => 'Payments are paused right now. Please try again later.',
     'err_paypal' => 'PayPal could not complete this step. Please try again, or contact support@vietnamcos.com.',
     'err_stripe' => 'Stripe could not complete this step. Please try again, or contact support@vietnamcos.com.',
+    'err_generic' => 'Something went wrong. Please try again.',
     'err_retry' => 'Payment received but your key isn\'t ready yet. Check your email in a few minutes.',
     'err_login' => 'Sign in to add this key to your account.',
     'err_csrf' => 'Your session expired. Reload the page and try again.',

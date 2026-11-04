@@ -21,6 +21,7 @@ return [
     'err_paused' => '付款功能暂时停用，请稍后再试。',
     'err_paypal' => 'PayPal 未能完成此步骤。请重试，或联系 support@vietnamcos.com。',
     'err_stripe' => 'Stripe 未能完成此步骤。请重试，或联系 support@vietnamcos.com。',
+    'err_generic' => '出了点问题，请重试。',
     'err_retry' => '已收到付款，但您的密钥尚未准备好。请几分钟后查看您的电子邮件。',
     'err_login' => '请登录后将此密钥添加到您的账户。',
     'err_csrf' => '会话已过期。请刷新页面后重试。',

@@ -812,9 +812,16 @@ ok('both methods in order: PayPal first', $stPos($b2, 'id="paypal"') !== false &
 ok('both methods: page data lists them in order', (checkoutData($b2)['methods'] ?? null) === ['paypal', 'stripe']);
 // each button shows its own price: the Stripe label is what Stripe charges (ai_price_usd), PayPal keeps its plan price
 cfg($conn, ['ai_paypal_plan_id' => 'P-TESTPLAN1', 'ai_paypal_plan_mode' => 'sandbox', 'ai_paypal_plan_price' => '3.99', 'ai_price_usd' => '4.49']);
-$b3 = checkoutData(checkout(['lang' => 'en', 'plan' => 'ai']));
+$b3html = checkout(['lang' => 'en', 'plan' => 'ai']);
+$b3 = checkoutData($b3html);
 ok('both methods: the Stripe button shows the Stripe charge, PayPal keeps its amount (A18 mismatch: PayPal plan not sold)',
     ($b3['st_price']['ai'] ?? '') === '$4.49' && ($b3['pp_ai'] ?? null) === false && ($b3['ai_enabled'] ?? null) === true);
+ok('review fix 1: PayPal first but its plan unsellable -> only Stripe sells Pro + AI, so total_ai, plan card and summary show the Stripe $4.49',
+    ($b3['total_ai'] ?? '') === '$4.49' && preg_match('#id="plan-ai-price"><span class="num" dir="ltr">\$4\.49</span>#', $b3html) === 1
+    && str_contains($b3html, '<span class="num" dir="ltr" id="sum-price">$4.49</span>') && str_contains($b3html, '<span id="total">$4.49</span>')
+    && !str_contains(explode('id="palette-data"', $b3html)[0], '$3.99'));
+$cfgB3 = palette_api_handle(['method' => 'GET', 'action' => 'config', 'post' => [], 'origin' => '', 'ip' => '1.1.1.1', 'session' => []]);
+ok('review fix 1: api config ai_price follows (4.49)', ($cfgB3['body']['ai_price'] ?? '') === '4.49');
 cfg($conn, ['ai_price_usd' => '3.99']);
 $b4 = checkoutData(checkout(['lang' => 'en', 'plan' => 'ai']));
 ok('both methods with the PayPal plan ready: PayPal may sell Pro + AI too', ($b4['pp_ai'] ?? null) === true && ($b4['total_ai'] ?? '') === '$3.99');
@@ -910,6 +917,16 @@ foreach (LANGS as $l) {
     ok("checkout $l with Stripe: button, cancelled message, no emoji", str_contains($s, $btn($l, 'co_pay_card_pro', $l === 'fr' ? FR_PRICE : '$1.49'))
         && str_contains($s, h(palette_t($l, 'co_st_cancelled'))) && preg_match(EMOJI_RE, $s) === 0);
 }
+
+// review fix 4: a neutral fallback message for replies without one (err_paypal only for PayPal's own calls)
+$gen = [];
+foreach (LANGS as $l) if (trim(palette_t($l, 'err_generic')) === '' || str_contains(palette_t($l, 'err_generic'), 'PayPal') || ($l !== 'en' && palette_t($l, 'err_generic') === palette_t('en', 'err_generic'))) $gen[] = $l;
+ok('err_generic in all 7 languages, translated, names no provider: ' . implode(',', $gen), $gen === [] && palette_t('en', 'err_generic') === 'Something went wrong. Please try again.'
+    && (checkoutData($s1)['t']['err_generic'] ?? '') === palette_t('en', 'err_generic'));
+$cjs7 = (string)file_get_contents(PALETTE_DIR . '/assets/checkout.js');
+ok('checkout.js: err_paypal is the fallback only for the PayPal actions; Back from Stripe re-enables the card button',
+    str_contains($cjs7, "var PAYPAL_ACTIONS = ['create', 'capture', 'subscribe_start', 'subscribe_confirm'];")
+    && str_contains($cjs7, 'PAYPAL_ACTIONS.indexOf(action) >= 0 ? T.err_paypal : T.err_generic') && str_contains($cjs7, "addEventListener('pageshow'"));
 
 // provider-neutral copy shown to Stripe subscribers
 $named = [];
