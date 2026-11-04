@@ -205,8 +205,8 @@ describe('PlanSheet', () => {
     expect(dialog.querySelectorAll('.plan-card').length).toBe(2);
     expect(dialog.querySelectorAll('.plan-items li').length).toBe(8);
     expect(within(dialog).getByText('Download every export, including DESIGN.md and the .zip')).toBeTruthy();
-    const paypal = within(dialog).getByRole('button', { name: /Pay \$1\.49/ }) as HTMLButtonElement;
-    expect(paypal.disabled).toBe(false);
+    const payBtn = within(dialog).getByRole('button', { name: /Pay \$1\.49/ }) as HTMLButtonElement;
+    expect(payBtn.disabled).toBe(false);
     expect(within(dialog).getByText(
       'All sales are final. Because Pro unlocks instantly and costs $1.49, we do not offer refunds after purchase.',
     )).toBeTruthy();

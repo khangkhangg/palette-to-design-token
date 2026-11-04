@@ -303,11 +303,13 @@ Sandbox payments cost nothing; on 6a fix and repeat as needed, on 6b close the w
 1. **Back up.** The database and the files you are about to replace.
 
    ```bash
-   $SSH "mysqldump --single-transaction \$(php -r 'require \"$DOCROOT/config.php\"; echo \$db_name;') > /root/palette-pre-0.3.0-\$(date +%Y%m%d-%H%M%S).sql && ls -l /root/palette-pre-0.3.0-*.sql"
-   $SSH "cp -a $DOCROOT/palette /root/palette.bak-0.3.0-\$(date +%Y%m%d-%H%M%S)"
+   # database: credentials come from companies' config.php (MYSQL_PWD stays in the process environment, never printed)
+   $SSH "mkdir -p /root/backups && cd $DOCROOT && php -r 'require \"config.php\"; putenv(\"MYSQL_PWD=\$password\"); passthru(\"mysqldump --single-transaction -h \".escapeshellarg(\$servername).\" -u \".escapeshellarg(\$username).\" \".escapeshellarg(\$dbname));' > /root/backups/palette-db-\$(date +%Y%m%d-%H%M%S).sql && ls -l /root/backups/palette-db-*.sql"
+   # server files the deploy replaces
+   $SSH "mkdir -p /root/backups && tar czf /root/backups/palette-\$(date +%Y%m%d-%H%M%S).tgz -C /var/www/duykhang/companies palette && ls -l /root/backups/palette-*.tgz"
    ```
 
-   If `mysqldump` needs credentials on this host, use the same backup command as the nightly job (`backup_courses_db.sh` style). Do not continue without a dump.
+   The `.sql` file must be more than a few KB and end with `-- Dump completed`: `$SSH "tail -n 1 /root/backups/palette-db-*.sql"`. Do not continue without both backups.
 
 2. **Deploy the server files.** Same command as step 2: `rsync` with `--exclude 'tests/' --exclude 'README.md' --exclude 'DEPLOY.md' --exclude 'download/*.zip'` (dry run first, then the real run, then the `chown`/`chmod` line). `stripe-webhook.php`, `admin.php`, `lib/stripe*.php`, `lib/admin.php` and `assets/admin.css` are new.
 
@@ -319,7 +321,7 @@ Sandbox payments cost nothing; on 6a fix and repeat as needed, on 6b close the w
 
    It is idempotent. It adds the Stripe columns (`provider`, `stripe_customer`, `stripe_session`, `livemode`, `move_license_id`) and the admin log table.
 
-4. **nginx rewrite for the admin.** Edit the REAL file `/etc/nginx/sites-enabled/vietnamcos.com` (not `sites-available`; on spo2x the files in `sites-enabled` are copies), at server level, next to the line from step 3. Back it up first as in step 3.
+4. **nginx rewrite for the admin.** Edit the REAL file `/etc/nginx/sites-enabled/vietnamcos.com` (not `sites-available`; on spo2x the files in `sites-enabled` are copies), at server level, next to the line from step 3. Back it up first: `$SSH "cp -a /etc/nginx/sites-enabled/vietnamcos.com /root/vietnamcos.com.bak-\$(date +%s)"`.
 
    ```nginx
    rewrite ^/palette/admin$ /palette/admin.php last;
@@ -408,7 +410,7 @@ curl -si -X OPTIONS -H "Origin: chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 - [ ] Single purpose: extract a page's colours and fonts and export them as design tokens.
 - [ ] Permission justifications: `activeTab` (read only the page the user clicked the icon on), `scripting` (run the extractor in that tab), `storage` (settings and Pro licence state), `sidePanel` (show results in the side panel); `externally_connectable` for `https://vietnamcos.com/palette/*` and `https://www.vietnamcos.com/palette/*` (receive the licence key from the checkout page). No host permissions, no remote code.
 - [ ] Data disclosure (Privacy practices tab), from `## Data disclosure` in `docs/store/listing.en.md`: declare **Website content** (title and description, plus the design summary) and **Web history** (the address of the analysed page, without its query string) as collected, both only when the user presses Analyse (user-initiated; Brave Search and DeepSeek process them for us), plus **Authentication information** (the licence key). Tick the three certifications (no sale, no unrelated use, no use for creditworthiness). The permission justifications and the single purpose stay unchanged (no new permission: the extension only calls `vietnamcos.com`, which the build already allows).
-- [ ] Pricing note in the description (the `## Pricing note` section of the listing): free to use, with an optional one-time Pro upgrade ($1.49) and an optional Pro + AI subscription ($3.99 a month, cancel any time), both bought on an external website through PayPal (disclosed). Every `listing.<lang>.md` already describes Pro + AI, its price, the cancel rule and the Analyse data flow.
+- [ ] Pricing note in the description (the `## Pricing note` section of the listing): free to use, with an optional one-time Pro upgrade ($1.49) and an optional Pro + AI subscription ($3.99 a month, cancel any time), both bought on an external website by card, Apple Pay or Google Pay (processed by Stripe) (disclosed). Every `listing.<lang>.md` already describes Pro + AI, its price, the cancel rule and the Analyse data flow.
 - [ ] After approval, confirm the published id equals the one in `extension_ids`.
 
 ## 10. Rollback
