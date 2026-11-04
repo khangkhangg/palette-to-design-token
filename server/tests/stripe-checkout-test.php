@@ -166,8 +166,6 @@ ok('unpaid session -> waiting', palette_st_confirm($conn, $row['stripe_session']
 $GLOBALS['st_routes']['GET /v1/checkout/sessions/' . $row['stripe_session']] = ['status' => 200, 'json' => sc_session($row, ['payment_status' => 'unpaid', 'status' => 'expired'])];
 ok('expired session -> failed', palette_st_confirm($conn, $row['stripe_session'])['state'] === 'failed');
 ok('unknown session -> unknown', palette_st_confirm($conn, 'cs_live_nothere') === ['state' => 'unknown'] && palette_st_confirm($conn, 'junk!') === ['state' => 'unknown']);
-$conn->query("INSERT INTO palette_subscriptions (subscription_id, email, lang, status, plan_id, provider, stripe_session, consent_at, created_at, updated_at) VALUES ('x', 'a@b.vn', 'en', 'pending', '', 'stripe', 'cs_live_sub', NOW(), NOW(), NOW())");
-ok('subscription session -> unknown for now (Task 4)', palette_st_confirm($conn, 'cs_live_sub') === ['state' => 'unknown']);
 
 sc_reset($conn);
 [$r, $row] = sc_order($conn);
@@ -205,14 +203,12 @@ $GLOBALS['st_routes']['POST /v1/checkout/sessions'] = ['status' => 200, 'json' =
 $r = sc_call('st_checkout', ['email' => 'me@x.vn', 'consent' => '1', 'plan' => 'pro', 'lang' => 'en']);
 ok('api st_checkout ok', $r['status'] === 200 && $r['body']['ok'] === true && $r['body']['url'] === 'https://checkout.stripe.com/c/pay/api');
 $rowId = (int)$conn->query("SELECT id FROM palette_orders WHERE stripe_session = 'cs_live_api'")->fetch_row()[0];
-ok('api st_checkout records the row in the session', ($_SESSION['palette_st'] ?? null) === [$rowId]);
+ok('api st_checkout records the row in the session', ($_SESSION['palette_st'] ?? null) === ['o:' . $rowId]);
 ok('api st_checkout needs CSRF', palette_api_handle(['method' => 'POST', 'action' => 'st_checkout', 'post' => ['csrf' => 'bad', 'email' => 'me@x.vn', 'consent' => '1'],
     'origin' => '', 'ip' => '1.1.1.1', 'session' => []])['status'] === 419);
 ok('api st_checkout GET -> 405', palette_api_handle(['method' => 'GET', 'action' => 'st_checkout', 'post' => [], 'origin' => '', 'ip' => '1.1.1.1', 'session' => []])['status'] === 405);
 $r = sc_call('st_checkout', ['email' => 'bad', 'consent' => '1']);
 ok('api st_checkout bad email -> 400', $r['status'] === 400 && $r['body']['error'] === 'err_email');
-$r = sc_call('st_checkout', ['email' => 'me@x.vn', 'consent' => '1', 'plan' => 'ai']);
-ok('api st_checkout plan=ai -> err_paused (Task 4)', $r['status'] === 503 && $r['body']['error'] === 'err_paused');
 $GLOBALS['st_routes']['POST /v1/checkout/sessions'] = ['status' => 0, 'json' => []];
 $r = sc_call('st_checkout', ['email' => 'me@x.vn', 'consent' => '1']);
 ok('api st_checkout Stripe down -> 502 err_stripe', $r['status'] === 502 && $r['body']['error'] === 'err_stripe');
@@ -229,7 +225,7 @@ $_SESSION['csrf_tokens'] = [];
 $stranger = sc_call('st_confirm', ['session' => $row['stripe_session']]);
 ok('api st_confirm: stranger gets no key', $stranger['status'] === 200 && $stranger['body']['state'] === 'paid' && $stranger['body']['emailed'] === true
     && !array_key_exists('key', $stranger['body']) && !str_contains(json_encode($stranger['body']), (string)$conn->query('SELECT license_key FROM palette_licenses')->fetch_row()[0]));
-$_SESSION['palette_st'] = [(int)$row['id']];
+$_SESSION['palette_st'] = ['o:' . (int)$row['id']];
 $owner = sc_call('st_confirm', ['session' => $row['stripe_session']]);
 $key = (string)$conn->query('SELECT license_key FROM palette_licenses')->fetch_row()[0];
 ok('api st_confirm: owner gets the key', $owner['body']['state'] === 'paid' && $owner['body']['key'] === $key && $owner['body']['plan'] === 'pro' && !isset($owner['body']['row']));

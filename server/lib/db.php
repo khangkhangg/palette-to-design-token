@@ -150,6 +150,8 @@ function palette_migrate(mysqli $conn): void
     palette_add_column($conn, 'palette_subscriptions', 'stripe_session', 'VARCHAR(80) NULL');
     palette_add_column($conn, 'palette_subscriptions', 'livemode', 'TINYINT(1) NOT NULL DEFAULT 1');
     palette_add_unique_index($conn, 'palette_subscriptions', 'stripe_session', 'stripe_session');
+    // Move-to-card: the existing licence a Stripe subscription takes over instead of issuing a new one.
+    palette_add_column($conn, 'palette_subscriptions', 'move_license_id', 'INT NULL');
     palette_add_column($conn, 'palette_licenses', 'source', "ENUM('paypal','stripe','admin') NULL");
     palette_add_column($conn, 'palette_licenses', 'pay_status', "ENUM('provider','manual_paid','comp','refunded') NOT NULL DEFAULT 'provider'");
     palette_add_column($conn, 'palette_licenses', 'livemode', 'TINYINT(1) NOT NULL DEFAULT 1');

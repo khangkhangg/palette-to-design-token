@@ -221,10 +221,12 @@ function palette_ai_price_label(string $lang): string
     return palette_usd($lang, palette_money(palette_ai_sale_cents(palette_settings($GLOBALS['conn']))));
 }
 
-// Whether Pro + AI can be bought right now (plan exists for the current PayPal mode).
+// Whether Pro + AI can be bought right now: live Stripe is an enabled checkout method and ready, or the PayPal plan
+// exists for the current PayPal mode.
 function palette_ai_on(): bool
 {
     $conn = $GLOBALS['conn'];
+    if (in_array('stripe', palette_stripe_settings($conn)['checkout_methods'], true) && palette_stripe_ready($conn, 'live')) return true;
     return palette_ai_plan_ready(palette_settings($conn), pp_settings($conn));
 }
 

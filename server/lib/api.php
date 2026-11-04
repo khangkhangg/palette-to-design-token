@@ -58,11 +58,12 @@ function palette_api_owns_sub(int $rowId): bool
     return is_array($mine) && in_array($rowId, $mine, true);
 }
 
-// True when this session started the Stripe checkout (st_checkout stores orders row ids in $_SESSION['palette_st']).
-function palette_api_owns_st(int $rowId): bool
+// True when this session started the Stripe checkout. st_checkout stores 'o:<orders row id>' or 's:<subscriptions row id>'
+// in $_SESSION['palette_st'] (the two tables number their rows separately).
+function palette_api_owns_st(string $kind, int $rowId): bool
 {
     $mine = $_SESSION['palette_st'] ?? null;
-    return is_array($mine) && in_array($rowId, $mine, true);
+    return is_array($mine) && in_array($kind . ':' . $rowId, $mine, true);
 }
 
 // sub_cancel comes from the account page, whose form token is 'palette_account'.
@@ -174,12 +175,13 @@ function palette_api_handle(array $req): array
                 'message' => $r['revoked'] ? palette_t($lang, 'sub_cancel_ok_revoked') : palette_t($lang, 'sub_cancel_ok', ['date' => (string)$r['ends_on']])]);
         case 'st_checkout':
             if (!palette_rate_hit('create:ip:' . (string)($req['ip'] ?? ''), 20, 3600)) return palette_api_error(429, 'api_rate_limited', $lang);
-            if ($str('plan') === 'ai') return palette_api_error(503, 'err_paused', $lang);   // Task 4 wires the subscription checkout
             $mode = palette_checkout_mode((array)($req['session'] ?? []), ['test' => $str('test')]);
-            $r = palette_st_order_start($conn, $mode, $str('email'), $lang, $str('consent') === '1');
+            $ai = $str('plan') === 'ai';
+            $r = $ai ? palette_st_sub_start($conn, $mode, $str('email'), $lang, $str('consent') === '1')
+                     : palette_st_order_start($conn, $mode, $str('email'), $lang, $str('consent') === '1');
             if (!$r['ok']) return palette_api_error(['err_paused' => 503, 'err_stripe' => 502][$r['error']] ?? 400, $r['error'], $lang);
             $mine = is_array($_SESSION['palette_st'] ?? null) ? $_SESSION['palette_st'] : [];
-            $mine[] = $r['row_id'];
+            $mine[] = ($ai ? 's:' : 'o:') . $r['row_id'];
             $_SESSION['palette_st'] = array_slice($mine, -PALETTE_API_SESSION_ORDERS);
             return palette_api_reply(200, ['ok' => true, 'url' => $r['url']]);
         case 'st_confirm':
@@ -188,7 +190,7 @@ function palette_api_handle(array $req): array
             if ($r['state'] === 'error') return palette_api_error(502, $r['error'], $lang);
             if ($r['state'] !== 'paid') return palette_api_reply(200, ['ok' => true, 'state' => $r['state']]);
             // Only the session that started the checkout is shown its key; anyone else is told it was emailed.
-            if (!palette_api_owns_st((int)$r['row']) || $r['key'] === null) {
+            if (!palette_api_owns_st((string)$r['kind'], (int)$r['row']) || $r['key'] === null) {
                 return palette_api_reply(200, ['ok' => true, 'state' => 'paid', 'emailed' => true, 'email_masked' => $r['email_masked'],
                     'message' => strtr(palette_t($lang, 'co_key_emailed'), ['{email}' => $r['email_masked']])]);
             }
