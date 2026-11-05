@@ -353,8 +353,43 @@ $r = sw_send($conn, 'checkout.session.completed', ['id' => $row['stripe_session'
     ['id' => 'evt_boom']);
 ok('db failure 503', $r === [503, 'retry'] && str_contains(sw_log(), 'PALETTE_STRIPE_ERROR event=evt_boom RuntimeException') && !str_contains(sw_log(), 'sk_live_secret'));
 
+// ---- final review #8: the price check reads the invoice subtotal (before credit and discounts); amount_paid is what is recorded
+sw_reset($conn);
+sw_fulfilled_sub($conn);
+$r = sw_send($conn, 'invoice.paid', sw_invoice('in_credit', 0, ['subtotal' => 399, 'total' => 399, 'amount_due' => 0]));
+ok('#8 credit-applied invoice (amount_paid 0, subtotal 399) extends', $r === [200, 'renewed'] && sw_lic($conn)['paid_through'] === gmdate('Y-m-d H:i:s', SW_END + 30 * 86400));
+ok('#8 credit-applied invoice records amount_paid (0.00)', sw_count($conn, "SELECT COUNT(*) FROM palette_sub_payments WHERE sale_id = 'in_credit' AND amount_usd = 0") === 1);
+$r = sw_send($conn, 'invoice.paid', sw_invoice('in_coupon', 200, ['subtotal' => 399], SW_END + 30 * 86400, SW_END + 60 * 86400));
+ok('#8 partly credited invoice extends, records 2.00', $r === [200, 'renewed'] && sw_count($conn, "SELECT COUNT(*) FROM palette_sub_payments WHERE sale_id = 'in_coupon' AND amount_usd = 2") === 1
+    && sw_lic($conn)['paid_through'] === gmdate('Y-m-d H:i:s', SW_END + 60 * 86400));
+$r = sw_send($conn, 'invoice.paid', sw_invoice('in_sublow', 399, ['subtotal' => 100], SW_END + 60 * 86400, SW_END + 90 * 86400));
+ok('#8 subtotal below the price refused', $r === [200, 'refused'] && sw_lic($conn)['paid_through'] === gmdate('Y-m-d H:i:s', SW_END + 60 * 86400));
+ok('#8 zero subtotal (trial) still ignored', sw_send($conn, 'invoice.paid', sw_invoice('in_trial0', 0, ['subtotal' => 0])) === [200, 'ignored']);
+
+// ---- final review #3b: a refused subscription is cancelled at Stripe; its later invoices answer 200, never 503
+sw_reset($conn);
+$srow = sw_sub($conn);
+$low = sw_sub_session($srow, ['items' => ['data' => [['price' => ['unit_amount' => 100, 'currency' => 'usd']]]]]);
+$GLOBALS['st_routes']['GET /v1/checkout/sessions/' . $srow['stripe_session']] = ['status' => 200, 'json' => $low];
+$GLOBALS['st_routes']['DELETE /v1/subscriptions/sub_123'] = ['status' => 429, 'json' => []];
+$sthin = ['id' => $srow['stripe_session'], 'object' => 'checkout.session', 'metadata' => [], 'subscription' => 'sub_123', 'livemode' => true,
+          'client_reference_id' => 'palette:sub:' . $srow['id']];
+ok('#3b refused sub, Stripe cancel 429 -> 503 retry, row pending', sw_send($conn, 'checkout.session.completed', $sthin) === [503, 'retry']
+    && palette_sub_row($conn, 'id', (int)$srow['id'])['status'] === 'pending');
+$GLOBALS['st_routes']['DELETE /v1/subscriptions/sub_123'] = ['status' => 200, 'json' => ['id' => 'sub_123', 'status' => 'canceled']];
+$GLOBALS['st_calls'] = [];
+$r = sw_send($conn, 'checkout.session.completed', $sthin);
+ok('#3b refused sub -> 200 refused, cancelled at Stripe, row cancelled, no licence', $r === [200, 'refused'] && palette_sub_row($conn, 'id', (int)$srow['id'])['status'] === 'cancelled'
+    && count(array_filter($GLOBALS['st_calls'], fn($x) => $x['method'] === 'DELETE' && $x['path'] === '/v1/subscriptions/sub_123')) === 1
+    && sw_count($conn, 'SELECT COUNT(*) FROM palette_licenses') === 0 && str_contains(sw_log(), 'PALETTE_PAID_UNFULFILLED sub=' . $srow['id']));
+$inv = sw_invoice('in_refused', 399, ['subtotal' => 399, 'billing_reason' => 'subscription_create',
+    'subscription_details' => ['metadata' => ['palette' => 'sub', 'row' => (string)$srow['id']]]], SW_START, SW_END);
+ok('#3b invoice.paid for the refused subscription -> 200, nothing extended or recorded', sw_send($conn, 'invoice.paid', $inv) === [200, 'refused']
+    && sw_count($conn, 'SELECT COUNT(*) FROM palette_licenses') === 0 && sw_count($conn, "SELECT COUNT(*) FROM palette_sub_payments WHERE sale_id = 'in_refused'") === 0);
+ok('#3b deleted event for the refused subscription -> 200', sw_send($conn, 'customer.subscription.deleted', ['id' => 'sub_123', 'object' => 'subscription', 'status' => 'canceled'])[0] === 200);
+
 // ---- endpoint file
-$ep = (string)@file_get_contents(__DIR__ . '/../stripe-webhook.php');
+$ep =(string)@file_get_contents(__DIR__ . '/../stripe-webhook.php');
 ok('endpoint mirrors webhook.php', str_contains($ep, "require __DIR__ . '/bootstrap.php'") && str_contains($ep, 'http_response_code(405)')
     && str_contains($ep, 'http_response_code(413)') && str_contains($ep, 'PALETTE_WEBHOOK_MAX_BYTES + 1') && str_contains($ep, "HTTP_STRIPE_SIGNATURE")
     && str_contains($ep, 'palette_st_webhook_response($conn'));

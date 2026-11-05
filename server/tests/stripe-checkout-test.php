@@ -134,6 +134,23 @@ ok('amount mismatch: no licence, order failed', $f['ok'] === false && sc_count($
     && palette_order_by($conn, 'id', (int)$row['id'])['status'] === 'failed' && !$GLOBALS['mails']);
 $log = (string)@file_get_contents(sys_get_temp_dir() . '/palette-test.log');
 ok('amount mismatch logs PALETTE_PAID_UNFULFILLED with the order id', str_contains($log, 'PALETTE_PAID_UNFULFILLED order=' . $row['order_id']));
+// Final review #3a: the refused payment keeps its payment intent, so the admin sees money taken with no key.
+ok('#3a amount mismatch: payment intent stored with the failed order', palette_order_by($conn, 'id', (int)$row['id'])['stripe_payment_intent'] === 'pi_123');
+ok('#3a totals: counted under "Paid, no key yet"', palette_admin_totals($conn)['unfulfilled'] === 1);
+$pays = array_values(array_filter(palette_admin_payments($conn), fn($p) => $p['ref'] === 'pi_123'));
+ok('#3a Payments tab lists it as a problem with an Issue a key link', count($pays) === 1 && $pays[0]['problem'] === true && $pays[0]['licence_id'] === null);
+// Final review #11: a DB failure while fulfilling logs the exception class only, never its message.
+[$r, $row] = sc_order($conn);
+$conn->query('RENAME TABLE palette_licenses TO palette_licenses_off');
+try {
+    $f = palette_st_fulfil_order($conn, $row, sc_session($row));
+} finally {
+    $conn->query('RENAME TABLE palette_licenses_off TO palette_licenses');
+}
+$log = (string)@file_get_contents(sys_get_temp_dir() . '/palette-test.log');
+ok('#11 DB failure: retry, order left created', !empty($f['retry']) && palette_order_by($conn, 'id', (int)$row['id'])['status'] === 'created');
+ok('#11 DB failure logged with the class only', str_contains($log, 'PALETTE_STRIPE_ERROR fulfil order=' . $row['order_id'] . ' failed (will retry): mysqli_sql_exception')
+    && !str_contains($log, "palette_licenses' doesn't exist"));
 [$r, $row] = sc_order($conn);
 $f = palette_st_fulfil_order($conn, $row, sc_session($row, ['currency' => 'vnd']));
 ok('wrong currency: failed', $f['ok'] === false && palette_order_by($conn, 'id', (int)$row['id'])['status'] === 'failed');

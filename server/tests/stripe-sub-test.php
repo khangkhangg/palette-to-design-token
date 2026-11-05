@@ -121,31 +121,68 @@ ok('sub fulfil race: one licence, one mail, same key', $a['ok'] && $b['ok'] && $
     && $a['key'] !== null && $a['key'] === $b['key'] && ss_count($conn, 'SELECT COUNT(*) FROM palette_licenses') === 1 && count($GLOBALS['mails']) === 1);
 
 // ---- price mismatch / currency / status
+// Final review #3b: a refused paid subscription backs no key, so it is cancelled at Stripe now and the row is closed.
 ss_reset($conn);
+$del = fn(string $sid) => array_values(array_filter($GLOBALS['st_calls'], fn($x) => $x['method'] === 'DELETE' && $x['path'] === '/v1/subscriptions/' . $sid));
 [$r, $row] = ss_start($conn);
-$low = ss_session($row);
+$low = ss_session($row, ['id' => 'sub_LOW1']);
 $low['subscription']['items']['data'][0]['price']['unit_amount'] = 100;
+$GLOBALS['st_routes']['DELETE /v1/subscriptions/sub_LOW1'] = ['status' => 503, 'json' => []];
+$GLOBALS['st_calls'] = [];
 $f = palette_st_fulfil_sub($conn, $row, $low);
-ok('sub price mismatch: no licence, row stays pending, no mail', $f['ok'] === false && empty($f['retry']) && ss_count($conn, 'SELECT COUNT(*) FROM palette_licenses') === 0
-    && palette_sub_row($conn, 'id', (int)$row['id'])['status'] === 'pending' && !$GLOBALS['mails']);
+ok('#3b sub price mismatch, Stripe cancel 503: retry, row still pending, no licence', $f['ok'] === false && !empty($f['retry'])
+    && palette_sub_row($conn, 'id', (int)$row['id'])['status'] === 'pending' && count($del('sub_LOW1')) === 1 && ss_count($conn, 'SELECT COUNT(*) FROM palette_licenses') === 0);
+$GLOBALS['st_routes']['DELETE /v1/subscriptions/sub_LOW1'] = ['status' => 200, 'json' => ['id' => 'sub_LOW1', 'status' => 'canceled']];
+$f = palette_st_fulfil_sub($conn, $row, $low);
+$srow = palette_sub_row($conn, 'id', (int)$row['id']);
+ok('sub price mismatch: no licence, no mail, no retry', $f['ok'] === false && empty($f['retry']) && ss_count($conn, 'SELECT COUNT(*) FROM palette_licenses') === 0 && !$GLOBALS['mails']);
+ok('#3b sub price mismatch: cancelled at Stripe, row cancelled with the Stripe ids', count($del('sub_LOW1')) === 2 && $srow['status'] === 'cancelled'
+    && $srow['subscription_id'] === 'sub_LOW1' && $srow['stripe_customer'] === 'cus_123' && $srow['license_id'] === null);
 $log = (string)@file_get_contents(sys_get_temp_dir() . '/palette-test.log');
 ok('sub price mismatch logs PALETTE_PAID_UNFULFILLED', str_contains($log, 'PALETTE_PAID_UNFULFILLED sub=' . $row['id']));
-$vnd = ss_session($row);
+$pays = array_values(array_filter(palette_admin_payments($conn), fn($p) => $p['ref'] === 'sub_LOW1'));
+ok('#3b Payments: the refused subscription is listed as a problem', count($pays) === 1 && $pays[0]['status'] === 'refused_sub' && $pays[0]['problem'] === true
+    && $pays[0]['amount'] === '$3.99' && $pays[0]['provider'] === 'stripe' && $pays[0]['licence_id'] === null);
+$h = palette_admin_tab_payments($conn, ['user_id' => 1, 'user_role' => 'admin', 'csrf_tokens' => ['palette_admin' => str_repeat('a', 64)]], [])['html'];
+ok('#3b Payments tab: "Refused subscription — cancelled at Stripe; refund in Stripe"', str_contains($h, 'Refused subscription — cancelled at Stripe; refund in Stripe'));
+ok('#3b totals: counted under "Paid, no key yet"', palette_admin_totals($conn)['unfulfilled'] === 1);
+ok('#3b refused row: a second delivery answers already, no new DELETE', palette_st_fulfil_sub($conn, $row, $low)['ok'] === false && count($del('sub_LOW1')) === 2);
+[$r, $row] = ss_start($conn);
+$vnd = ss_session($row, ['id' => 'sub_VND1']);
 $vnd['subscription']['items']['data'][0]['price']['currency'] = 'vnd';
 $vnd['subscription']['currency'] = 'vnd';
 $vnd['currency'] = 'vnd';
-ok('sub wrong currency refused', palette_st_fulfil_sub($conn, $row, $vnd)['ok'] === false && ss_count($conn, 'SELECT COUNT(*) FROM palette_licenses') === 0);
-$over = ss_session($row);
+$GLOBALS['st_routes']['DELETE /v1/subscriptions/sub_VND1'] = ['status' => 200, 'json' => ['id' => 'sub_VND1', 'status' => 'canceled']];
+ok('sub wrong currency refused (and cancelled)', palette_st_fulfil_sub($conn, $row, $vnd)['ok'] === false && ss_count($conn, 'SELECT COUNT(*) FROM palette_licenses') === 0
+    && count($del('sub_VND1')) === 1 && palette_sub_row($conn, 'id', (int)$row['id'])['status'] === 'cancelled');
+[$r, $row] = ss_start($conn);
+$over = ss_session($row, ['id' => 'sub_OVER1']);
 $over['subscription']['items']['data'][0]['price']['unit_amount'] = 500;
-ok('sub overpay accepted', palette_st_fulfil_sub($conn, $row, $over)['ok'] === true);
+ok('sub overpay accepted', palette_st_fulfil_sub($conn, $row, $over)['ok'] === true && !$del('sub_OVER1'));
+[$r, $row] = ss_start($conn);
+$bad = ss_session($row, ['id' => 'sub_BAD400']);
+$bad['subscription']['items']['data'][0]['price']['unit_amount'] = 100;
+$GLOBALS['st_routes']['DELETE /v1/subscriptions/sub_BAD400'] = ['status' => 400, 'json' => ['error' => ['message' => 'nope']]];
+$f = palette_st_fulfil_sub($conn, $row, $bad);
+$pays = array_values(array_filter(palette_admin_payments($conn), fn($p) => $p['ref'] === 'sub_BAD400'));
+ok('#3b refused sub, Stripe cancel 400 (final): row closed, Payments says to cancel it by hand', $f['ok'] === false && empty($f['retry'])
+    && palette_sub_row($conn, 'id', (int)$row['id'])['status'] === 'cancelled' && ($pays[0]['status'] ?? '') === 'refused_sub_open'
+    && str_contains(palette_admin_tab_payments($conn, ['user_id' => 1, 'user_role' => 'admin', 'csrf_tokens' => ['palette_admin' => str_repeat('a', 64)]], [])['html'],
+        'Refused subscription — cancel it and refund in Stripe'));
 ss_reset($conn);
 [$r, $row] = ss_start($conn);
-$f = palette_st_fulfil_sub($conn, $row, ss_session($row, ['status' => 'canceled']));
+$GLOBALS['st_calls'] = [];
+$f = palette_st_fulfil_sub($conn, $row, ss_session($row, ['id' => 'sub_CANC1', 'status' => 'canceled']));
 ok('sub canceled status refused, no retry', $f['ok'] === false && empty($f['retry']) && ss_count($conn, 'SELECT COUNT(*) FROM palette_licenses') === 0);
-$f = palette_st_fulfil_sub($conn, $row, ss_session($row, ['status' => 'trialing']));
+ok('#3b already canceled at Stripe: no DELETE, row closed', !$del('sub_CANC1') && palette_sub_row($conn, 'id', (int)$row['id'])['status'] === 'cancelled');
+[$r, $row] = ss_start($conn);
+$GLOBALS['st_routes']['DELETE /v1/subscriptions/sub_TRIAL1'] = ['status' => 200, 'json' => ['id' => 'sub_TRIAL1', 'status' => 'canceled']];
+$f = palette_st_fulfil_sub($conn, $row, ss_session($row, ['id' => 'sub_TRIAL1', 'status' => 'trialing']));
 $log = (string)@file_get_contents(sys_get_temp_dir() . '/palette-test.log');
-ok('sub trialing on a fresh row refused: pending, nothing issued, logged', $f['ok'] === false && empty($f['retry']) && ss_count($conn, 'SELECT COUNT(*) FROM palette_licenses') === 0
-    && palette_sub_row($conn, 'id', (int)$row['id'])['status'] === 'pending' && !$GLOBALS['mails'] && str_contains($log, 'PALETTE_PAID_UNFULFILLED sub=' . $row['id'] . ' status=trialing'));
+ok('sub trialing on a fresh row refused: nothing issued, logged, cancelled at Stripe', $f['ok'] === false && empty($f['retry']) && ss_count($conn, 'SELECT COUNT(*) FROM palette_licenses') === 0
+    && palette_sub_row($conn, 'id', (int)$row['id'])['status'] === 'cancelled' && count($del('sub_TRIAL1')) === 1 && !$GLOBALS['mails']
+    && str_contains($log, 'PALETTE_PAID_UNFULFILLED sub=' . $row['id'] . ' status=trialing'));
+[$r, $row] = ss_start($conn);
 $f = palette_st_fulfil_sub($conn, $row, ss_session($row, [], ['payment_status' => 'no_payment_required']));
 ok('no_payment_required on a fresh row refused', $f['ok'] === false && empty($f['retry']) && ss_count($conn, 'SELECT COUNT(*) FROM palette_licenses') === 0);
 $old2 = palette_issue_license($conn, 'buyer@studio.vn', 'I-TRIALMOVE1', 'en', ['subscription_id' => 'I-TRIALMOVE1', 'paid_through' => '2026-12-01 00:00:00', 'period_start' => '2026-11-01 00:00:00']);

@@ -134,12 +134,17 @@ function palette_st_fulfil_order(mysqli $c, array $order, array $session): array
     if (($session['payment_status'] ?? '') !== 'paid') return ['ok' => false, 'key' => null, 'already' => false, 'retry' => true];
     $paid = (int)($session['amount_total'] ?? -1);
     $want = palette_cents((string)$order['amount_usd']);
+    $pi = is_string($session['payment_intent'] ?? null) ? substr($session['payment_intent'], 0, 80) : null;
     if (strtolower((string)($session['currency'] ?? '')) !== 'usd' || $want === null || $paid < $want) {
-        palette_mark_failed($c, $id);
+        // Money was taken but no key is issued: keep the payment intent with the failed order, so the admin totals and the
+        // Payments tab list it as paid with no key (refund it in Stripe or issue a key by hand).
+        $st = $c->prepare("UPDATE palette_orders SET status = 'failed', stripe_payment_intent = COALESCE(?, stripe_payment_intent) WHERE id = ? AND status = 'created'");
+        $st->bind_param('si', $pi, $id);
+        $st->execute();
+        $st->close();
         error_log("PALETTE_PAID_UNFULFILLED order=$oid");
         return ['ok' => false, 'key' => null, 'already' => false];
     }
-    $pi = is_string($session['payment_intent'] ?? null) ? substr($session['payment_intent'], 0, 80) : null;
 
     // Claim first: only the call whose UPDATE flips 'created' issues the key. The transaction makes a
     // concurrent claimer wait on the row lock until license_id is stored.
@@ -160,7 +165,7 @@ function palette_st_fulfil_order(mysqli $c, array $order, array $session): array
         $c->commit();
     } catch (Throwable $e) {
         $c->rollback();
-        error_log("PALETTE_STRIPE_ERROR fulfil order=$oid failed (will retry): " . $e->getMessage());
+        error_log("PALETTE_STRIPE_ERROR fulfil order=$oid failed (will retry): " . get_class($e));
         return ['ok' => false, 'key' => null, 'already' => false, 'retry' => true];
     }
     $m = palette_license_email($lic['key'], (string)$order['lang']);
@@ -329,12 +334,16 @@ function palette_st_fulfil_sub(mysqli $c, array $row, array $session): array
     $item = $sub['items']['data'][0] ?? [];
     $paidCents = (int)($item['price']['unit_amount'] ?? -1);
     $currency = strtolower((string)($item['price']['currency'] ?? $sub['currency'] ?? $session['currency'] ?? ''));
-    if (!in_array($status, $isMove ? ['active', 'trialing'] : ['active'], true) || $currency !== 'usd' || $paidCents < palette_sub_row_price($c, $row)) {
-        error_log("PALETTE_PAID_UNFULFILLED sub=$id status=$status");
-        return $no;
-    }
     $sid = (string)$sub['id'];
     $cust = is_string($session['customer'] ?? null) ? substr($session['customer'], 0, 80) : null;
+    if (!in_array($status, $isMove ? ['active', 'trialing'] : ['active'], true) || $currency !== 'usd' || $paidCents < palette_sub_row_price($c, $row)) {
+        // Refused: it backs no key, so it must not keep billing. Cancel it at Stripe now (unless Stripe already ended it) and
+        // close the row; a transient cancel failure leaves the row pending and answers retry.
+        $ended = in_array($status, ['canceled', 'incomplete_expired'], true);
+        $why = "status=$status currency=" . preg_replace('/[^a-z]/', '', $currency) . " price=$paidCents";
+        return palette_st_refuse_sub($c, $row, $row['move_license_id'] === null ? null : (int)$row['move_license_id'], $sid, $cust, $why, !$ended)
+            ? $no : $no + ['retry' => true];
+    }
     $now = palette_sub_now();
     // 2024-06-20: the period lives on the subscription; later API versions moved it to the item.
     $start = palette_st_utc($sub['current_period_start'] ?? $item['current_period_start'] ?? null) ?? gmdate('Y-m-d H:i:s');
@@ -367,7 +376,7 @@ function palette_st_fulfil_sub(mysqli $c, array $row, array $session): array
                 : (strcasecmp((string)$k['email'], (string)$row['email']) !== 0 ? 'email differs' : ($used ? 'already moved' : null))));
             if ($refused !== null) {
                 $c->rollback();
-                return palette_st_move_refused($c, $row, $move, $sid, $cust, $refused) ? $no : $no + ['retry' => true];
+                return palette_st_refuse_sub($c, $row, $move, $sid, $cust, "move refused: $refused") ? $no : $no + ['retry' => true];
             }
             $oldSub = $k['subscription_id'];
             $livemode = (int)$row['livemode'];
@@ -386,7 +395,7 @@ function palette_st_fulfil_sub(mysqli $c, array $row, array $session): array
         $c->commit();
     } catch (Throwable $e) {
         $c->rollback();
-        error_log("PALETTE_STRIPE_ERROR fulfil sub=$id failed (will retry): " . $e->getMessage());
+        error_log("PALETTE_STRIPE_ERROR fulfil sub=$id failed (will retry): " . get_class($e));
         return $no + ['retry' => true];
     }
     if ($moved) {   // a moved customer already holds the key; their PayPal billing stops now
@@ -398,22 +407,34 @@ function palette_st_fulfil_sub(mysqli $c, array $row, array $session): array
     return ['ok' => true, 'key' => $lic['key'], 'already' => false];
 }
 
-// A move-to-card subscription whose licence can no longer take it: nothing re-pointed, and the Stripe subscription (it backs
-// no key, and a trial would charge later) is cancelled now. True when the row is closed. A DELETE that failed transiently
-// (0/429/5xx) returns false and leaves the row pending, so the caller answers retry: the webhook redelivers and the nightly
-// reconcile confirms it again, and each attempt retries the cancel. Any failed cancel also writes admin log
-// 'move_orphan_cancel_failed' on the licence, so the licence page shows it.
-function palette_st_move_refused(mysqli $c, array $row, int $licenceId, string $sid, ?string $cust, string $why): bool
+// A paid Stripe subscription palette will not fulfil: a move-to-card whose licence can no longer take it ($licenceId = that
+// licence), or a checkout whose subscription is not what was sold (price, currency or status; $licenceId null). It backs no key,
+// and a trial would charge later, so the Stripe subscription is cancelled now (unless $cancel is false: Stripe already ended it)
+// and the row closed ('cancelled', with the Stripe ids, license_id NULL: the Payments tab lists it). True when the row is
+// closed (or was closed already: a redelivery calls Stripe no more). A DELETE that failed transiently (0/429/5xx) returns
+// false and leaves the row pending, so the caller answers retry: the webhook redelivers and the nightly reconcile confirms it
+// again, and each attempt retries the cancel. A failed cancel also writes an admin log row: every one of a move
+// ('move_orphan_cancel_failed' on the licence), only a final (non-transient) one of a refused checkout ('sub_refused_cancel_failed').
+function palette_st_refuse_sub(mysqli $c, array $row, ?int $licenceId, string $sid, ?string $cust, string $why, bool $cancel = true): bool
 {
     $id = (int)$row['id'];
-    error_log("PALETTE_PAID_UNFULFILLED sub=$id move refused: $why; cancelling Stripe subscription $sid, refund it if it was charged");
-    $mode = (int)$row['livemode'] === 1 ? 'live' : 'test';
-    $r = palette_st_api($c, $mode, 'DELETE', 'subscriptions/' . rawurlencode($sid));
-    $s = (int)$r['status'];
-    if (!(($s >= 200 && $s < 300) || $s === 404)) {
-        error_log("PALETTE_CANCEL_FAILED subscription=$sid after refused move to card (HTTP $s); cancel it in Stripe by hand");
-        palette_admin_log($c, 0, 'move_orphan_cancel_failed', $licenceId, $sid, ['row' => $id, 'why' => $why, 'http' => $s], null);
-        if ($s === 0 || $s === 429 || $s >= 500) return false;
+    $cur = palette_sub_row($c, 'id', $id);
+    if (!$cur || $cur['status'] !== 'pending') return true;
+    error_log("PALETTE_PAID_UNFULFILLED sub=$id $why; " . ($cancel ? "cancelling Stripe subscription $sid" : "Stripe subscription $sid already ended")
+        . ', refund it in Stripe if it was charged');
+    if ($cancel) {
+        $mode = (int)$row['livemode'] === 1 ? 'live' : 'test';
+        $r = palette_st_api($c, $mode, 'DELETE', 'subscriptions/' . rawurlencode($sid));
+        $s = (int)$r['status'];
+        if (!(($s >= 200 && $s < 300) || $s === 404)) {
+            error_log("PALETTE_CANCEL_FAILED subscription=$sid after a refused subscription (HTTP $s); cancel it in Stripe by hand");
+            $transient = $s === 0 || $s === 429 || $s >= 500;
+            // A move logs every failure on its licence; a refused checkout only a final one (the row closes and the Payments tab
+            // then says to cancel it by hand), since a transient one is retried.
+            if ($licenceId !== null) palette_admin_log($c, 0, 'move_orphan_cancel_failed', $licenceId, $sid, ['row' => $id, 'why' => $why, 'http' => $s], null);
+            elseif (!$transient) palette_admin_log($c, 0, 'sub_refused_cancel_failed', null, $sid, ['row' => $id, 'why' => $why, 'http' => $s], null);
+            if ($transient) return false;
+        }
     }
     $now = palette_sub_now();
     $st = $c->prepare("UPDATE palette_subscriptions SET status = 'cancelled', subscription_id = ?, stripe_customer = ?, updated_at = ? WHERE id = ? AND status = 'pending'");

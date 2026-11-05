@@ -137,7 +137,7 @@ function palette_admin_licences(mysqli $c, array $filters, int $page): array
 }
 
 // ['pro' => active live Pro keys, 'ai' => active live Pro + AI keys, 'unfulfilled' => live orders paid with no key
-// (captured without licence, or failed with a Stripe payment intent), 'revenue_month_cents' => live captured orders
+// (captured without licence, or failed with a Stripe payment intent) plus live refused Stripe subscriptions, 'revenue_month_cents' => live captured orders
 // plus completed subscription payments since the 1st of this month UTC].
 function palette_admin_totals(mysqli $c): array
 {
@@ -147,6 +147,7 @@ function palette_admin_totals(mysqli $c): array
     }
     $out['unfulfilled'] = (int)$c->query("SELECT COUNT(*) FROM palette_orders WHERE livemode = 1 AND provider <> 'admin'
         AND ((status = 'captured' AND license_id IS NULL) OR (status = 'failed' AND stripe_payment_intent IS NOT NULL AND stripe_payment_intent <> ''))")->fetch_row()[0];
+    $out['unfulfilled'] += (int)$c->query('SELECT COUNT(*) FROM palette_subscriptions s WHERE s.livemode = 1 AND ' . PALETTE_ADMIN_REFUSED_SUB_SQL)->fetch_row()[0];
     $since = gmdate('Y-m-01 00:00:00');
     $st = $c->prepare("SELECT COALESCE(SUM(ROUND(amount_usd * 100)), 0) FROM palette_orders WHERE status = 'captured' AND livemode = 1 AND provider <> 'admin' AND captured_at >= ?");
     $st->bind_param('s', $since);
@@ -848,6 +849,7 @@ function palette_admin_log_text(array $r): string
         'move_paypal_cancel_failed' => 'Could not cancel the PayPal subscription after the move to card',
         'move_old_refund' => 'PayPal refunded a payment made before the move to card; the key was not revoked (decide by hand)',
         'move_orphan_cancel_failed' => 'Could not cancel a refused move-to-card Stripe subscription; cancel it in Stripe',
+        'sub_refused_cancel_failed' => 'Could not cancel a refused Stripe subscription; cancel it in Stripe',
         default        => ucfirst(str_replace('_', ' ', (string)$r['action'])),
     };
 }
@@ -1312,12 +1314,26 @@ function palette_admin_payments(mysqli $c, int $limit = 100): array
             'status' => ['completed' => 'paid', 'refunded' => 'refunded', 'reversed' => 'reversed'][$p['status']] ?? (string)$p['status'],
             'licence_id' => $p['lid'] === null ? null : (int)$p['lid'], 'livemode' => (int)($p['l_live'] ?? $p['s_live'] ?? 1), 'problem' => false, 'ref' => (string)$p['sale_id']];
     }
+    // Paid Stripe subscriptions refused at checkout (palette_st_refuse_sub): cancelled at Stripe, no key, to be refunded.
+    $q = $c->query("SELECT s.*, EXISTS (SELECT 1 FROM palette_admin_log a WHERE a.action = 'sub_refused_cancel_failed' AND a.order_ref = s.subscription_id) AS cancel_failed
+        FROM palette_subscriptions s WHERE " . PALETTE_ADMIN_REFUSED_SUB_SQL . " ORDER BY s.updated_at DESC, s.id DESC LIMIT $limit");
+    foreach ($q as $s) {
+        $out[] = ['at' => (string)$s['updated_at'], 'email' => (string)$s['email'], 'amount' => '$' . palette_money(palette_sub_row_price($c, $s)),
+            'provider' => 'stripe', 'status' => (int)$s['cancel_failed'] === 1 ? 'refused_sub_open' : 'refused_sub', 'licence_id' => null,
+            'livemode' => (int)$s['livemode'], 'problem' => true, 'ref' => (string)$s['subscription_id']];
+    }
     usort($out, fn($a, $b) => [$b['problem'], $b['at']] <=> [$a['problem'], $a['at']]);
     return array_slice($out, 0, $limit);
 }
 
 const PALETTE_ADMIN_PAY_STATES = ['paid' => ['Paid', 'pill-ok'], 'unfulfilled' => ['Paid, no key', 'pill-bad'], 'failed' => ['Failed', 'pill-warn'],
-    'refunded' => ['Refunded', 'pill-plain'], 'reversed' => ['Reversed', 'pill-plain']];
+    'refunded' => ['Refunded', 'pill-plain'], 'reversed' => ['Reversed', 'pill-plain'],
+    'refused_sub' => ['Refused subscription — cancelled at Stripe; refund in Stripe', 'pill-bad'],
+    'refused_sub_open' => ['Refused subscription — cancel it and refund in Stripe', 'pill-bad']];
+
+// A paid Stripe subscription palette refused at checkout (not a move to card): closed with its Stripe id and no licence.
+const PALETTE_ADMIN_REFUSED_SUB_SQL = "s.provider = 'stripe' AND s.status IN ('cancelled', 'expired') AND s.license_id IS NULL
+    AND s.move_license_id IS NULL AND s.subscription_id IS NOT NULL";
 
 // Subscriptions whose renewal failed (status 'suspended', Stripe or PayPal), oldest failure first. Only the row that backs its
 // licence (a moved licence's old PayPal row is not listed). Each: email, provider, price ('$3.99'), since (updated_at), licence_id.
@@ -1356,7 +1372,7 @@ function palette_admin_tab_payments(mysqli $c, array $session, array $query): ar
         $test = $p['livemode'] === 0 ? ' <span class="badge badge-test">Test</span>' : '';
         if ($p['licence_id'] !== null) {
             $link = '<a class="btn btn-sm" href="' . palette_h(palette_admin_url('licence', ['id' => $p['licence_id']])) . '">Open licence</a>';
-        } elseif ($p['problem']) {
+        } elseif ($p['problem'] && !str_starts_with($p['status'], 'refused_sub')) {
             $link = '<a class="btn btn-sm" href="' . palette_h(palette_admin_url('issue', ['email' => $p['email'], 'ref' => $p['ref']])) . '">Issue a key</a>';
         } else {
             $link = '';

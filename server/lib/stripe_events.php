@@ -145,8 +145,16 @@ function palette_st_ev_invoice_paid(mysqli $c, string $mode, array $inv): string
         // The first invoice can beat checkout.session.completed: never record money against a licence not yet issued.
         return palette_st_invoice_pending($c, $inv, $mode) ? 'retry' : 'ignored';
     }
+    if ($row['license_id'] === null) {
+        // A subscription palette refused at checkout (cancelled at Stripe, no key; palette_st_refuse_sub): never extended.
+        error_log("PALETTE_PAID_UNFULFILLED invoice=$invId sub=$subId on a refused subscription; refund it in Stripe if it was charged");
+        return 'refused';
+    }
+    // The price check reads the subtotal (before invoice discounts and customer credit: the Stripe account is shared, so a
+    // balance from elsewhere can lower amount_paid); amount_paid is what is recorded as paid.
     $paid = $inv['amount_paid'] ?? null;
-    if (!is_int($paid) || $paid <= 0) return 'ignored';   // a trial or zero invoice: nothing was paid
+    $subtotal = $inv['subtotal'] ?? $paid;
+    if (!is_int($paid) || $paid < 0 || !is_int($subtotal) || $subtotal <= 0) return 'ignored';   // a trial or zero invoice: nothing was sold
     $st = $c->prepare('SELECT 1 FROM palette_sub_payments WHERE sale_id = ?');
     $st->bind_param('s', $invId);
     $st->execute();
@@ -163,8 +171,8 @@ function palette_st_ev_invoice_paid(mysqli $c, string $mode, array $inv): string
         palette_st_cancel_sub($c, $mode, $row, 'a payment on a refunded key');
         return 'unfulfilled';
     }
-    if (strtolower((string)($inv['currency'] ?? '')) !== 'usd' || $paid < palette_sub_row_price($c, $row)) {
-        error_log("PALETTE_PAID_UNFULFILLED invoice=$invId sub=$subId paid $paid " . preg_replace('/[^a-z]/', '', strtolower((string)($inv['currency'] ?? ''))) . '; below the price, not extended');
+    if (strtolower((string)($inv['currency'] ?? '')) !== 'usd' || $subtotal < palette_sub_row_price($c, $row)) {
+        error_log("PALETTE_PAID_UNFULFILLED invoice=$invId sub=$subId subtotal $subtotal paid $paid " . preg_replace('/[^a-z]/', '', strtolower((string)($inv['currency'] ?? ''))) . '; below the price, not extended');
         return 'refused';
     }
 
