@@ -148,6 +148,8 @@ $refund = ['id' => 'RF-1', 'status' => 'COMPLETED', 'custom_id' => cid($conn, 'O
            'links' => [['rel' => 'up', 'href' => 'https://api-m.sandbox.paypal.com/v2/payments/captures/CAP-AP', 'method' => 'GET']]];
 ok('refunded -> revoked', palette_webhook($conn, HDRS, ev('PAYMENT.CAPTURE.REFUNDED', $refund)) === 'revoked');
 ok('refunded: license revoked', palette_verify($conn, $keyAp, '10.9.0.1')['revoked'] === true);
+ok('#9 refunded: licence pay_status refunded (the admin Refunded filter finds it)', $conn->query("SELECT pay_status FROM palette_licenses WHERE order_id = 'ORD-AP'")->fetch_row()[0] === 'refunded'
+    && count(array_filter(palette_admin_licences($conn, ['status' => 'refunded'], 1)['rows'], fn($r) => $r['license_key'] === $keyAp)) === 1);
 ok('other licenses untouched', (int)$conn->query('SELECT COUNT(*) FROM palette_licenses WHERE revoked_at IS NOT NULL')->fetch_row()[0] === 1);
 
 $keyPw = $conn->query("SELECT license_key FROM palette_licenses WHERE order_id = 'ORD-PW'")->fetch_row()[0];

@@ -678,7 +678,7 @@ function palette_sub_refund(mysqli $c, string $type, array $res): string
     }
     if ($lid !== null) {
         $now = palette_sub_now();
-        $rev = $c->prepare('UPDATE palette_licenses SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL');
+        $rev = $c->prepare("UPDATE palette_licenses SET revoked_at = COALESCE(revoked_at, ?), pay_status = 'refunded' WHERE id = ?");
         $rev->bind_param('si', $now, $lid);
         $rev->execute();
         $rev->close();

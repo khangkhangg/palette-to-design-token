@@ -296,6 +296,11 @@ function palette_webhook(mysqli $c, array $headersLower, string $body): string
     $o = palette_webhook_order($c, ['order_id' => $related['order_id'] ?? null, 'capture_id' => $capId], $rowId);
     if (!$o) return 'unknown order';
     palette_revoke_by_order($c, (string)$o['order_id']);
+    $oid = (string)$o['order_id'];
+    $st = $c->prepare("UPDATE palette_licenses SET pay_status = 'refunded' WHERE order_id = ?");   // the admin Refunded filter
+    $st->bind_param('s', $oid);
+    $st->execute();
+    $st->close();
     error_log("palette: $type for order {$o['order_id']}; license revoked");
     return 'revoked';
 }
