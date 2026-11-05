@@ -141,13 +141,14 @@ $pays = array_values(array_filter(palette_admin_payments($conn), fn($p) => $p['r
 ok('#3a Payments tab lists it as a problem with an Issue a key link', count($pays) === 1 && $pays[0]['problem'] === true && $pays[0]['licence_id'] === null);
 // Final review #11: a DB failure while fulfilling logs the exception class only, never its message.
 [$r, $row] = sc_order($conn);
+$logFrom = strlen((string)@file_get_contents(sys_get_temp_dir() . '/palette-test.log'));   // the log is shared by test files: read only what this adds
 $conn->query('RENAME TABLE palette_licenses TO palette_licenses_off');
 try {
     $f = palette_st_fulfil_order($conn, $row, sc_session($row));
 } finally {
     $conn->query('RENAME TABLE palette_licenses_off TO palette_licenses');
 }
-$log = (string)@file_get_contents(sys_get_temp_dir() . '/palette-test.log');
+$log = substr((string)@file_get_contents(sys_get_temp_dir() . '/palette-test.log'), $logFrom);
 ok('#11 DB failure: retry, order left created', !empty($f['retry']) && palette_order_by($conn, 'id', (int)$row['id'])['status'] === 'created');
 ok('#11 DB failure logged with the class only', str_contains($log, 'PALETTE_STRIPE_ERROR fulfil order=' . $row['order_id'] . ' failed (will retry): mysqli_sql_exception')
     && !str_contains($log, "palette_licenses' doesn't exist"));
