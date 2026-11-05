@@ -2,6 +2,7 @@
 // Checkout, account and privacy pages rendered to strings (lib/pages.php), plus one include of each thin page file.
 require __DIR__ . '/helpers.php';
 require __DIR__ . '/pp-stub.php';
+require __DIR__ . '/st-stub.php';
 // CLI has no session; start one (output buffered) so companies' CSRF helpers use $_SESSION as-is.
 ob_start();
 session_start();
@@ -23,6 +24,9 @@ function checkout(array $query = [], string $accept = ''): string
 }
 
 stub_reset($conn);
+// The PayPal-era checks below run with PayPal as the only checkout method; the Stripe section at the end sets its own.
+$conn->query("DELETE FROM admin_settings WHERE setting_key = 'palette_stripe'");
+palette_stripe_settings_put($conn, ['checkout_methods' => ['paypal']]);
 
 // ---- language choice
 ok('?lang wins', palette_page_lang(['lang' => 'fr'], 'es-ES,es;q=0.9') === 'fr');
@@ -177,7 +181,7 @@ ok('privacy: PayPal, Resend, no tracking', str_contains($p, 'PayPal') && str_con
 ok('privacy: server keeps your IP briefly, Cloudflare, session cookie', str_contains($p, h(palette_t('en', 'priv_server')))
     && str_contains(palette_t('en', 'priv_server'), 'IP address') && str_contains(palette_t('en', 'priv_server'), 'Cloudflare')
     && str_contains(palette_t('en', 'priv_server'), 'session cookie'));
-ok('privacy: contact + date', str_contains($p, 'href="mailto:support@vietnamcos.com"') && str_contains($p, '2026-10-17'));
+ok('privacy: contact + date', str_contains($p, 'href="mailto:support@vietnamcos.com"') && str_contains($p, '2026-11-04'));
 foreach (LANGS as $l) {
     $p = palette_render_privacy(['query' => ['lang' => $l], 'accept_language' => '']);
     $all = true;
@@ -350,7 +354,7 @@ ok('terms: PayPal, one-time, price', str_contains($tm, 'PayPal') && str_contains
 ok('terms: exact refund line', str_contains($tm, h($refundEn)));
 ok('terms: revocation, acceptable use, as is, liability', str_contains($tm, 'chargeback') && str_contains($tm, 'resell')
     && str_contains($tm, h('"as is"')) && str_contains($tm, 'limited to the amount you paid'));
-ok('terms: operated by vietnamcos.com, updated date, contact', str_contains($tm, 'Operated by vietnamcos.com') && str_contains($tm, '2026-10-17')
+ok('terms: operated by vietnamcos.com, updated date, contact', str_contains($tm, 'Operated by vietnamcos.com') && str_contains($tm, '2026-11-04')
     && str_contains($tm, 'href="mailto:support@vietnamcos.com"'));
 ok('terms: no invented legal entity or governing law', !preg_match('/governing law|LLC|Ltd|Inc\.|registered/i', $tm));
 foreach (LANGS as $l) {
@@ -461,7 +465,7 @@ ok('ai plan: summary, refund line and cancel sentence', str_contains($ai, h(pale
     && str_contains($ai, h($cancelSentence)) && !str_contains($ai, '<p class="refund" id="refund">' . h($refundEn)));
 ok('ai plan: consent checkbox still required', preg_match('/<input[^>]*type="checkbox"[^>]*id="consent"[^>]*required/', $ai) === 1);
 ok('ai plan: no pro-only card note', !str_contains($ai, '<p class="hint hint-center" id="pay-note">' . h(palette_t('en', 'co_card_note'))));
-ok('pro plan: unchanged refund line and card note', str_contains($pro, '<p class="refund" id="refund">' . h($refundEn)) && str_contains($pro, h(palette_t('en', 'co_card_note'))));
+ok('pro plan: unchanged refund line and PayPal card note', str_contains($pro, '<p class="refund" id="refund">' . h($refundEn)) && str_contains($pro, h(palette_t('en', 'co_pp_note'))));
 $d = checkoutData($ai);
 ok('page data: both totals and the strings the script swaps', ($d['total'] ?? '') === '$1.49' && ($d['total_ai'] ?? '') === '$3.99' && ($d['ai_enabled'] ?? null) === true
     && ($d['t']['co_sub_pending'] ?? '') === palette_t('en', 'co_sub_pending') && ($d['t']['co_note_ai'] ?? '') === palette_t('en', 'co_note_ai')
@@ -597,10 +601,10 @@ ok('privacy en: scrubbing, Brave Search, DeepSeek, 7-day shared cache, aggregate
     str_contains(palette_t('en', 'priv_ai'), 'email addresses, links (anything starting with http, https or www, or containing a path), @handles and long digit runs such as phone numbers') && str_contains(palette_t('en', 'priv_ai'), 'other words in the title are sent as they are') && !str_contains(palette_t('en', 'priv_ai'), 'personal details') && str_contains(palette_t('en', 'priv_ai'), 'Brave Search')
     && str_contains(palette_t('en', 'priv_ai'), 'DeepSeek, an AI provider') && str_contains(palette_t('en', 'priv_ai'), 'cached for 7 days')
     && str_contains(palette_t('en', 'priv_ai'), 'other people who analyse the same site') && str_contains(palette_t('en', 'priv_ai'), 'without any user identifiers')
-    && str_contains(palette_t('en', 'priv_ai'), 'billed monthly by PayPal') && str_contains(palette_t('en', 'priv_ai'), 'email, subscription id and payment dates'));
+    && str_contains(palette_t('en', 'priv_ai'), 'billed monthly by Stripe or PayPal') && str_contains(palette_t('en', 'priv_ai'), 'email, subscription id and payment dates'));
 ok('privacy en: What it sends names the optional feature; existing sections kept',
     str_contains($pen, 'Only your license key, to vietnamcos.com, to check that it is valid.') && str_contains(palette_t('en', 'priv_sends'), 'AI insights')
-    && str_contains($pen, h(palette_t('en', 'priv_pay'))) && str_contains($pen, h(palette_t('en', 'priv_track'))) && str_contains($pen, '2026-10-17'));
+    && str_contains($pen, h(palette_t('en', 'priv_pay'))) && str_contains($pen, h(palette_t('en', 'priv_track'))) && str_contains($pen, '2026-11-04'));
 ok('privacy en: AI section sits between What it sends and What our server processes',
     strpos($pen, h(palette_t('en', 'priv_sends_h'))) < strpos($pen, h(palette_t('en', 'priv_ai_h'))) && strpos($pen, h(palette_t('en', 'priv_ai_h'))) < strpos($pen, h(palette_t('en', 'priv_server_h'))));
 foreach (LANGS as $l) {
@@ -624,7 +628,7 @@ ok('privacy en: the list holds site names and domains only', str_contains(palett
 $ten = $terms('en');
 ok('terms en: subscription, monthly PayPal, renews until cancelled, cancel from account, access to end of paid month, final sales',
     str_contains($ten, h(palette_t('en', 'terms_sub_h'))) && str_contains($ten, h(palette_t('en', 'terms_sub', ['price' => '$3.99'])))
-    && str_contains(palette_t('en', 'terms_sub'), 'a month, billed monthly through PayPal') && str_contains(palette_t('en', 'terms_sub'), 'renews automatically every month until you cancel')
+    && str_contains(palette_t('en', 'terms_sub'), 'a month, billed monthly through Stripe or PayPal') && str_contains(palette_t('en', 'terms_sub'), 'renews automatically every month until you cancel')
     && str_contains(palette_t('en', 'terms_sub'), 'cancel at any time from your account page') && str_contains(palette_t('en', 'terms_sub'), 'stay on until the end of the month you already paid for')
     && str_contains(palette_t('en', 'terms_sub'), 'All sales are final') && str_contains(palette_t('en', 'terms_sub'), 'chargeback'));
 ok('terms en: analyses limit from settings, may change with notice, fair use, AI may be wrong',
@@ -736,7 +740,7 @@ $scrubSample = palette_scrub_text('Jane Smith, 12 Oak St - dentist jane@x.com @j
 ok('the scrubber leaves other words of a title alone (what the policy now says)', str_contains($scrubSample, 'Jane Smith, 12 Oak St') && !str_contains($scrubSample, '@') && !str_contains($scrubSample, '0912345678') && !str_contains($scrubSample, 'x.com'));
 $listingEn = (string)file_get_contents(PALETTE_DIR . '/../docs/store/listing.en.md');
 ok('en listing and disclosure use the narrow wording', substr_count($listingEn, 'links (anything starting with http, https or www, or containing a path), @handles and long digit runs such as phone numbers') === 2 && !str_contains($listingEn, 'web addresses') && !str_contains($listingEn, 'personally identifiable information') && !str_contains($listingEn, 'account details')
-    && preg_match('/^- Personally identifiable information: the buyer\'s email address, only when buying Pro or Pro \+ AI on vietnamcos\.com, used to deliver and resend licence keys and for billing \(sent via Resend; payment via PayPal\)\./m', $listingEn) === 1 && !str_contains($listingEn, 'Personal details such as'));
+    && preg_match('/^- Personally identifiable information: the buyer\'s email address, only when buying Pro or Pro \+ AI on vietnamcos\.com, used to deliver and resend licence keys and for billing \(sent via Resend; payment processed by Stripe; card details go to Stripe and are never seen or stored by us\)\./m', $listingEn) === 1 && !str_contains($listingEn, 'Personal details such as'));
 cfg($conn, ['ai_paypal_plan_id' => '']);
 preg_match('#id="faq".*?</section>#s', landing(['lang' => 'en']), $fq);
 ok('FAQ: what Pro + AI is says Coming soon while AI is off', str_contains($fq[0], h(palette_t('en', 'co_plan_soon')) . '. ' . h(palette_t('en', 'lp_faq_ai_a', ['price' => '$3.99', 'n' => 100]))));
@@ -750,3 +754,187 @@ $webAddr = [];
 foreach (LANGS as $l) if (str_contains(palette_t($l, 'priv_ai'), 'web addresses') || !str_contains(palette_t($l, 'priv_ai'), 'http') || !str_contains(palette_t($l, 'priv_ai'), 'www')) $webAddr[] = $l;
 ok('priv_ai: no "web addresses" in en and every language names http/https/www links: ' . implode(',', $webAddr), $webAddr === []);
 ok('en privacy page no longer says "web addresses"', !str_contains(palette_render_privacy(['query' => ['lang' => 'en'], 'accept_language' => '']), 'web addresses'));
+
+// ---- Stripe Task 7: checkout methods, return states and copy
+// Methods come from palette_stripe's checkout_methods; Stripe counts only when its mode is ready (live, or test for an admin's ?test=1).
+function st_methods(mysqli $c, array $methods, bool $live = true, bool $test = false): void
+{
+    $c->query("DELETE FROM admin_settings WHERE setting_key = 'palette_stripe'");
+    palette_stripe_settings_put($c, ['checkout_methods' => $methods]);
+    if ($live) st_stub_connect($c, 'live');
+    if ($test) st_stub_connect($c, 'test');
+}
+$stPos = fn(string $html, string $needle) => strpos($html, $needle);
+$markup = fn(string $html) => explode('id="palette-data"', $html)[0];   // the page without the script's string table
+$btn = fn(string $l, string $k, string $price) => palette_t_html($l, $k, ['price' => palette_ltr($price)]);   // a card button label as rendered
+cfg($conn, ['ai_paypal_plan_id' => '', 'ai_price_usd' => '3.99', 'tax_mode' => 'none']);
+stub_paypal($conn, true);
+
+// stripe only renders card button, no PayPal
+st_methods($conn, ['stripe']);
+$s1 = checkout(['lang' => 'en']);
+ok('stripe only renders card button, no PayPal', preg_match('#<button[^>]*id="st-pay"[^>]*>.*?' . preg_quote($btn('en', 'co_pay_card_pro', '$1.49'), '#') . '#s', $s1) === 1
+    && str_contains($s1, 'Pay <bdi dir="ltr">$1.49</bdi> by card')
+    && str_contains($s1, h(palette_t('en', 'co_card_note'))) && !str_contains($s1, 'id="paypal"') && !str_contains($s1, 'class="notice"')
+    && !str_contains($markup($s1), h(palette_t('en', 'co_pp_note'))) && str_contains($s1, h(palette_t('en', 'co_trust_stripe'))) && !str_contains($s1, h(palette_t('en', 'co_trust_paypal')))
+    && preg_match(EMOJI_RE, $s1) === 0);
+ok('stripe only: the card button carries an inline SVG card icon', preg_match('#<button[^>]*id="st-pay"[^>]*><svg class="icon icon-card"#', $s1) === 1);
+ok('stripe only: en copy exact', palette_t('en', 'co_pay_card_pro', ['price' => '$1.49']) === 'Pay $1.49 by card'
+    && palette_t('en', 'co_pay_card_ai', ['price' => '$3.99']) === 'Subscribe for $3.99 a month'
+    && palette_t('en', 'co_card_note') === "Card, Apple Pay or Google Pay on Stripe's secure page. We never see your card."
+    && palette_t('en', 'co_st_cancelled') === 'Payment cancelled. Nothing was charged.' && palette_t('en', 'co_manage_billing') === 'Manage billing'
+    && palette_t('en', 'co_test_banner') === 'Test mode — use card 4242 4242 4242 4242. Keys from test payments stop working after 7 days.');
+$d1 = checkoutData($s1);
+ok('stripe only: page data has methods, both button labels and no test flag', ($d1['methods'] ?? null) === ['stripe']
+    && ($d1['st_price']['pro'] ?? '') === '$1.49' && ($d1['st_price']['ai'] ?? '') === '$3.99'
+    && ($d1['t']['co_pay_card_pro'] ?? '') === palette_t('en', 'co_pay_card_pro') && ($d1['t']['co_pay_card_ai'] ?? '') === palette_t('en', 'co_pay_card_ai')
+    && empty($d1['test']) && ($d1['pp_ai'] ?? null) === false);
+ok('stripe only: Pro + AI is offered without a PayPal plan', ($d1['ai_enabled'] ?? null) === true
+    && preg_match('/<div[^>]*role="radio"[^>]*data-plan="ai"[^>]*aria-disabled="true"/', $s1) === 0);
+$s1ai = checkout(['lang' => 'en', 'plan' => 'ai']);
+ok('stripe only, plan=ai: the button subscribes at the Stripe price, cancel sentence shown', preg_match('#id="st-pay"[^>]*>.*?Subscribe for <bdi dir="ltr">\$3\.99</bdi> a month#s', $s1ai) === 1
+    && preg_match('#<p class="hint hint-center" id="ai-note">' . preg_quote(h(palette_t('en', 'co_note_ai')), '#') . '#', $s1ai) === 1);
+$sfr = checkout(['lang' => 'fr', 'plan' => 'ai']);
+ok('stripe only fr: prices written the French way in the button', str_contains($sfr, $btn('fr', 'co_pay_card_ai', "3,99\u{a0}\$ US")));
+cfg($conn, ['tax_mode' => 'ca']);
+ok('stripe only with CA tax on: no tax selects (Stripe charges the plain price)', !str_contains(checkout(['lang' => 'en']), 'id="country"'));
+cfg($conn, ['tax_mode' => 'none']);
+
+// both methods in order
+st_methods($conn, ['stripe', 'paypal']);
+$b1 = checkout(['lang' => 'en']);
+ok('both methods in order: Stripe first', $stPos($b1, 'id="st-pay"') !== false && $stPos($b1, 'id="paypal"') !== false && $stPos($b1, 'id="st-pay"') < $stPos($b1, 'id="paypal"')
+    && preg_match('#id="pay-stripe".*?<p class="pay-or" id="pay-or"><span>' . h(palette_t('en', 'co_pay_or')) . '</span></p><div class="pay-method" id="pay-paypal"#s', $b1) === 1 && str_contains($b1, h(palette_t('en', 'co_pp_note'))) && str_contains($b1, h(palette_t('en', 'co_card_note'))));
+st_methods($conn, ['paypal', 'stripe']);
+$b2 = checkout(['lang' => 'en']);
+ok('both methods in order: PayPal first', $stPos($b2, 'id="paypal"') !== false && $stPos($b2, 'id="st-pay"') !== false && $stPos($b2, 'id="paypal"') < $stPos($b2, 'id="st-pay"')
+    && $stPos($b2, h(palette_t('en', 'co_trust_paypal'))) < $stPos($b2, h(palette_t('en', 'co_trust_stripe'))));
+ok('both methods: page data lists them in order', (checkoutData($b2)['methods'] ?? null) === ['paypal', 'stripe']);
+// each button shows its own price: the Stripe label is what Stripe charges (ai_price_usd), PayPal keeps its plan price
+cfg($conn, ['ai_paypal_plan_id' => 'P-TESTPLAN1', 'ai_paypal_plan_mode' => 'sandbox', 'ai_paypal_plan_price' => '3.99', 'ai_price_usd' => '4.49']);
+$b3html = checkout(['lang' => 'en', 'plan' => 'ai']);
+$b3 = checkoutData($b3html);
+ok('both methods: the Stripe button shows the Stripe charge, PayPal keeps its amount (A18 mismatch: PayPal plan not sold)',
+    ($b3['st_price']['ai'] ?? '') === '$4.49' && ($b3['pp_ai'] ?? null) === false && ($b3['ai_enabled'] ?? null) === true);
+ok('review fix 1: PayPal first but its plan unsellable -> only Stripe sells Pro + AI, so total_ai, plan card and summary show the Stripe $4.49',
+    ($b3['total_ai'] ?? '') === '$4.49' && preg_match('#id="plan-ai-price"><span class="num" dir="ltr">\$4\.49</span>#', $b3html) === 1
+    && str_contains($b3html, '<span class="num" dir="ltr" id="sum-price">$4.49</span>') && str_contains($b3html, '<span id="total">$4.49</span>')
+    && !str_contains(explode('id="palette-data"', $b3html)[0], '$3.99'));
+$cfgB3 = palette_api_handle(['method' => 'GET', 'action' => 'config', 'post' => [], 'origin' => '', 'ip' => '1.1.1.1', 'session' => []]);
+ok('review fix 1: api config ai_price follows (4.49)', ($cfgB3['body']['ai_price'] ?? '') === '4.49');
+cfg($conn, ['ai_price_usd' => '3.99']);
+$b4 = checkoutData(checkout(['lang' => 'en', 'plan' => 'ai']));
+ok('both methods with the PayPal plan ready: PayPal may sell Pro + AI too', ($b4['pp_ai'] ?? null) === true && ($b4['total_ai'] ?? '') === '$3.99');
+cfg($conn, ['ai_paypal_plan_id' => '']);
+// the public config's ai_price is what the page shows
+st_methods($conn, ['stripe', 'paypal']);
+cfg($conn, ['ai_price_usd' => '4.49']);
+$cfgRes = palette_api_handle(['method' => 'GET', 'action' => 'config', 'post' => [], 'origin' => '', 'ip' => '1.1.1.1', 'session' => []]);
+ok('api config ai_price = palette_ai_display_cents (what the page shows)', ($cfgRes['body']['ai_price'] ?? '') === '4.49'
+    && ($cfgRes['body']['ai_price'] ?? '') === palette_money(palette_ai_display_cents(palette_settings($conn))));
+cfg($conn, ['ai_price_usd' => '3.99']);
+
+// paused when nothing ready
+st_methods($conn, ['stripe'], false);
+$pz = checkout(['lang' => 'en']);
+ok('paused when nothing ready: Stripe only, not connected', preg_match('#class="notice"[^>]*>.*?' . preg_quote(h(palette_t('en', 'err_paused')), '#') . '#s', $pz) === 1
+    && !str_contains($pz, 'id="st-pay"') && !str_contains($pz, 'id="paypal"'));
+stub_paypal($conn, false);
+st_methods($conn, ['stripe', 'paypal'], false);
+$pz2 = checkout(['lang' => 'en']);
+ok('paused when nothing ready: both chosen, neither connected', str_contains($pz2, 'class="notice"') && !str_contains($pz2, 'id="st-pay"') && !str_contains($pz2, 'id="paypal"'));
+stub_paypal($conn, true);
+$pp1 = checkout(['lang' => 'en']);
+ok('a chosen method that is not connected is left out: PayPal alone', str_contains($pp1, 'id="paypal"') && !str_contains($pp1, 'id="st-pay"') && !str_contains($pp1, 'class="notice"')
+    && !str_contains($pp1, 'id="pay-or"') && !isset(checkoutData($pp1)['st_price']));
+st_methods($conn, ['paypal'], true);
+ok('Stripe connected but not chosen: no card button', !str_contains(checkout(['lang' => 'en']), 'id="st-pay"'));
+
+// test banner only for admin with test=1
+st_methods($conn, ['paypal'], false, true);   // live Stripe not connected, test connected
+$admin = ['user_id' => 1, 'user_role' => 'admin'];
+$tb = palette_render_checkout(['query' => ['lang' => 'en', 'test' => '1'], 'accept_language' => '', 'session' => $admin]);
+ok('test banner only for admin with test=1: shown, Stripe test button, no PayPal', str_contains($tb, 'id="test-banner"')
+    && str_contains(str_replace(['<bdi dir="ltr" class="card-no">', '</bdi>'], '', $tb), h(palette_t('en', 'co_test_banner')))
+    && str_contains($tb, 'id="st-pay"') && !str_contains($tb, 'id="paypal"') && (checkoutData($tb)['test'] ?? null) === true);
+ok('test banner: the card number is one left-to-right unit', str_contains($tb, '<bdi dir="ltr" class="card-no">4242 4242 4242 4242</bdi>'));
+ok('test banner: language links keep test=1', str_contains($tb, 'href="/palette/checkout?lang=fr&amp;test=1"'));
+$tbUser = palette_render_checkout(['query' => ['lang' => 'en', 'test' => '1'], 'accept_language' => '', 'session' => ['user_id' => 2]]);
+ok('test banner: not for a non-admin asking test=1 (live page)', !str_contains($tbUser, 'id="test-banner"') && !str_contains($tbUser, 'id="st-pay"')
+    && empty(checkoutData($tbUser)['test']) && !str_contains($tbUser, 'test=1'));
+$tbNoQ = palette_render_checkout(['query' => ['lang' => 'en'], 'accept_language' => '', 'session' => $admin]);
+ok('test banner: not for an admin without test=1', !str_contains($tbNoQ, 'id="test-banner"') && empty(checkoutData($tbNoQ)['test']));
+st_methods($conn, ['stripe'], true, false);
+$tbOff = palette_render_checkout(['query' => ['lang' => 'en', 'test' => '1'], 'accept_language' => '', 'session' => $admin]);
+ok('admin test mode with Test not connected: paused, banner still says test mode', str_contains($tbOff, 'class="notice"') && !str_contains($tbOff, 'id="st-pay"')
+    && str_contains($tbOff, 'id="test-banner"'));
+foreach (LANGS as $l) {
+    $v = palette_t($l, 'co_test_banner');
+    ok("co_test_banner $l keeps the card number as digits", str_contains($v, '4242 4242 4242 4242') && str_contains($v, '7'));
+}
+
+// return states
+st_methods($conn, ['stripe']);
+$rt = checkout(['lang' => 'en', 'st' => 'cs_live_a1B2']);
+ok('return ?st=cs_: confirm view up, form hidden, session id handed to the script', preg_match('#<div class="busy" id="busy" role="status">#', $rt) === 1
+    && preg_match('#<form id="buy" class="buy"[^>]*hidden#', $rt) === 1 && (checkoutData($rt)['st'] ?? '') === 'cs_live_a1B2'
+    && preg_match('/^[0-9a-f]{64}$/', (string)(checkoutData($rt)['csrf_account'] ?? '')) === 1);
+ok('return ?st=cs_: Manage billing box ready (hidden) in the done view', preg_match('#<div[^>]*id="st-billing"[^>]*hidden#', $rt) === 1
+    && str_contains($rt, h(palette_t('en', 'co_manage_billing'))) && str_contains($rt, h(palette_t('en', 'co_manage_billing_note'))));
+$rc = checkout(['lang' => 'en', 'st' => 'cancel']);
+ok('return ?st=cancel: the form with the cancelled message', preg_match('#<p class="st-msg" id="st-msg" role="status">.*?' . preg_quote(h(palette_t('en', 'co_st_cancelled')), '#') . '#s', $rc) === 1
+    && preg_match('#<form id="buy" class="buy"[^>]*hidden#', $rc) === 0 && empty(checkoutData($rc)['st']));
+$rj = checkout(['lang' => 'en', 'st' => '"><b>x']);
+ok('return: a junk st is ignored', !str_contains($rj, '<b>x') && !str_contains($rj, 'id="st-msg"') && empty(checkoutData($rj)['st'])
+    && preg_match('#<form id="buy" class="buy"[^>]*hidden#', $rj) === 0);
+$d = checkoutData($s1);
+ok('script strings for the return states', ($d['t']['co_st_waiting'] ?? '') === palette_t('en', 'co_st_waiting') && ($d['t']['co_st_failed'] ?? '') === palette_t('en', 'co_st_failed')
+    && ($d['t']['co_pp_note'] ?? '') === palette_t('en', 'co_pp_note') && ($d['t']['err_stripe'] ?? '') === palette_t('en', 'err_stripe'));
+
+// privacy mentions Stripe in all 7 languages (terms name Stripe and PayPal)
+foreach (LANGS as $l) {
+    $p = palette_render_privacy(['query' => ['lang' => $l], 'accept_language' => '']);
+    $tm = palette_render_terms(['query' => ['lang' => $l], 'accept_language' => '']);
+    ok("privacy mentions Stripe in $l (Stripe, Inc. as card processor) and terms name Stripe and PayPal",
+        str_contains(palette_t($l, 'priv_pay'), 'Stripe, Inc.') && str_contains(palette_t($l, 'priv_pay'), 'PayPal') && str_contains($p, h(palette_t($l, 'priv_pay')))
+        && str_contains(palette_t($l, 'terms_pay'), 'Stripe') && str_contains(palette_t($l, 'terms_pay'), 'PayPal')
+        && str_contains(palette_t($l, 'terms_sub'), 'Stripe') && str_contains(palette_t($l, 'priv_ai'), 'Stripe') && str_contains($tm, 'Stripe'));
+}
+
+// every new key exists in all 7 languages
+$ST_KEYS = ['co_pay_card_pro', 'co_pay_card_ai', 'co_card_note', 'co_pp_note', 'co_test_banner', 'co_st_waiting', 'co_st_cancelled', 'co_st_failed',
+    'co_manage_billing', 'co_manage_billing_note', 'co_trust_stripe', 'co_pay_or'];
+$bad = [];
+foreach (LANGS as $l) foreach ($ST_KEYS as $k) {
+    $v = palette_strings($l)[$k] ?? '';
+    if (trim($v) === '' || preg_match(EMOJI_RE, $v) || ($l !== 'en' && $v === palette_t('en', $k))) $bad[] = "$l:$k";
+    if (in_array($k, ['co_pay_card_pro', 'co_pay_card_ai'], true) && !str_contains($v, '{price}')) $bad[] = "$l:$k:{price}";
+    if ($k === 'co_card_note' && !(str_contains($v, 'Stripe') && str_contains($v, 'Apple Pay') && str_contains($v, 'Google Pay'))) $bad[] = "$l:$k:names";
+}
+ok('every new key exists in all 7 languages, translated, no emoji, names kept: ' . implode(', ', array_slice($bad, 0, 10)), $bad === []);
+foreach (LANGS as $l) {
+    $s = checkout(['lang' => $l, 'st' => 'cancel']);
+    ok("checkout $l with Stripe: button, cancelled message, no emoji", str_contains($s, $btn($l, 'co_pay_card_pro', $l === 'fr' ? FR_PRICE : '$1.49'))
+        && str_contains($s, h(palette_t($l, 'co_st_cancelled'))) && preg_match(EMOJI_RE, $s) === 0);
+}
+
+// review fix 4: a neutral fallback message for replies without one (err_paypal only for PayPal's own calls)
+$gen = [];
+foreach (LANGS as $l) if (trim(palette_t($l, 'err_generic')) === '' || str_contains(palette_t($l, 'err_generic'), 'PayPal') || ($l !== 'en' && palette_t($l, 'err_generic') === palette_t('en', 'err_generic'))) $gen[] = $l;
+ok('err_generic in all 7 languages, translated, names no provider: ' . implode(',', $gen), $gen === [] && palette_t('en', 'err_generic') === 'Something went wrong. Please try again.'
+    && (checkoutData($s1)['t']['err_generic'] ?? '') === palette_t('en', 'err_generic'));
+$cjs7 = (string)file_get_contents(PALETTE_DIR . '/assets/checkout.js');
+ok('checkout.js: err_paypal is the fallback only for the PayPal actions; Back from Stripe re-enables the card button',
+    str_contains($cjs7, "var PAYPAL_ACTIONS = ['create', 'capture', 'subscribe_start', 'subscribe_confirm'];")
+    && str_contains($cjs7, 'PAYPAL_ACTIONS.indexOf(action) >= 0 ? T.err_paypal : T.err_generic') && str_contains($cjs7, "addEventListener('pageshow'"));
+
+// provider-neutral copy shown to Stripe subscribers
+$named = [];
+foreach (LANGS as $l) foreach (['acct_cancel_ask_revoked', 'sub_cancel_ok_revoked', 'co_note_ai'] as $k) if (str_contains(palette_t($l, $k), 'PayPal')) $named[] = "$l:$k";
+ok('cancel and billing copy no longer names PayPal for every subscriber: ' . implode(', ', $named), $named === []);
+$ce = palette_sub_cancel_email('2026-12-01', 'en', 'stripe');
+$cp = palette_sub_cancel_email('2026-12-01', 'en');
+ok('cancel email: a Stripe subscriber is not sent to PayPal; a PayPal one still is', !str_contains($ce['html'], 'paypal.com') && !str_contains($ce['html'], h(palette_t('en', 'email_cancel_paypal')))
+    && str_contains($cp['html'], h(palette_t('en', 'email_cancel_paypal'))));
+
+$conn->query("DELETE FROM admin_settings WHERE setting_key = 'palette_stripe'");   // leave no Stripe config behind

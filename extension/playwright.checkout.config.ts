@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 
 /**
  * Checkout e2e (npm run e2e:checkout): the PHP pages under `php -S` with server/tests/dev-router.php,
- * on the local palette_test database; PayPal REST is stubbed server-side (PALETTE_DEV_PP_STUB) and the
+ * on the local palette_test database; PayPal REST and Stripe are stubbed server-side (PALETTE_DEV_PP_STUB, PALETTE_FAKE_STRIPE) and the
  * PayPal JS SDK is replaced in the browser by the spec. PHP: $PHP_BIN, else the winget PHP 8.4, else `php`.
  */
 export const CHECKOUT_PORT = 4518;
@@ -24,7 +24,7 @@ export default defineConfig({
   webServer: {
     command: `"${php}" -q -S 127.0.0.1:${CHECKOUT_PORT} "${router}"`,
     url: `http://127.0.0.1:${CHECKOUT_PORT}/`,
-    env: { PALETTE_DEV_PP_STUB: '1', PALETTE_DEV_AI_STUB: '1' },
+    env: { PALETTE_DEV_PP_STUB: '1', PALETTE_DEV_AI_STUB: '1', PALETTE_FAKE_STRIPE: '1' },
     reuseExistingServer: false,
     timeout: 15_000,
   },

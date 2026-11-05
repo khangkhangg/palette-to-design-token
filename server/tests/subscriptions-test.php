@@ -232,6 +232,7 @@ $r = palette_sub_confirm($conn, SUB);
 $lic = ai_lic($conn);
 ok('confirm ACTIVE: key returned', $r['ok'] === true && preg_match(PALETTE_KEY_RE, (string)$r['key']) === 1 && $r['key'] === $lic['license_key']
     && $r['email_masked'] === 'b***@studio.vn' && $r['row_id'] === $id);
+ok('#2 PayPal subscription licence has source paypal', $lic['source'] === 'paypal');
 ok('licence: plan ai, subscription, active', $lic['plan'] === 'ai' && $lic['subscription_id'] === SUB && $lic['sub_status'] === 'active'
     && $lic['email'] === 'buyer@studio.vn' && $lic['lang'] === 'fr' && $lic['revoked_at'] === null);
 ok('licence: paid_through = next_billing_time (PHP local time)', $lic['paid_through'] === local($next));
@@ -521,6 +522,7 @@ $lic = ai_lic($conn);
 ok('refund of a palette sale -> revoked', palette_sub_event($conn, 'PAYMENT.SALE.REFUNDED', ['id' => 'REF-1', 'sale_id' => 'SALE-1', 'amount' => ['total' => '3.99', 'currency' => 'USD']]) === 'revoked');
 ok('refund: licence revoked, verify says revoked', ai_lic($conn)['revoked_at'] !== null && palette_verify($conn, $lic['license_key'], '10.0.0.5')['revoked'] === true);
 ok('refund: payment marked refunded', $conn->query("SELECT status FROM palette_sub_payments WHERE sale_id = 'SALE-1'")->fetch_row()[0] === 'refunded');
+ok('#9 sale refund: licence pay_status refunded', ai_lic($conn)['pay_status'] === 'refunded');
 $GLOBALS['pp_routes']['GET /v1/payments/sale/SALE-COMPANY'] = ['status' => 200, 'json' => ['id' => 'SALE-COMPANY', 'state' => 'refunded']];   // a companies sale: no billing agreement
 ok('refund of an unknown sale -> ignored', palette_sub_event($conn, 'PAYMENT.SALE.REFUNDED', ['id' => 'REF-9', 'sale_id' => 'SALE-COMPANY']) === 'ignored');
 s_reset($conn);

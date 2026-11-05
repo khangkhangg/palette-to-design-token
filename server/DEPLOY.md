@@ -296,6 +296,68 @@ Prerequisites: steps 1d and 5b done, and `setup.php` run for the webhook in this
 
 Sandbox payments cost nothing; on 6a fix and repeat as needed, on 6b close the window (restore + audit) before fixing. In 6b the window audit above also covers subscriptions: cancel any sandbox subscription still active and revoke its key (`palette_revoke_by_order($conn, 'I-...')` takes the `I-...` subscription id, which is the licence's `order_id`).
 
+## 6d. Stripe (0.3.0)
+
+0.3.0 adds card payments through Stripe (Checkout, Apple Pay and Google Pay come with it) and the licence admin at `/palette/admin`. PayPal stays in the code but is off by default (`checkout_methods` is `stripe` only once you set it in step 8). Do these in order; each step ends with a check.
+
+1. **Back up.** The database and the files you are about to replace.
+
+   ```bash
+   # database: credentials come from companies' config.php (MYSQL_PWD stays in the process environment, never printed)
+   $SSH "mkdir -p /root/backups && cd $DOCROOT && php -r 'require \"config.php\"; putenv(\"MYSQL_PWD=\$password\"); passthru(\"mysqldump --single-transaction -h \".escapeshellarg(\$servername).\" -u \".escapeshellarg(\$username).\" \".escapeshellarg(\$dbname));' > /root/backups/palette-db-\$(date +%Y%m%d-%H%M%S).sql && ls -l /root/backups/palette-db-*.sql"
+   # server files the deploy replaces
+   $SSH "mkdir -p /root/backups && tar czf /root/backups/palette-\$(date +%Y%m%d-%H%M%S).tgz -C /var/www/duykhang/companies palette && ls -l /root/backups/palette-*.tgz"
+   ```
+
+   The `.sql` file must be more than a few KB and end with `-- Dump completed`: `$SSH "tail -n 1 /root/backups/palette-db-*.sql"`. Do not continue without both backups.
+
+2. **Deploy the server files.** Same command as step 2: `rsync` with `--exclude 'tests/' --exclude 'README.md' --exclude 'DEPLOY.md' --exclude 'download/*.zip'` (dry run first, then the real run, then the `chown`/`chmod` line). `stripe-webhook.php`, `admin.php`, `lib/stripe*.php`, `lib/admin.php` and `assets/admin.css` are new.
+
+3. **Run the migration.**
+
+   ```bash
+   $SSH "cd $DOCROOT/palette && sudo -u www-data php migrate.php"     # prints: palette tables ready
+   ```
+
+   It is idempotent. It adds the Stripe columns (`provider`, `stripe_customer`, `stripe_session`, `livemode`, `move_license_id`) and the admin log table.
+
+4. **nginx rewrite for the admin.** Edit the REAL file `/etc/nginx/sites-enabled/vietnamcos.com` (not `sites-available`; on spo2x the files in `sites-enabled` are copies), at server level, next to the line from step 3. Back it up first: `$SSH "cp -a /etc/nginx/sites-enabled/vietnamcos.com /root/vietnamcos.com.bak-\$(date +%s)"`.
+
+   ```nginx
+   rewrite ^/palette/admin$ /palette/admin.php last;
+   ```
+
+   ```bash
+   $SSH "nginx -t && systemctl reload nginx"
+   curl -s -o /dev/null -w 'admin %{http_code}\n' https://vietnamcos.com/palette/admin     # 302 or 200 (sign-in), not 404
+   curl -s -o /dev/null -w 'stripe webhook GET %{http_code}\n' https://vietnamcos.com/palette/stripe-webhook.php     # 400 or 405, not 404 or 500
+   ```
+
+5. **Connect Test.** Sign in to companies as an admin, open `/palette/admin` › Settings, paste the Stripe **test** secret key and press connect. The server registers the webhook endpoint and shows "Test: connected". Never paste a key into a shell or a chat.
+
+   Use a standard secret key (`sk_…`). A restricted key (`rk_…`) works only with all of these permissions: Balance read, Checkout Sessions write, Subscriptions write, Customer portal write, Charges read, Invoices read and Webhook endpoints write. With fewer, connect may pass but cancels, refunds or the billing portal fail later.
+
+   **Customer portal (test mode).** With the dashboard switched to test mode, open Settings → Billing → Customer portal and save the default configuration: allow customers to cancel subscriptions, update payment methods and see their invoice history. Until it is saved once, "Manage billing" on `/palette/account` and the admin "Send billing link" fail. Test and live mode each need it saved.
+
+6. **Rehearse in Test.** Open `https://vietnamcos.com/palette/checkout?test=1` (admin session only; it shows the test banner) and pay with card `4242 4242 4242 4242`, any future expiry, any CVC.
+   - [ ] Pro: the key appears on the page, the email arrives, and the extension unlocks Pro with that key.
+   - [ ] Pro + AI: the subscription starts, the key shows Pro + AI, one analysis works.
+   - [ ] Cancel from `/palette/account` (Manage billing): the key stays on until the end of the paid month.
+   - [ ] Refund in the Stripe **test** dashboard: the webhook delivers 2xx, `verify` returns revoked, billing stops.
+   - [ ] `/palette/admin` › Payments lists the test payments, and `grep -a 'PALETTE_' <FPM error log>` shows no `PALETTE_PAID_UNFULFILLED`.
+
+7. **Customer portal (live mode), before going live.** In the Stripe dashboard in live mode, open Settings → Billing → Customer portal and save the default configuration: allow cancel, update payment method and invoice history. Check: after step 8, "Manage billing" on `/palette/account` with a live Pro + AI key opens the Stripe portal.
+
+8. **Connect Live.** In `/palette/admin` › Settings connect Live with the live secret key (a shared key; the same Stripe account may serve companies). Then set the checkout methods to **Stripe only**. The checkout page then shows the card button and no PayPal block.
+
+   ```bash
+   curl -s 'https://vietnamcos.com/palette/api.php?action=config' | head -c 400     # ok:true; no secret appears
+   ```
+
+   Make one real $1.49 Pro purchase yourself, check the key and the email, then refund it from the Stripe dashboard.
+
+9. **Cron is unchanged.** The 03:15 `cron-subscriptions.php` line from step 4b stays as it is; it now also reconciles Stripe subscriptions and recovers paid checkouts the webhook missed.
+
 ## 7. Extension
 
 1. Build: `cd extension && npm run build` (output `extension/dist`; production manifest has no `host_permissions`).
@@ -305,7 +367,7 @@ Sandbox payments cost nothing; on 6a fix and repeat as needed, on 6b close the w
      ```bash
      curl -sI https://vietnamcos.com/palette/download/site-to-design-token-latest.zip | grep -iE '^HTTP|^content-type'   # HTTP/2 200, content-type: application/zip
      ```
-   - **Web Store, unlisted** (store id differs from the direct id; add both): `npm run package` (strips `"key"`, which the Store rejects), upload `extension/site-to-design-token-0.2.1.zip` in the Developer Dashboard with Visibility = Unlisted, save, and copy the item id (that is the extension id).
+   - **Web Store, unlisted** (store id differs from the direct id; add both): `npm run package` (strips `"key"`, which the Store rejects), upload `extension/site-to-design-token-0.3.0.zip` in the Developer Dashboard with Visibility = Unlisted, save, and copy the item id (that is the extension id).
 3. Add the id to settings (merge, do not overwrite):
 
 ```bash
@@ -345,7 +407,7 @@ curl -si -X OPTIONS -H "Origin: chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 ## 9. Store submission checklist
 
-- [ ] `cd extension && npm run package && npm run package:check` (`package:check` is not part of `npm test`); zip is `extension/site-to-design-token-0.2.1.zip`, manifest version matches.
+- [ ] `cd extension && npm run package && npm run package:check` (`package:check` is not part of `npm test`); zip is `extension/site-to-design-token-0.3.0.zip`, manifest version matches.
 - [ ] Upload the zip in the Chrome Web Store Developer Dashboard.
 - [ ] Listing text from `docs/store/listing.<lang>.md` (en, zh_CN, hi, es, ar, fr, bn).
 - [ ] Field-by-field guide: `docs/store/SUBMIT.md`. Screenshots from `docs/store/screenshots/` (English) and `docs/store/screenshots/<locale>/` (zh_CN, hi, es, ar, fr, bn; `npm run screenshots -- --all-langs`), promo tiles `docs/store/promo-440x280.png` and `docs/store/promo-marquee-1400x560.png`, store icon `docs/store/store-icon-128.png` (`npm run promo`). The store takes **five** per language: upload `1-popup-colours`, `2-contrast`, `3-side-panel-light`, `5-export` and `6-ai-insights` (the Pro + AI results, made with a stubbed analysis by `npm run screenshots`); `4-side-panel-dark` is used only on the landing page. Known polish: screenshots show host `fernleaf.example`, not a real site.
@@ -354,7 +416,7 @@ curl -si -X OPTIONS -H "Origin: chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 - [ ] Single purpose: extract a page's colours and fonts and export them as design tokens.
 - [ ] Permission justifications: `activeTab` (read only the page the user clicked the icon on), `scripting` (run the extractor in that tab), `storage` (settings and Pro licence state), `sidePanel` (show results in the side panel); `externally_connectable` for `https://vietnamcos.com/palette/*` and `https://www.vietnamcos.com/palette/*` (receive the licence key from the checkout page). No host permissions, no remote code.
 - [ ] Data disclosure (Privacy practices tab), from `## Data disclosure` in `docs/store/listing.en.md`: declare **Website content** (title and description, plus the design summary) and **Web history** (the address of the analysed page, without its query string) as collected, both only when the user presses Analyse (user-initiated; Brave Search and DeepSeek process them for us), plus **Authentication information** (the licence key). Tick the three certifications (no sale, no unrelated use, no use for creditworthiness). The permission justifications and the single purpose stay unchanged (no new permission: the extension only calls `vietnamcos.com`, which the build already allows).
-- [ ] Pricing note in the description (the `## Pricing note` section of the listing): free to use, with an optional one-time Pro upgrade ($1.49) and an optional Pro + AI subscription ($3.99 a month, cancel any time), both bought on an external website through PayPal (disclosed). Every `listing.<lang>.md` already describes Pro + AI, its price, the cancel rule and the Analyse data flow.
+- [ ] Pricing note in the description (the `## Pricing note` section of the listing): free to use, with an optional one-time Pro upgrade ($1.49) and an optional Pro + AI subscription ($3.99 a month, cancel any time), both bought on an external website by card, Apple Pay or Google Pay (processed by Stripe). Every `listing.<lang>.md` already describes Pro + AI, its price, the cancel rule and the Analyse data flow.
 - [ ] After approval, confirm the published id equals the one in `extension_ids`.
 
 ## 10. Rollback

@@ -95,6 +95,7 @@ $lic = $conn->query('SELECT * FROM palette_licenses')->fetch_assoc();
 $o = order_row($conn, 'ORD-A');
 ok('order captured + linked', $o['status'] === 'captured' && $o['capture_id'] === 'CAP1' && $o['captured_at'] !== null && (int)$o['license_id'] === (int)$lic['id']);
 ok('license for order email + lang', $lic['email'] === 'buyer@studio.vn' && $lic['order_id'] === 'ORD-A' && $lic['lang'] === 'es' && $lic['license_key'] === $c1['key']);
+ok('#2 PayPal order licence has source paypal', $lic['source'] === 'paypal');
 ok('exactly one email', count($GLOBALS['mails']) === 1);
 $m = $GLOBALS['mails'][0] ?? [];
 ok('email to buyer, in es, with key', ($m['to'] ?? null) === ['buyer@studio.vn'] && ($m['subject'] ?? '') === palette_t('es', 'email_license_subject')

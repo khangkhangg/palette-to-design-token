@@ -138,6 +138,43 @@ function palette_migrate(mysqli $conn): void
         PRIMARY KEY (site_id, related_site_id, relation)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+    // Stripe + admin (2026-11-04). Orders/subscriptions/licences learn which provider took the money and whether it was
+    // live; PayPal ids stay <= 40 chars, Stripe ids (cs_..., sub_..., pi_...) need 80.
+    palette_add_column($conn, 'palette_orders', 'provider', "ENUM('paypal','stripe','admin') NOT NULL DEFAULT 'paypal'");
+    palette_add_column($conn, 'palette_orders', 'stripe_session', 'VARCHAR(80) NULL');
+    palette_add_column($conn, 'palette_orders', 'stripe_payment_intent', 'VARCHAR(80) NULL');
+    palette_add_column($conn, 'palette_orders', 'livemode', 'TINYINT(1) NOT NULL DEFAULT 1');
+    palette_add_unique_index($conn, 'palette_orders', 'stripe_session', 'stripe_session');
+    palette_add_column($conn, 'palette_subscriptions', 'provider', "ENUM('paypal','stripe') NOT NULL DEFAULT 'paypal'");
+    palette_add_column($conn, 'palette_subscriptions', 'stripe_customer', 'VARCHAR(80) NULL');
+    palette_add_column($conn, 'palette_subscriptions', 'stripe_session', 'VARCHAR(80) NULL');
+    palette_add_column($conn, 'palette_subscriptions', 'livemode', 'TINYINT(1) NOT NULL DEFAULT 1');
+    palette_add_unique_index($conn, 'palette_subscriptions', 'stripe_session', 'stripe_session');
+    // Move-to-card: the existing licence a Stripe subscription takes over instead of issuing a new one.
+    palette_add_column($conn, 'palette_subscriptions', 'move_license_id', 'INT NULL');
+    palette_add_column($conn, 'palette_licenses', 'source', "ENUM('paypal','stripe','admin') NULL");
+    palette_add_column($conn, 'palette_licenses', 'pay_status', "ENUM('provider','manual_paid','comp','refunded') NOT NULL DEFAULT 'provider'");
+    palette_add_column($conn, 'palette_licenses', 'livemode', 'TINYINT(1) NOT NULL DEFAULT 1');
+    // PayPal licences issued before 0.3.0 have no source. Stripe (ST-, sub_) and admin (ADM-) rows always had one, but they are
+    // excluded by prefix too so nothing is mislabelled. Idempotent.
+    $conn->query("UPDATE palette_licenses SET source = 'paypal' WHERE source IS NULL
+                  AND order_id NOT LIKE 'ADM-%' AND order_id NOT LIKE 'ST-%' AND order_id NOT LIKE 'sub\_%'");
+    palette_widen_column($conn, 'palette_licenses', 'subscription_id', 'VARCHAR(80) NULL');
+    palette_widen_column($conn, 'palette_subscriptions', 'subscription_id', 'VARCHAR(80) NULL');
+    palette_widen_column($conn, 'palette_sub_payments', 'subscription_id', 'VARCHAR(80) NOT NULL');
+    palette_widen_column($conn, 'palette_sub_payments', 'sale_id', 'VARCHAR(80) NOT NULL');
+    $conn->query("CREATE TABLE IF NOT EXISTS palette_admin_log (
+        id            INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        license_id    INT NULL,
+        order_ref     VARCHAR(80) NULL,
+        admin_user_id INT NOT NULL,
+        action        VARCHAR(40) NOT NULL,
+        detail        JSON NULL,
+        note          VARCHAR(500) NULL,
+        created_at    DATETIME NOT NULL,
+        KEY license_id (license_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
     palette_migrate_sub_secret($conn);
 }
 
@@ -184,6 +221,30 @@ function palette_add_index(mysqli $conn, string $table, string $index, string $c
     $exists = $st->get_result()->num_rows > 0;
     $st->close();
     if (!$exists) $conn->query("ALTER TABLE `$table` ADD INDEX `$index` ($columns)");
+}
+
+// Unique variant of palette_add_index (idempotent by index name).
+function palette_add_unique_index(mysqli $conn, string $table, string $index, string $columns): void
+{
+    $st = $conn->prepare('SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?');
+    $st->bind_param('ss', $table, $index);
+    $st->execute();
+    $exists = $st->get_result()->num_rows > 0;
+    $st->close();
+    if (!$exists) $conn->query("ALTER TABLE `$table` ADD UNIQUE INDEX `$index` ($columns)");
+}
+
+// Idempotent widening: runs MODIFY COLUMN only when the column's current length is shorter than the new definition's
+// VARCHAR(n), so a repeated migration never rewrites the table.
+function palette_widen_column(mysqli $conn, string $table, string $column, string $definition): void
+{
+    if (!preg_match('/VARCHAR\((\d+)\)/i', $definition, $m)) return;
+    $st = $conn->prepare('SELECT CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
+    $st->bind_param('ss', $table, $column);
+    $st->execute();
+    $cur = $st->get_result()->fetch_row()[0] ?? null;
+    $st->close();
+    if ($cur !== null && (int)$cur < (int)$m[1]) $conn->query("ALTER TABLE `$table` MODIFY COLUMN `$column` $definition");
 }
 
 // Idempotent ALTER: adds the column only when INFORMATION_SCHEMA says it is missing.

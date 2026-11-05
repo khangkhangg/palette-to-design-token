@@ -90,9 +90,12 @@ describe.each(LANGS)('%s dictionary', (lang) => {
     }
   });
 
+  it('no locale string mentions PayPal', () => {
+    for (const [k, s] of Object.entries(dict)) expect(s, `${lang} ${k}`).not.toMatch(/paypal/i);
+  });
+
   it('keeps product, format and value terms untranslated', () => {
     for (const key of VERBATIM) expect(dict[key], `${lang} ${key}`).toBe(EN[key]);
-    for (const k of ['plans.subscribe', 'plans.payPro', 'plans.aiNote']) expect(dict[k], `${lang} ${k}`).toContain('PayPal');
     expect(dict['plans.payPro'], lang).toMatch(/1[.,]49/);
     for (const k of ['ai.planLine', 'ai.seePlan', 'ai.renew', 'ai.ended']) expect(dict[k], `${lang} ${k}`).toContain('Pro + AI');
     expect(dict['ai.sentBody'], lang).toMatch(/vietnamcos.com.*DeepSeek/);

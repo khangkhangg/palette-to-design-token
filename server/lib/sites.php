@@ -92,40 +92,49 @@ function palette_sites_row(array $s): array
             $s['analyses_count'], $s['suggested_count'], $s['first_seen'], $s['last_seen']];
 }
 
-// admin-sites.php as a pure function: ['status', 'headers', 'body']. Admin session only; ?format=csv downloads.
-function palette_admin_sites_page(mysqli $c, array $session, array $query): array
+function palette_sites_csv_response(array $sites): array
 {
-    $html = ['Cache-Control' => 'no-store'] + palette_page_headers();
-    if (($session['user_role'] ?? '') !== 'admin') return ['status' => 403, 'headers' => $html, 'body' => 'Forbidden'];
-    $sites = palette_sites_top($c);
+    $fh = fopen('php://temp', 'r+');
+    fputcsv($fh, PALETTE_SITES_COLUMNS, ',', '"', '');
+    foreach ($sites as $s) fputcsv($fh, array_map('palette_csv_cell', palette_sites_row($s)), ',', '"', '');
+    rewind($fh);
+    $csv = (string)stream_get_contents($fh);
+    fclose($fh);
+    return ['body' => $csv, 'headers' => [
+        'Content-Type' => 'text/csv; charset=utf-8', 'Content-Disposition' => 'attachment; filename="palette-sites.csv"',
+        'Cache-Control' => 'no-store', 'X-Content-Type-Options' => 'nosniff']];
+}
 
-    if (($query['format'] ?? '') === 'csv') {
-        $fh = fopen('php://temp', 'r+');
-        fputcsv($fh, PALETTE_SITES_COLUMNS, ',', '"', '');
-        foreach ($sites as $s) fputcsv($fh, array_map('palette_csv_cell', palette_sites_row($s)), ',', '"', '');
-        rewind($fh);
-        $csv = (string)stream_get_contents($fh);
-        fclose($fh);
-        return ['status' => 200, 'body' => $csv, 'headers' => [
-            'Content-Type' => 'text/csv; charset=utf-8', 'Content-Disposition' => 'attachment; filename="palette-sites.csv"',
-            'Cache-Control' => 'no-store', 'X-Content-Type-Options' => 'nosniff']];
-    }
-
+// The note and the table, shared by the admin Sites tab and the standalone page.
+function palette_sites_table_html(array $sites, string $csvHref): string
+{
     $head = implode('', array_map(fn($h) => '<th>' . palette_h($h) . '</th>', PALETTE_SITES_COLUMNS));
     $rows = '';
     foreach ($sites as $s) {
         $rows .= '<tr>' . implode('', array_map(fn($v) => '<td>' . palette_h((string)$v) . '</td>', palette_sites_row($s))) . '</tr>';
     }
     if ($rows === '') $rows = '<tr><td colspan="' . count(PALETTE_SITES_COLUMNS) . '">No sites yet.</td></tr>';
+    return '<p>' . count($sites) . ' most-seen sites (analysed or suggested). Aggregate counts only, no user data. '
+        . 'analyses_count counts uncached analyses only (a cached answer is not recorded). '
+        . '<a href="' . palette_h($csvHref) . '">Download CSV</a></p>'
+        . '<div class="table-wrap"><table class="sites-table"><thead><tr>' . $head . '</tr></thead><tbody>' . $rows . '</tbody></table></div>';
+}
+
+// The standalone sites page as a pure function: ['status', 'headers', 'body']. Admin session only; ?format=csv downloads.
+// admin-sites.php now redirects to admin.php?tab=sites; this stays for callers that want the plain page.
+function palette_admin_sites_page(mysqli $c, array $session, array $query): array
+{
+    $html = ['Cache-Control' => 'no-store'] + palette_page_headers();
+    if (($session['user_role'] ?? '') !== 'admin') return ['status' => 403, 'headers' => $html, 'body' => 'Forbidden'];
+    $sites = palette_sites_top($c);
+    if (($query['format'] ?? '') === 'csv') return palette_sites_csv_response($sites) + ['status' => 200];
+
     $body = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
           . '<title>Site to Design Token: sites</title><style>'
           . 'body{font-family:Arial,Helvetica,sans-serif;margin:24px;color:#1c1f26;background:#fff}'
           . 'table{border-collapse:collapse;font-size:14px}th,td{border:1px solid #d7dbe3;padding:4px 8px;text-align:start;vertical-align:top}'
           . 'th{background:#f0f2f6}@media (prefers-color-scheme:dark){body{color:#e6e8ee;background:#14161b}th{background:#232731}th,td{border-color:#3a3f4b}a{color:#8ab4f8}}'
           . '</style></head><body><h1>Site to Design Token: sites</h1>'
-          . '<p>' . count($sites) . ' most-seen sites (analysed or suggested). Aggregate counts only, no user data. '
-          . 'analyses_count counts uncached analyses only (a cached answer is not recorded). '
-          . '<a href="?format=csv">Download CSV</a></p>'
-          . '<table><thead><tr>' . $head . '</tr></thead><tbody>' . $rows . '</tbody></table></body></html>';
+          . palette_sites_table_html($sites, '?format=csv') . '</body></html>';
     return ['status' => 200, 'headers' => $html, 'body' => $body];
 }

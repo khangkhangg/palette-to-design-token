@@ -32,7 +32,8 @@ function palette_mask_email(string $email): string
 
 // $ai = null issues a one-time Pro key. For a subscription pass ['subscription_id', 'paid_through', 'period_start']
 // (PHP-time DATETIME strings, ruling A4): the key gets plan 'ai' and sub_status 'active'.
-function palette_issue_license(mysqli $c, string $email, string $orderId, string $lang, ?array $ai = null): array
+// $source ('paypal'|'stripe'|'admin', null for unknown) and $livemode (0 for a test-mode payment) are recorded as given.
+function palette_issue_license(mysqli $c, string $email, string $orderId, string $lang, ?array $ai = null, ?string $source = null, int $livemode = 1): array
 {
     $email = strtolower(trim($email));
     $lang = palette_lang($lang);
@@ -43,9 +44,9 @@ function palette_issue_license(mysqli $c, string $email, string $orderId, string
     $start = $ai === null ? null : (string)$ai['period_start'];
     for ($try = 0; $try < 10; $try++) {
         $key = palette_new_key();
-        $st = $c->prepare('INSERT INTO palette_licenses (license_key, email, order_id, lang, created_at, plan, subscription_id, sub_status, paid_through, period_start)
-                           VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?)');
-        $st->bind_param('sssssssss', $key, $email, $orderId, $lang, $plan, $subId, $status, $paid, $start);
+        $st = $c->prepare('INSERT INTO palette_licenses (license_key, email, order_id, lang, created_at, plan, subscription_id, sub_status, paid_through, period_start, source, livemode)
+                           VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?)');
+        $st->bind_param('ssssssssssi', $key, $email, $orderId, $lang, $plan, $subId, $status, $paid, $start, $source, $livemode);
         try {
             $st->execute();
             $id = (int)$c->insert_id;
@@ -65,7 +66,7 @@ function palette_verify(mysqli $c, string $rawKey, string $ip): array
     $none = ['valid' => false, 'revoked' => false, 'email_masked' => null];
     $key = palette_normalise_key($rawKey);
     if ($key === null) return $none;
-    $st = $c->prepare('SELECT id, email, revoked_at, plan, sub_status, paid_through, period_start, created_at FROM palette_licenses WHERE license_key = ?');
+    $st = $c->prepare('SELECT id, email, revoked_at, plan, sub_status, paid_through, period_start, created_at, livemode FROM palette_licenses WHERE license_key = ?');
     $st->bind_param('s', $key);
     $st->execute();
     $row = $st->get_result()->fetch_assoc();
@@ -76,6 +77,8 @@ function palette_verify(mysqli $c, string $rawKey, string $ip): array
     $id = (int)$row['id'];
     $c->query("UPDATE palette_licenses SET last_verified_at = NOW() WHERE id = $id");
     $out = ['valid' => true, 'revoked' => false, 'email_masked' => $masked];
+    // An expired test-mode licence (palette_licence_access) is no longer valid, whatever its plan.
+    if ($row['plan'] !== 'ai' && !palette_licence_access($row)['pro']) $out['valid'] = false;
     if ($row['plan'] === 'ai') {
         // Pro licences keep the original three-field answer; AI licences add their plan state.
         $acc = palette_licence_access($row);
@@ -130,14 +133,14 @@ function palette_claim(mysqli $c, string $rawKey, int $userId): bool
 
 function palette_keys_for_user(mysqli $c, int $userId): array
 {
-    $st = $c->prepare('SELECT license_key, email, created_at, revoked_at, plan, sub_status, paid_through FROM palette_licenses WHERE user_id = ? ORDER BY id');
+    $st = $c->prepare('SELECT license_key, email, created_at, revoked_at, plan, sub_status, paid_through, source FROM palette_licenses WHERE user_id = ? ORDER BY id');
     $st->bind_param('i', $userId);
     $st->execute();
     $out = [];
     foreach ($st->get_result() as $r) {
         $out[] = ['key' => $r['license_key'], 'email_masked' => palette_mask_email($r['email']),
                   'created_at' => $r['created_at'], 'revoked' => $r['revoked_at'] !== null,
-                  'plan' => $r['plan'] === 'ai' ? 'ai' : 'pro', 'sub_status' => $r['sub_status'], 'paid_through' => $r['paid_through']];
+                  'plan' => $r['plan'] === 'ai' ? 'ai' : 'pro', 'sub_status' => $r['sub_status'], 'paid_through' => $r['paid_through'], 'source' => $r['source']];
     }
     $st->close();
     return $out;

@@ -38,7 +38,7 @@ Pro, un déblocage unique à 1,49 $ US
 Pro + AI, 3,99 $ US par mois
 - Tout ce que contient Pro.
 - Analyses IA : appuyez sur Analyser sur un site pour obtenir un verdict, la signification de ses couleurs et des sites similaires et concurrents trouvés par recherche web. Jusqu’à 100 analyses par mois.
-- Facturé chaque mois via PayPal. Résiliez à tout moment ; Pro et AI restent actifs jusqu’à la fin du mois payé.
+- Facturé chaque mois par carte. Résiliez à tout moment ; Pro et AI restent actifs jusqu’à la fin du mois payé.
 
 Confidentialité
 

@@ -20,11 +20,11 @@ function cols(mysqli $c, string $t): array
     return $o;
 }
 $o = cols($conn, 'palette_orders');
-ok('orders columns', array_keys($o) === ['id','order_id','email','lang','country','region','amount_usd','tax_usd','status','capture_id','consent_at','created_at','captured_at','license_id']);
+ok('orders columns', array_keys($o) === ['id','order_id','email','lang','country','region','amount_usd','tax_usd','status','capture_id','consent_at','created_at','captured_at','license_id','provider','stripe_session','stripe_payment_intent','livemode']);
 ok('orders status enum', str_contains($o['status']['Type'], "'created','captured','failed'"));
 ok('orders country nullable char(2)', $o['country']['Null'] === 'YES' && $o['country']['Type'] === 'char(2)');
 $l = cols($conn, 'palette_licenses');
-ok('licenses columns', array_keys($l) === ['id','license_key','email','user_id','order_id','lang','created_at','revoked_at','last_verified_at','plan','subscription_id','sub_status','paid_through','period_start']);
+ok('licenses columns', array_keys($l) === ['id','license_key','email','user_id','order_id','lang','created_at','revoked_at','last_verified_at','plan','subscription_id','sub_status','paid_through','period_start','source','pay_status','livemode']);
 ok('license_key char(18)', $l['license_key']['Type'] === 'char(18)');
 $idx = [];
 $r = $conn->query('SHOW INDEX FROM palette_licenses');

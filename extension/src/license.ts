@@ -19,7 +19,7 @@ export interface AiLicense extends License {
   subStatus: string | null;
   /**
    * When access ends, from verify's access_until (ruling A19): paidThrough + 48 h while the subscription is
-   * active (a renewal PayPal reports late), else paidThrough. Null (an older server or record) means paidThrough.
+   * active (a renewal the payment provider reports late), else paidThrough. Null (an older server or record) means paidThrough.
    */
   accessUntil: string | null;
   /** 'ended' = the server said the plan lapsed; 'network' = the last check could not reach it. */

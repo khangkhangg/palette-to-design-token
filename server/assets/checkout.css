@@ -541,6 +541,28 @@ input::placeholder { color: var(--muted); opacity: .7; }
 :lang(ar) body, :lang(hi) body, :lang(bn) body { line-height: 1.65; }
 :lang(ar) .pitch h1, :lang(hi) .pitch h1, :lang(bn) .pitch h1 { line-height: 1.3; }
 
+/* ---- Stripe: card button, method divider, test banner, return states */
+.pay { display: flex; flex-direction: column; gap: 12px; }
+.pay-method { display: flex; flex-direction: column; gap: 10px; }
+.btn-pay { inline-size: 100%; block-size: auto; min-block-size: 48px; padding-block: 10px; white-space: normal; text-align: center; font-size: 15.5px; }
+.btn-pay .icon { flex-shrink: 0; }
+.pay-or { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 12.5px; }
+.pay-or::before, .pay-or::after { content: ''; flex: 1 1 0; border-block-start: 1px solid var(--line); }
+.test-banner {
+  display: flex; align-items: flex-start; gap: 10px; margin-block-end: 18px; padding: 10px 14px; border-radius: 10px;
+  background: var(--warn-bg); color: var(--warn-ink); font-size: 13.5px; line-height: 1.5; font-weight: 500;
+}
+.test-banner .icon { flex-shrink: 0; margin-block-start: 2px; }
+.card-no { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.st-msg {
+  display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 10px;
+  background: var(--surface-2); border: 1px solid var(--line-soft); color: var(--ink-2); font-size: 14px; line-height: 1.5;
+}
+.st-msg .icon { flex-shrink: 0; margin-block-start: 2px; color: var(--accent); }
+/* Back from Stripe: the form is hidden while the payment is confirmed, so the status takes its own room. */
+.buy[hidden] + .busy { position: static; padding-block: 56px; text-align: center; }
+.st-billing { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 14px 16px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line-soft); }
+
 /* ---- small screens */
 @media (max-width: 640px) {
   .wrap { padding: 28px 16px 48px; }

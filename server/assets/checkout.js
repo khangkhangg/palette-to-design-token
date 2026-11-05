@@ -26,6 +26,8 @@
     el.appendChild(document.createTextNode(parts.slice(1).join(placeholder)));
   }
 
+  var PAYPAL_ACTIONS = ['create', 'capture', 'subscribe_start', 'subscribe_confirm'];
+
   // GET (no body) or POST JSON. Always resolves to {ok, status, message, ...body}.
   function api(action, body) {
     var init = { credentials: 'same-origin', headers: { Accept: 'application/json' } };
@@ -39,7 +41,7 @@
       return res.json().then(function (j) {
         if (!j || typeof j !== 'object') throw new Error('bad json');
         j.status = res.status;
-        if (!j.ok && !j.message) j.message = T.err_paypal;
+        if (!j.ok && !j.message) j.message = PAYPAL_ACTIONS.indexOf(action) >= 0 ? T.err_paypal : T.err_generic;
         return j;
       });
     }).catch(function () {
@@ -132,6 +134,24 @@
     });
   });
 
+  // What the page keeps across the trip to Stripe and back (this tab only): the email just used and the extension id.
+  var ST_KEY = 'palette_st';
+  function remember(v) {
+    try { sessionStorage.setItem(ST_KEY, JSON.stringify(v)); } catch (e) { /* private mode: the return still works */ }
+  }
+  function recall() {
+    var none = { email: '', ext: '' };
+    try {
+      var v = JSON.parse(sessionStorage.getItem(ST_KEY) || '{}');
+      if (!v || typeof v !== 'object') return none;
+      return { email: typeof v.email === 'string' ? v.email : '', ext: typeof v.ext === 'string' && EXT_RE.test(v.ext) ? v.ext : '' };
+    } catch (e) { return none; }
+  }
+  function forget() {
+    try { sessionStorage.removeItem(ST_KEY); } catch (e) { /* nothing to clear */ }
+  }
+  var saved = recall();
+
   // ---- checkout
   function initCheckout() {
     var form = $('buy');
@@ -149,6 +169,9 @@
     var isBusy = false;                              // confirming an approved payment: the plan cannot change either
     var sdkSeq = 0;                                  // which SDK load is current (a stale load must not render)
     var slotLoading = slot ? slot.innerHTML : '';
+    var stBtn = $('st-pay');                         // Stripe: one card button, its label follows the plan
+    var ppBlock = $('pay-paypal');
+    var payOr = $('pay-or');
 
     var invalid = null;   // the field currently marked aria-invalid
 
@@ -177,8 +200,7 @@
       locked = true;
       var pick = $('plan-pick');
       if (pick) pick.setAttribute('aria-disabled', 'true');
-      show(slot, false);
-      show(document.querySelector('.buy .hint-center'), false);
+      show($('pay'), false);
       Array.prototype.forEach.call(form.querySelectorAll('input, select'), function (el) { el.disabled = true; });
       showError(msg);
     }
@@ -202,10 +224,11 @@
       syncTax();
     }
 
-    // The first thing stopping a purchase, with the field to focus; null when ready.
-    function problem() {
+    // The first thing stopping a purchase, with the field to focus; null when ready. The state is asked only for
+    // PayPal's Pro order (Stripe charges the plain price).
+    function problem(forStripe) {
       if (!email.value.trim() || !email.checkValidity()) return { msg: T.err_email, field: email };
-      if (plan === 'pro' && country && country.value === 'US' && !region.value) return { msg: T.co_err_region, field: region };
+      if (!forStripe && plan === 'pro' && country && country.value === 'US' && !region.value) return { msg: T.co_err_region, field: region };
       if (!consent.checked) return { msg: T.err_consent, field: consent };
       return null;
     }
@@ -259,11 +282,12 @@
       show($('pending'), true);
     }
 
-    // Hands the key to the extension that opened this page (?ext=<id>, externally_connectable).
+    // Hands the key to the extension that opened this page (?ext=<id>, externally_connectable; after Stripe, the id
+    // saved before the redirect).
     function tellExtension(key) {
       var status = $('ext-status');
       var paste = function () { status.textContent = T.co_ext_paste; status.className = 'ext-status'; };
-      var ext = new URLSearchParams(location.search).get('ext');
+      var ext = new URLSearchParams(location.search).get('ext') || saved.ext;
       var rt = window.chrome && window.chrome.runtime;
       if (!ext || !EXT_RE.test(ext) || !rt || typeof rt.sendMessage !== 'function') { paste(); return; }
       var settled = false;
@@ -288,15 +312,22 @@
       }
     }
 
-    // PayPal could not be reached or loaded: drop the placeholder and say so.
+    // PayPal could not be reached or loaded: drop the placeholder and say so (beside a card button, just drop it).
     function unavailable(msg) {
+      if (stBtn) { show(ppBlock, false); show(payOr, false); return; }
       show(slot, false);
-      show(document.querySelector('.buy .hint-center'), false);
+      show($('pay-note'), false);
       showError(msg);
     }
 
     function paused() {
-      show(document.querySelector('.buy .hint-center'), false);
+      if (stBtn) {   // PayPal went away after the page was made: the card button stays
+        ppBlock.parentNode.removeChild(ppBlock);
+        if (payOr) payOr.parentNode.removeChild(payOr);
+        ppBlock = payOr = slot = null;
+        return;
+      }
+      show($('pay-note'), false);
       slot.outerHTML = '<div class="notice" role="status"></div>';
       document.querySelector('.buy .notice').textContent = T.err_paused;
       slot = null;   // gone: a later plan switch has nothing to reload
@@ -394,7 +425,8 @@
     }
 
     // (Re)loads the PayPal SDK for the current plan: capture for Pro, vault + subscription for Pro + AI. The old script
-    // and its buttons are removed first; a load that finishes after another switch is ignored.
+    // and its buttons are removed first; a load that finishes after another switch is ignored. Pro + AI without a
+    // PayPal plan (sold by card only) hides the PayPal block instead.
     function loadSdk() {
       if (!slot) return;
       var seq = ++sdkSeq;
@@ -402,8 +434,11 @@
       if (old) old.parentNode.removeChild(old);
       try { delete window.paypal; } catch (e) { window.paypal = undefined; }
       buttons = null;
+      var usable = plan !== 'ai' || data.pp_ai === true;
+      show(ppBlock, usable);
+      show(payOr, usable);
+      if (!usable) return;
       show(slot, true);
-      show($('pay-note'), true);
       slot.innerHTML = slotLoading;
       slot.setAttribute('aria-busy', 'true');
       slot.classList.add('is-locked');
@@ -442,7 +477,9 @@
       setText('sum-item', ai ? T.co_item_ai : T.co_item);
       setText('sum-price', ai ? data.total_ai : data.total);
       setText('refund', ai ? T.co_refund_ai : T.co_refund);
-      setText('pay-note', ai ? T.co_note_ai : T.co_card_note);
+      show($('pay-note'), !ai);
+      show($('ai-note'), ai);
+      if (stBtn && data.st_price) fillWithLtr($('st-pay-label'), ai ? T.co_pay_card_ai : T.co_pay_card_pro, '{price}', data.st_price[plan]);
       setText('done-title', ai ? T.co_success_title_ai : T.co_success_title);
       show($('tax-fields'), !ai);
       show($('sum-note'), !ai);
@@ -498,8 +535,111 @@
       });
     });
 
+    // ---- Stripe: the card button starts a Checkout session and leaves for Stripe's page
+    if (stBtn) {
+      stBtn.addEventListener('click', function () {
+        if (locked || isBusy) return;
+        var p = problem(true);
+        if (p) {
+          showError(p.msg, p.field);
+          p.field.focus();
+          return;
+        }
+        showError('');
+        isBusy = true;   // the plan cannot change while the session is being made
+        stBtn.disabled = true;
+        config().then(function (c) {
+          return c.ok ? api('st_checkout', { plan: plan, email: email.value.trim(), consent: consent.checked ? '1' : '', csrf: c.csrf, test: data.test ? '1' : '', move: data.move || '' }) : c;
+        }).then(function (r) {
+          if (r.ok && r.url) {
+            var ext = new URLSearchParams(location.search).get('ext');
+            remember({ email: email.value.trim(), ext: ext && EXT_RE.test(ext) ? ext : '' });
+            window.location.assign(r.url);
+            return;
+          }
+          isBusy = false;
+          stBtn.disabled = false;
+          showError(r.message);
+        });
+      });
+    }
+
+    // Leaving for Stripe disabled the button; the browser's Back button can restore this very page from its cache.
+    window.addEventListener('pageshow', function (e) {
+      if (!e.persisted || !stBtn || locked) return;
+      isBusy = false;
+      stBtn.disabled = false;
+    });
+
+    // Back from Stripe with ?st=cs_...: confirm now, then every 3 s for 30 s while Stripe still says waiting.
+    var POLL_MS = 3000;
+    var POLL_TRIES = 11;   // 0 s, 3 s ... 30 s
+
+    function stPaid(r) {
+      forget();
+      if (r.plan === 'ai') setText('done-title', T.co_success_title_ai);
+      else if (r.plan === 'pro') setText('done-title', T.co_success_title);
+      success(r);
+      var box = $('st-billing');
+      if (!box || r.plan !== 'ai' || !r.key || !saved.email) return;   // the portal needs the key and the email just used
+      show(box, true);
+      var btn = $('st-portal');
+      var msg = $('st-portal-msg');
+      btn.addEventListener('click', function () {
+        btn.disabled = true;
+        msg.textContent = '';
+        api('st_portal', { key: r.key, email: saved.email, csrf: data.csrf_account || '' }).then(function (x) {
+          if (x.ok && x.url) { window.location.href = x.url; return; }
+          btn.disabled = false;
+          msg.textContent = x.message || '';
+          msg.className = 'sub-msg is-error';
+        });
+      });
+    }
+
+    function stFailed() {
+      busy(false);
+      show(form, true);
+      if (saved.email) email.value = saved.email;
+      showError(T.co_st_failed);
+      loadSdk();   // the normal form again: PayPal's buttons too when it is listed
+    }
+
+    // Still processing after 30 s: the webhook will fulfil it and email the key. Never offer a second payment.
+    function stWaiting() {
+      busy(false);
+      show(form, true);
+      lock('');
+      $('pending-text').textContent = T.co_st_waiting;
+      show($('pending'), true);
+    }
+
+    function stReturn() {
+      busy(true);
+      show(form, false);
+      var tries = 0;
+      config().then(function (c) {
+        if (!c.ok) { stWaiting(); return; }
+        var poll = function () {
+          tries++;
+          api('st_confirm', { session: data.st, csrf: c.csrf }).then(function (r) {
+            if (r.ok && r.state === 'paid') { stPaid(r); return; }
+            if (r.ok && (r.state === 'failed' || r.state === 'unknown')) { stFailed(); return; }
+            if (tries >= POLL_TRIES) { stWaiting(); return; }   // waiting, a Stripe error or the network: ask again
+            setTimeout(poll, POLL_MS);
+          });
+        };
+        poll();
+      });
+    }
+
     applyPlan();
-    loadSdk();
+    if (data.st) {
+      stReturn();
+    } else {
+      if ($('st-msg') && saved.email) email.value = saved.email;   // back from Stripe's Cancel: keep the address
+      loadSdk();
+    }
   }
 
   // ---- lost key: always the same confirmation
@@ -593,6 +733,21 @@
           if (r.ok) ended(row, r.ends_on); else { show(open, true); open.focus(); }
         });
       }
+    });
+
+    document.addEventListener('click', function (e) {
+      var t = e.target.closest ? e.target.closest('[data-portal]') : null;
+      if (!t) return;
+      var row = t.closest('.keyrow');
+      var msg = t.closest('.billing-panel').querySelector('.sub-msg');
+      t.disabled = true;
+      msg.textContent = '';
+      api('st_portal', { key: row.getAttribute('data-key'), csrf: csrf }).then(function (r) {
+        if (r.ok && r.url) { window.location.href = r.url; return; }
+        t.disabled = false;
+        msg.textContent = r.message || '';
+        msg.className = 'sub-msg is-error';
+      });
     });
 
     var form = $('cancel-by');

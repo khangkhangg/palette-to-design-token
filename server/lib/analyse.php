@@ -32,7 +32,7 @@ function palette_analyse(mysqli $c, array $req): array
     $host = $u['host'];
 
     // 2. Licence, loaded once and passed to every usage call (ruling A5).
-    $st = $c->prepare('SELECT id, plan, revoked_at, sub_status, paid_through, period_start, created_at FROM palette_licenses WHERE license_key = ?');
+    $st = $c->prepare('SELECT id, plan, revoked_at, sub_status, paid_through, period_start, created_at, livemode FROM palette_licenses WHERE license_key = ?');
     $st->bind_param('s', $key);
     $st->execute();
     $lic = $st->get_result()->fetch_assoc();
@@ -40,6 +40,9 @@ function palette_analyse(mysqli $c, array $req): array
     if (!$lic || $lic['plan'] !== 'ai' || $lic['revoked_at'] !== null) return palette_analyse_error(403, 'err_not_ai', $lang);
     if (!palette_licence_access($lic)['ai']) {
         $t = $lic['paid_through'] === null ? false : strtotime($lic['paid_through']);
+        // A test-mode key ended at its 7-day test expiry when that came first.
+        $testEnd = palette_test_expiry($lic);
+        if ($t !== false && $testEnd !== null) $t = min($t, $testEnd);
         if ($t === false) return palette_analyse_error(403, 'err_ended', $lang, ['ended_on' => null], [], 'err_ended_nodate');
         $ended = date('Y-m-d', $t);
         return palette_analyse_error(403, 'err_ended', $lang, ['ended_on' => $ended], ['date' => $ended]);

@@ -6,11 +6,11 @@
 const PALETTE_BASE = '/palette';
 const PALETTE_LANG_NAMES = ['en' => 'English', 'zh-CN' => '中文', 'hi' => 'हिन्दी', 'es' => 'Español',
                             'ar' => 'العربية', 'fr' => 'Français', 'bn' => 'বাংলা'];
-const PALETTE_PRIVACY_UPDATED = '2026-10-17';
-const PALETTE_TERMS_UPDATED = '2026-10-17';
+const PALETTE_PRIVACY_UPDATED = '2026-11-04';
+const PALETTE_TERMS_UPDATED = '2026-11-04';
 const PALETTE_SUPPORT_EMAIL = 'support@vietnamcos.com';
 // The extension version the checkout page offers (keep in step with extension/public/manifest.json; pages-test checks).
-const PALETTE_EXT_VERSION = '0.2.1';
+const PALETTE_EXT_VERSION = '0.3.0';
 // Direct download, uploaded to server/download/ at deploy (npm run package:direct); never committed.
 const PALETTE_DOWNLOAD_URL = PALETTE_BASE . '/download/site-to-design-token-latest.zip';
 const PALETTE_US_STATES = [
@@ -29,7 +29,9 @@ const PALETTE_US_STATES = [
 const PALETTE_SCRIPT_STRINGS = ['err_email', 'err_paused', 'err_consent', 'err_paypal', 'err_retry', 'err_csrf', 'co_err_region', 'co_err_network',
     'co_err_confirm', 'co_err_confirm_sub', 'co_load_failed', 'co_copy', 'co_copied', 'co_copy_failed', 'co_ext_ok', 'co_ext_paste', 'co_emailed', 'co_key_emailed', 'api_resend_ok', 'acct_added',
     // plan chooser (swapped in by checkout.js when the plan changes) and the account subscription panel
-    'co_item', 'co_item_ai', 'co_refund', 'co_refund_ai', 'co_card_note', 'co_note_ai', 'co_sub_pending', 'co_success_title', 'co_success_title_ai', 'acct_st_cancelled'];
+    'co_item', 'co_item_ai', 'co_refund', 'co_refund_ai', 'co_card_note', 'co_note_ai', 'co_sub_pending', 'co_success_title', 'co_success_title_ai', 'acct_st_cancelled',
+    // Stripe: the PayPal block's note, the return states and Stripe's own error
+    'co_pp_note', 'co_st_waiting', 'co_st_failed', 'err_stripe', 'err_generic'];
 
 // ?lang= when it is one of the 7; else the best Accept-Language match; else en.
 // The escaped string with {name} placeholders replaced by trusted HTML.
@@ -152,6 +154,8 @@ function palette_icon(string $name, int $size = 16): string
         'contrast' => '<circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 0 0 20z" fill="currentColor"/>',
         'code' => '<path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/>',
         'minus' => '<path d="M5 12h14"/>',
+        'plus' => '<path d="M12 5v14M5 12h14"/>',
+        'search' => '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
         'info' => '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
         'spark' => '<path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 3v4M17 5h4"/>',
     ];
@@ -218,13 +222,29 @@ function palette_price_label(string $lang): string
 // The Pro + AI monthly price as this language writes it.
 function palette_ai_price_label(string $lang): string
 {
-    return palette_usd($lang, palette_money(palette_ai_sale_cents(palette_settings($GLOBALS['conn']))));
+    return palette_usd($lang, palette_money(palette_ai_display_cents(palette_settings($GLOBALS['conn']))));
 }
 
-// Whether Pro + AI can be bought right now (plan exists for the current PayPal mode).
+// The Pro + AI cents to show: exactly what palette_st_sub_start charges (the ai_price_usd setting) whenever live Stripe
+// is a listed, ready checkout method and either comes first or is the only one that can sell Pro + AI (PayPal not
+// listed, or its plan not sellable: A18); otherwise the PayPal plan price.
+function palette_ai_display_cents(array $settings): int
+{
+    $conn = $GLOBALS['conn'];
+    $methods = palette_stripe_settings($conn)['checkout_methods'];
+    if (in_array('stripe', $methods, true) && palette_stripe_ready($conn, 'live')) {
+        $ppSells = in_array('paypal', $methods, true) && palette_ai_plan_ready($settings, pp_settings($conn));
+        if ($methods[0] === 'stripe' || !$ppSells) return palette_sub_price_cents($settings);
+    }
+    return palette_ai_sale_cents($settings);
+}
+
+// Whether Pro + AI can be bought right now: live Stripe is an enabled checkout method and ready, or the PayPal plan
+// exists for the current PayPal mode.
 function palette_ai_on(): bool
 {
     $conn = $GLOBALS['conn'];
+    if (in_array('stripe', palette_stripe_settings($conn)['checkout_methods'], true) && palette_stripe_ready($conn, 'live')) return true;
     return palette_ai_plan_ready(palette_settings($conn), pp_settings($conn));
 }
 
@@ -242,7 +262,8 @@ function palette_account_csrf_token(): string
 }
 
 // Two plan cards, radio semantics (mockup J): Pro + AI first, Pro second. Pro + AI is not selectable until its PayPal plan exists.
-function palette_plan_cards(string $lang, string $plan, bool $aiOn, string $proPrice, string $aiPrice, int $analyses): string
+// $aiOnly (a move-to-card checkout) leaves the Pro card out.
+function palette_plan_cards(string $lang, string $plan, bool $aiOn, string $proPrice, string $aiPrice, int $analyses, bool $aiOnly = false): string
 {
     $card = function (string $id, string $name, string $price, string $per, string $badge, array $items) use ($plan, $aiOn, $lang): string {
         $disabled = $id === 'ai' && !$aiOn;
@@ -261,7 +282,7 @@ function palette_plan_cards(string $lang, string $plan, bool $aiOn, string $proP
     return '<div class="plan-pick" id="plan-pick" role="radiogroup" aria-labelledby="plan-h">'
         . $card('ai', 'Pro + AI', $aiPrice, $t('co_plan_month'), $aiOn ? $t('co_plan_best') : $t('co_plan_soon'),
             [$t('co_ai_i1'), $t('co_ai_i2', ['n' => $analyses]), $t('co_ai_i3'), $t('co_ai_i4'), $t('co_ai_i5')])
-        . $card('pro', 'Pro', $proPrice, $t('co_plan_once'), '', [$t('co_pro_i1'), $t('co_pro_i2'), $t('co_pro_i3')])
+        . ($aiOnly ? '' : $card('pro', 'Pro', $proPrice, $t('co_plan_once'), '', [$t('co_pro_i1'), $t('co_pro_i2'), $t('co_pro_i3')]))
         . '</div>';
 }
 
@@ -443,29 +464,62 @@ function palette_render_terms(array $ctx): string
     return palette_page_shell('terms', $lang, [], palette_t($lang, 'terms_title') . ' | Site to Design Token', $main);
 }
 
+// Methods come from checkout_methods, in that order; a method counts only while it is connected (Stripe: the Live
+// connection, or Test for a signed-in admin's ?test=1, which offers Stripe alone). None connected: "Payments are paused".
+// Return from Stripe: ?st=cs_... confirms (checkout.js polls st_confirm), ?st=cancel shows the form with a note.
 function palette_render_checkout(array $ctx): string
 {
     $conn = $GLOBALS['conn'];
     $query = is_array($ctx['query'] ?? null) ? $ctx['query'] : [];
+    $session = is_array($ctx['session'] ?? null) ? $ctx['session'] : [];
     $lang = palette_page_lang($query, (string)($ctx['accept_language'] ?? ''));
     $keep = array_intersect_key(palette_page_keep($query), ['ext' => 1]);
     if (in_array($query['plan'] ?? null, ['ai', 'pro'], true)) $keep['plan'] = $query['plan'];
     $t = fn(string $k) => palette_h(palette_t($lang, $k));
 
+    $mode = palette_checkout_mode($session, $query);
+    $test = $mode === 'test';
+    if ($test) $keep['test'] = '1';
+    // ?move=<token>: an admin's move-to-card link for a PayPal Pro + AI subscriber (lib/admin.php). Valid: Pro + AI only, Stripe
+    // only, the licence's email fixed. Invalid: an ordinary checkout with a note saying the link no longer works.
+    $moveTok = is_string($query['move'] ?? null) ? $query['move'] : '';
+    $move = $moveTok !== '' ? palette_admin_move_check($conn, $moveTok) : null;
+    $moveBad = $move !== null && !$move['ok'];
+    if ($moveBad) $move = null;
+    if ($move !== null) {   // a PayPal licence is live: never a test-mode subscription, even for an admin's ?test=1
+        $mode = 'live';
+        $test = false;
+        unset($keep['test']);
+        $keep['move'] = $moveTok;
+        $keep['plan'] = 'ai';
+    }
     $settings = palette_settings($conn);
     $money = palette_money_settings($settings);
     $pp = pp_settings($conn);
-    $ready = pp_ready($pp);
-    $aiOn = palette_ai_plan_ready($settings, $pp);
-    $plan = palette_page_plan($query, $aiOn);
+    $stOn = palette_stripe_ready($conn, $mode);
+    $ppOn = !$test && pp_ready($pp);
+    $methods = $test ? ['stripe'] : palette_stripe_settings($conn)['checkout_methods'];
+    $active = array_values(array_filter($methods, fn(string $m) => $m === 'stripe' ? $stOn : ($ppOn && $move === null)));
+    $hasSt = in_array('stripe', $active, true);
+    $hasPp = in_array('paypal', $active, true);
+    $ppAi = $hasPp && palette_ai_plan_ready($settings, $pp);   // PayPal sells Pro + AI only once its plan exists (A18)
+    $aiOn = $hasSt || $ppAi;
+    $plan = $move !== null ? 'ai' : palette_page_plan($query, $aiOn);
     $isAi = $plan === 'ai';
-    $ca = $money['tax_mode'] === 'ca';
+    $ca = $money['tax_mode'] === 'ca' && $hasPp;   // sales tax is collected on PayPal's Pro order only
     $fr = $lang === 'fr';
     $usd = fn(string $amount): string => palette_usd($lang, $amount);
     $price = $usd(palette_money($money['price']));
-    $aiPrice = $usd(palette_money(palette_ai_sale_cents($settings)));
+    $aiPrice = $usd(palette_money($test ? palette_sub_price_cents($settings) : palette_ai_display_cents($settings)));
     $withTax = palette_total($settings, 'US', 'CA');
     $shown = $isAi ? $aiPrice : $price;
+    // The Stripe button names what Stripe will charge (palette_st_order_start / palette_st_sub_start), the price kept
+    // left-to-right inside RTL copy; checkout.js swaps it when the plan changes.
+    $stPrice = ['pro' => $usd(palette_total($settings, null, null)['amount']), 'ai' => $usd(palette_money(palette_sub_price_cents($settings)))];
+
+    $st = is_string($query['st'] ?? null) ? $query['st'] : '';
+    $stSession = preg_match(PALETTE_STRIPE_SESSION_RE, $st) ? $st : null;
+    $stCancel = $st === 'cancel';
 
     // Pro + AI is a subscription: no sales-tax lines for it (the selects and the CA row only apply to Pro).
     $summary = '<div class="summary">'
@@ -476,14 +530,15 @@ function palette_render_checkout(array $ctx): string
         . ($ca ? '<p class="sum-note" id="sum-note"' . ($isAi ? ' hidden' : '') . '>' . $t('co_tax_note') . '</p>' : '')
         . '</div>';
 
+    $trust = '';
+    foreach ($active as $m) $trust .= '<li>' . palette_icon('lock', 15) . $t($m === 'stripe' ? 'co_trust_stripe' : 'co_trust_paypal') . '</li>';
     $hero = '<section class="hero">'
         . '<span class="eyebrow">' . $t('co_eyebrow') . '</span>'
         . '<h1>' . $t('co_h1') . '</h1>'
         . '<p class="lead">' . $t('co_lead') . '</p>'
         . palette_section_hero_actions($lang, $price, '#buy')
         . $summary
-        . '<ul class="trust">'
-        . '<li>' . palette_icon('lock', 15) . $t('co_trust_paypal') . '</li>'
+        . '<ul class="trust">' . $trust
         . '<li>' . palette_icon('browser', 15) . $t('co_trust_browsers') . '</li>'
         . '</ul></section>';
 
@@ -507,17 +562,43 @@ function palette_render_checkout(array $ctx): string
             . '</div>';
     }
 
-    $pay = $ready
-        ? '<div id="paypal" class="paypal is-locked" aria-busy="true"><div class="pp-loading"><span class="spinner" aria-hidden="true"></span>' . $t('co_loading') . '</div></div>'
-          . '<p class="hint hint-center" id="pay-note">' . $t($isAi ? 'co_note_ai' : 'co_card_note') . '</p>'
+    $blocks = [];
+    foreach ($active as $m) {
+        $blocks[] = $m === 'stripe'
+            ? '<div class="pay-method" id="pay-stripe">'
+              . '<button type="button" class="btn btn-accent btn-lg btn-pay" id="st-pay">' . palette_icon('card', 18) . '<span id="st-pay-label">' . palette_t_html($lang, 'co_pay_card_' . $plan, ['price' => palette_ltr($stPrice[$plan])]) . '</span></button>'
+              . '<p class="hint hint-center" id="st-note">' . $t('co_card_note') . '</p></div>'
+            : '<div class="pay-method" id="pay-paypal"' . ($isAi && !$ppAi ? ' hidden' : '') . '>'
+              . '<div id="paypal" class="paypal is-locked" aria-busy="true"><div class="pp-loading"><span class="spinner" aria-hidden="true"></span>' . $t('co_loading') . '</div></div>'
+              . '<p class="hint hint-center" id="pay-note"' . ($isAi ? ' hidden' : '') . '>' . $t('co_pp_note') . '</p></div>';
+    }
+    $pay = $blocks
+        ? '<div class="pay" id="pay">' . implode('<p class="pay-or" id="pay-or"' . ($isAi && !$ppAi ? ' hidden' : '') . '><span>' . $t('co_pay_or') . '</span></p>', $blocks)
+          . '<p class="hint hint-center" id="ai-note"' . ($isAi ? '' : ' hidden') . '>' . $t('co_note_ai') . '</p></div>'
         : '<div class="notice" role="status">' . palette_icon('alert', 18) . '<span>' . $t('err_paused') . '</span></div>';
 
-    $form = '<form id="buy" class="buy" novalidate>'
+    // The test card number stays on one line and in order, also inside Arabic.
+    $card = '4242 4242 4242 4242';
+    $banner = $test ? '<div class="test-banner" id="test-banner" role="note">' . palette_icon('alert', 16)
+        . '<span>' . str_replace($card, '<bdi dir="ltr" class="card-no">' . $card . '</bdi>', $t('co_test_banner')) . '</span></div>' : '';
+
+    $moveNote = '';
+    if ($move !== null) {
+        $trial = palette_admin_move_trial_end($move['licence']);
+        $moveNote = '<div class="st-msg move-msg" id="move-msg" role="note">' . palette_icon('card', 16) . '<span><strong>' . $t('co_move_title') . '</strong> '
+            . palette_h(palette_t($lang, 'co_move_note_date', ['date' => gmdate('Y-m-d', (int)$trial)])) . '</span></div>';
+    } elseif ($moveBad) {
+        $moveNote = '<p class="st-msg" id="move-msg" role="status">' . palette_icon('alert', 16) . '<span>' . $t('co_move_invalid') . '</span></p>';
+    }
+    $form = '<form id="buy" class="buy" novalidate' . ($stSession !== null ? ' hidden' : '') . '>'
         . '<h2 id="buy-title">' . $t('co_form_title') . '</h2>'
+        . ($stCancel ? '<p class="st-msg" id="st-msg" role="status">' . palette_icon('info', 16) . '<span>' . $t('co_st_cancelled') . '</span></p>' : '')
+        . $moveNote
         . '<div class="field"><span class="field-label" id="plan-h">' . $t('co_plan_h') . '</span>'
-        . palette_plan_cards($lang, $plan, $aiOn, $price, $aiPrice, palette_usage_limit($settings)) . '</div>'
+        . palette_plan_cards($lang, $plan, $aiOn, $price, $aiPrice, palette_usage_limit($settings), $move !== null) . '</div>'
         . '<div class="field"><label for="email">' . $t('co_email_label') . '</label>'
-        . '<input type="email" id="email" name="email" autocomplete="email" inputmode="email" spellcheck="false" maxlength="190" required aria-describedby="email-hint">'
+        . '<input type="email" id="email" name="email" autocomplete="email" inputmode="email" spellcheck="false" maxlength="190" required aria-describedby="email-hint"'
+        . ($move !== null ? ' value="' . palette_h((string)$move['licence']['email']) . '" readonly' : '') . '>'
         . '<p class="hint" id="email-hint">' . $t('co_email_hint') . '</p></div>'
         . $tax
         . '<div class="terms"><p class="refund" id="refund">' . $t($isAi ? 'co_refund_ai' : 'co_refund') . '</p>'
@@ -527,8 +608,14 @@ function palette_render_checkout(array $ctx): string
         . '<p class="pending" id="pending" role="status" hidden>' . palette_icon('check', 18) . '<span id="pending-text"></span></p>'
         . $pay
         . '</form>'
-        . '<div class="busy" id="busy" role="status" hidden><span class="spinner" aria-hidden="true"></span>' . $t('co_finishing') . '</div>';
+        . '<div class="busy" id="busy" role="status"' . ($stSession !== null ? '' : ' hidden') . '><span class="spinner" aria-hidden="true"></span>' . $t('co_finishing') . '</div>';
 
+    // After a Stripe Pro + AI payment: Stripe's billing portal for this subscription (st_portal, key + the email just used).
+    $billing = $stSession !== null
+        ? '<div class="st-billing" id="st-billing" hidden>'
+          . '<button type="button" class="btn btn-quiet" id="st-portal">' . palette_icon('card', 15) . '<span>' . $t('co_manage_billing') . '</span></button>'
+          . '<p class="hint">' . $t('co_manage_billing_note') . '</p><p class="sub-msg" id="st-portal-msg" role="status"></p></div>'
+        : '';
     $done = '<div id="done" class="done" hidden>'
         . '<div class="done-badge">' . palette_icon('check', 22) . '</div>'
         . '<h2 id="done-title" tabindex="-1">' . $t($isAi ? 'co_success_title_ai' : 'co_success_title') . '</h2>'
@@ -537,6 +624,7 @@ function palette_render_checkout(array $ctx): string
         . '<p class="copy-status" id="copy-status" role="status"></p>'
         . '<p class="ext-status" id="ext-status" role="status"></p>'
         . '<p class="emailed" id="emailed"></p>'
+        . $billing
         . '<div class="linkbox"><span>' . $t('co_account_note') . '</span>'
         . '<a id="account-link" class="btn btn-quiet" href="' . palette_h(palette_page_url('account', $lang)) . '">' . palette_icon('user', 15) . '<span>' . $t('co_account_link') . '</span></a></div>'
         . '</div>';
@@ -551,13 +639,18 @@ function palette_render_checkout(array $ctx): string
         . '</form>';
 
     $main = '<main class="wrap checkout">' . $pitch
-        . '<div class="side"><section class="card buy-card" aria-labelledby="buy-title">' . $form . $done . '</section>'
+        . '<div class="side"><section class="card buy-card" aria-labelledby="buy-title">' . $banner . $form . $done . '</section>'
         . $lost . '</div></main>';
 
-    $strings = [];
-    foreach (PALETTE_SCRIPT_STRINGS as $k) $strings[$k] = palette_t($lang, $k);
-    return palette_page_shell('checkout', $lang, $keep, palette_t($lang, 'co_title'), $main,
-        ['t' => $strings, 'plan' => $plan, 'ai_enabled' => $aiOn, 'total' => $price, 'total_ca' => $usd($withTax['amount']), 'total_ai' => $aiPrice]);
+    $data = ['t' => palette_script_strings($lang), 'plan' => $plan, 'ai_enabled' => $aiOn, 'total' => $price, 'total_ca' => $usd($withTax['amount']), 'total_ai' => $aiPrice,
+             'methods' => $active, 'pp_ai' => $ppAi, 'test' => $test];
+    if ($hasSt) {   // the button label templates ({price}) only where there is a button
+        $data['st_price'] = $stPrice;
+        $data['t'] += ['co_pay_card_pro' => palette_t($lang, 'co_pay_card_pro'), 'co_pay_card_ai' => palette_t($lang, 'co_pay_card_ai')];
+    }
+    if ($stSession !== null) $data += ['st' => $stSession, 'csrf_account' => palette_account_csrf_token()];
+    if ($move !== null) $data['move'] = $moveTok;
+    return palette_page_shell('checkout', $lang, $keep, palette_t($lang, 'co_title'), $main, $data);
 }
 
 function palette_session_user(array $session): int
@@ -596,6 +689,7 @@ function palette_render_account(array $ctx): string
                 . ($k['revoked'] ? '<span class="badge">' . $t('acct_revoked') . '</span>' : '') . '</span>'
                 . palette_account_plan_line($lang, $k) . '</div>'
                 . '<button type="button" class="btn btn-quiet btn-sm" data-copy="' . palette_h($k['key']) . '">' . palette_icon('copy', 14) . '<span>' . $t('co_copy') . '</span></button>'
+                . palette_account_billing_panel($lang, $k)
                 . palette_account_cancel_panel($lang, $k)
                 . '</li>';
         }
@@ -659,6 +753,17 @@ function palette_account_plan_line(string $lang, array $k): string
     $status = $state === 'cancelled' ? palette_t_html($lang, 'acct_st_cancelled', ['date' => $date]) : palette_h(palette_t($lang, 'acct_st_' . $state));
     return '<span class="keyrow-plan">' . $chip('Pro + AI') . '<span class="sub-status is-' . $state . '" data-sub-status>' . $status . '</span>'
         . ($state === 'active' ? '<span data-sub-renews>' . palette_t_html($lang, 'acct_renews', ['date' => $date]) . '</span>' : '') . '</span>';
+}
+
+// Stripe subscribers: a button to Stripe's billing portal (card, invoices, resume). PayPal and manual keys have none.
+function palette_account_billing_panel(string $lang, array $k): string
+{
+    if ($k['plan'] !== 'ai' || ($k['source'] ?? null) !== 'stripe' || !empty($k['revoked'])) return '';
+    if (!in_array(palette_account_sub_state($k), ['active', 'pending', 'suspended', 'cancelled'], true)) return '';
+    return '<div class="billing-panel">'
+        . '<button type="button" class="btn btn-quiet btn-sm" data-portal>' . palette_icon('card', 14) . '<span>' . palette_h(palette_t($lang, 'co_manage_billing')) . '</span></button>'
+        . '<p class="hint">' . palette_h(palette_t($lang, 'acct_billing_note')) . '</p>'
+        . '<p class="sub-msg" role="status"></p></div>';
 }
 
 // Cancel button + in-page confirm step (no window.confirm); only for a live subscription that is not already cancelled,

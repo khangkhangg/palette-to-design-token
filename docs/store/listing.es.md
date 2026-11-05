@@ -38,7 +38,7 @@ Pro, un desbloqueo único de 1,49 USD
 Pro + AI, 3,99 USD al mes
 - Todo lo de Pro.
 - Análisis con IA: pulsa Analizar en un sitio para obtener un veredicto, el significado de sus colores y sitios parecidos y competidores encontrados con una búsqueda web. Hasta 100 análisis al mes.
-- Se cobra cada mes a través de PayPal. Cancela cuando quieras; Pro y AI siguen activos hasta el final del mes que pagaste.
+- Se cobra cada mes con tarjeta. Cancela cuando quieras; Pro y AI siguen activos hasta el final del mes que pagaste.
 
 Privacidad
 

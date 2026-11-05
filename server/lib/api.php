@@ -4,7 +4,7 @@
 // (companies' helpers are session based); $req['session'] supplies the logged-in user.
 // Returns ['status','headers','body'] plus 'defer' (a callable to run after the response is flushed) for resend.
 
-const PALETTE_API_POST_ACTIONS = ['create', 'capture', 'resend', 'claim', 'verify', 'analyse', 'subscribe_start', 'subscribe_confirm', 'sub_cancel'];
+const PALETTE_API_POST_ACTIONS = ['create', 'capture', 'resend', 'claim', 'verify', 'analyse', 'subscribe_start', 'subscribe_confirm', 'sub_cancel', 'st_portal', 'st_checkout', 'st_confirm'];
 // Called from the extension's own origin: CORS for the allowed extension ids, and no CSRF token.
 const PALETTE_API_EXTENSION_ACTIONS = ['verify', 'analyse'];
 
@@ -58,10 +58,18 @@ function palette_api_owns_sub(int $rowId): bool
     return is_array($mine) && in_array($rowId, $mine, true);
 }
 
+// True when this session started the Stripe checkout. st_checkout stores 'o:<orders row id>' or 's:<subscriptions row id>'
+// in $_SESSION['palette_st'] (the two tables number their rows separately).
+function palette_api_owns_st(string $kind, int $rowId): bool
+{
+    $mine = $_SESSION['palette_st'] ?? null;
+    return is_array($mine) && in_array($kind . ':' . $rowId, $mine, true);
+}
+
 // sub_cancel comes from the account page, whose form token is 'palette_account'.
 function palette_api_csrf_form(string $action): string
 {
-    return $action === 'sub_cancel' ? 'palette_account' : 'palette_checkout';
+    return in_array($action, ['sub_cancel', 'st_portal'], true) ? 'palette_account' : 'palette_checkout';
 }
 
 function palette_api_handle(array $req): array
@@ -89,7 +97,7 @@ function palette_api_handle(array $req): array
         $ready = pp_ready($pp);
         return palette_api_reply(200, ['ok' => true, 'enabled' => $ready] + ($ready ? ['client_id' => $pp['client_id']] : [])
             + ['price' => palette_money($m['price']), 'tax_mode' => $m['tax_mode'], 'ai_enabled' => palette_ai_plan_ready($s, $pp),
-               'ai_price' => palette_money(palette_ai_sale_cents($s)), 'csrf' => palette_api_csrf_token()]);
+               'ai_price' => palette_money(palette_ai_display_cents($s)), 'csrf' => palette_api_csrf_token()]);
     }
 
     if ($action === 'verify') {
@@ -165,6 +173,58 @@ function palette_api_handle(array $req): array
             // A19: a refunded key had no access to keep; its cancel only stops PayPal billing.
             return palette_api_reply(200, ['ok' => true, 'ends_on' => $r['ends_on'], 'revoked' => $r['revoked'],
                 'message' => $r['revoked'] ? palette_t($lang, 'sub_cancel_ok_revoked') : palette_t($lang, 'sub_cancel_ok', ['date' => (string)$r['ends_on']])]);
+        case 'st_portal':
+            if (!palette_rate_hit('st:portal:ip:' . (string)($req['ip'] ?? ''), 10, 3600)) return palette_api_error(429, 'api_rate_limited', $lang);
+            $uid = $req['session']['user_id'] ?? null;
+            $uid = (is_int($uid) || (is_string($uid) && ctype_digit($uid))) && (int)$uid > 0 ? (int)$uid : null;
+            $r = palette_st_portal_url($conn, $str('key'), $uid, $str('email') !== '' ? $str('email') : null);
+            if (!$r['ok']) return palette_api_error(['err_invalid_key' => 400, 'err_not_owner' => 403][$r['error']] ?? 502, $r['error'], $lang);
+            return palette_api_reply(200, ['ok' => true, 'url' => $r['url']]);
+        case 'st_checkout':
+            if (!palette_rate_hit('create:ip:' . (string)($req['ip'] ?? ''), 20, 3600)) return palette_api_error(429, 'api_rate_limited', $lang);
+            $mode = palette_checkout_mode((array)($req['session'] ?? []), ['test' => $str('test')]);
+            $ai = $str('plan') === 'ai';
+            // Move to card (admin link): the signed token is checked again here; it fixes the plan, the email (the licence's)
+            // and the licence the subscription takes over, and carries the PayPal paid-through over as the Stripe trial.
+            $move = null;
+            if ($str('move') !== '') {
+                $mc = palette_admin_move_check($conn, $str('move'));
+                if (!$mc['ok']) return palette_api_error(400, 'err_move', $lang);
+                $move = $mc['licence'];
+                $ai = true;
+                $mode = 'live';   // a PayPal licence is live: never re-pointed to a test-mode subscription
+            }
+            // Public checkout needs Stripe enabled as a method and live ready; an admin's test checkout needs only test ready.
+            $open = $mode === 'test' ? palette_stripe_ready($conn, 'test')
+                : in_array('stripe', palette_stripe_settings($conn)['checkout_methods'], true) && palette_stripe_ready($conn, 'live');
+            if (!$open) return palette_api_error(503, 'err_paused', $lang);
+            $again = $move !== null ? palette_st_move_open_session($conn, (int)$move['id']) : null;   // a checkout from this link still open
+            if (isset($again['error'])) return palette_api_error(502, $again['error'], $lang);
+            $r = $again !== null ? ['ok' => true] + $again
+                : ($move !== null ? palette_st_sub_start($conn, $mode, (string)$move['email'], $lang, $str('consent') === '1', (int)$move['id'], palette_admin_move_trial_end($move))
+                : ($ai ? palette_st_sub_start($conn, $mode, $str('email'), $lang, $str('consent') === '1')
+                     : palette_st_order_start($conn, $mode, $str('email'), $lang, $str('consent') === '1')));
+            if (!$r['ok']) return palette_api_error(['err_paused' => 503, 'err_stripe' => 502][$r['error']] ?? 400, $r['error'], $lang);
+            $mine = is_array($_SESSION['palette_st'] ?? null) ? $_SESSION['palette_st'] : [];
+            $mine[] = ($ai ? 's:' : 'o:') . $r['row_id'];
+            $_SESSION['palette_st'] = array_slice($mine, -PALETTE_API_SESSION_ORDERS);
+            return palette_api_reply(200, ['ok' => true, 'url' => $r['url']]);
+        case 'st_confirm':
+            // The return page polls every 3 s for 30 s (11 calls). Limited per Stripe session id, so buyers sharing an
+            // address (an office, a carrier NAT) never 429 each other; the wide per-IP cap still stops id guessing.
+            $sidBucket = preg_match(PALETTE_STRIPE_SESSION_RE, $str('session')) ? $str('session') : '-';
+            if (!palette_rate_hit('st:confirm:s:' . $sidBucket, 40, 3600) || !palette_rate_hit('st:confirm:ip:' . (string)($req['ip'] ?? ''), 600, 3600)) {
+                return palette_api_error(429, 'api_rate_limited', $lang);
+            }
+            $r = palette_st_confirm($conn, $str('session'));
+            if ($r['state'] === 'error') return palette_api_error(502, $r['error'], $lang);
+            if ($r['state'] !== 'paid') return palette_api_reply(200, ['ok' => true, 'state' => $r['state']]);
+            // Only the session that started the checkout is shown its key; anyone else is told it was emailed.
+            if (!palette_api_owns_st((string)$r['kind'], (int)$r['row']) || $r['key'] === null) {
+                return palette_api_reply(200, ['ok' => true, 'state' => 'paid', 'emailed' => true, 'email_masked' => $r['email_masked'],
+                    'message' => strtr(palette_t($lang, 'co_key_emailed'), ['{email}' => $r['email_masked']])]);
+            }
+            return palette_api_reply(200, ['ok' => true, 'state' => 'paid', 'key' => $r['key'], 'plan' => $r['plan'], 'email_masked' => $r['email_masked']]);
         case 'resend':
             $email = $str('email');
             $res = palette_api_reply(200, ['ok' => true, 'message' => palette_t($lang, 'api_resend_ok')]);

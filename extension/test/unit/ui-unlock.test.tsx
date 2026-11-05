@@ -22,9 +22,9 @@ const type = (value: string) => fireEvent.input(screen.getByLabelText('License k
 const activate = () => fireEvent.click(screen.getByRole('button', { name: 'Activate' }));
 
 describe('PlanSheet licensing', () => {
-  it('Pay with PayPal is enabled and opens the checkout page for the chosen plan in a new tab', () => {
+  it('Pay is enabled and opens the checkout page for the chosen plan in a new tab', () => {
     render(<PlanSheet variant="overlay" onClose={() => {}} />);
-    const pay = screen.getByRole('button', { name: /Pay \$1\.49 with PayPal/ }) as HTMLButtonElement;
+    const pay = screen.getByRole('button', { name: /Pay \$1\.49/ }) as HTMLButtonElement;
     expect(pay.disabled).toBe(false);
     fireEvent.click(pay);
     expect(create).toHaveBeenCalledWith({

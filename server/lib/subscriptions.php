@@ -343,7 +343,7 @@ function palette_sub_fulfil(mysqli $c, array $subRow, array $paypalSub, ?int $sa
             return $r['ok'] ? $r + ['already' => true] : $r;
         }
         $lic = palette_issue_license($c, (string)$subRow['email'], $sid, (string)$subRow['lang'],
-            ['subscription_id' => $sid, 'paid_through' => $paidThrough, 'period_start' => $now]);
+            ['subscription_id' => $sid, 'paid_through' => $paidThrough, 'period_start' => $now], 'paypal');
         $lid = (int)$lic['id'];
         $c->query("UPDATE palette_subscriptions SET license_id = $lid WHERE id = $id");
         if ($initial !== 'active') $c->query("UPDATE palette_licenses SET sub_status = '$initial' WHERE id = $lid");   // cancelled|suspended
@@ -361,6 +361,8 @@ function palette_sub_fulfil(mysqli $c, array $subRow, array $paypalSub, ?int $sa
 }
 
 // Moves a fulfilled row (and its licence's sub_status) to $to, only from one of $from. True when it changed.
+// The licence follows only while this subscription still backs it: after a move to card (lib/admin.php) the old PayPal row
+// keeps its license_id, and its cancel or expiry must not touch the licence the Stripe subscription now pays for.
 function palette_sub_set_status(mysqli $c, array $row, string $to, array $from): bool
 {
     $id = (int)$row['id'];
@@ -375,8 +377,9 @@ function palette_sub_set_status(mysqli $c, array $row, string $to, array $from):
         $st->close();
         if ($changed && $row['license_id'] !== null) {
             $lid = (int)$row['license_id'];
-            $st = $c->prepare('UPDATE palette_licenses SET sub_status = ? WHERE id = ?');
-            $st->bind_param('si', $to, $lid);
+            $sid = $row['subscription_id'] ?? null;
+            $st = $c->prepare('UPDATE palette_licenses SET sub_status = ? WHERE id = ? AND (subscription_id IS NULL OR subscription_id <=> ?)');
+            $st->bind_param('sis', $to, $lid, $sid);
             $st->execute();
             $st->close();
         }
@@ -586,12 +589,14 @@ function palette_sub_stop_billing(mysqli $c, array $row, string $sid, string $wh
 
 // Call inside a transaction. paid_through only moves forward; period_start (the usage period) moves only to a payment
 // more than PALETTE_SUB_RECONCILE_MIN_GAP after the current one, which resets usage: a first sale that lands just after
-// the key was issued never resets the period twice. True when the licence changed.
+// the key was issued never resets the period twice. True when the licence changed. A subscription that no longer backs the
+// licence (moved to card) never extends it.
 function palette_sub_extend(mysqli $c, array $row, ?string $paidThrough, ?string $periodStart): bool
 {
     $lid = (int)$row['license_id'];
-    $l = $c->query("SELECT paid_through, period_start FROM palette_licenses WHERE id = $lid FOR UPDATE")->fetch_assoc();
+    $l = $c->query("SELECT paid_through, period_start, subscription_id FROM palette_licenses WHERE id = $lid FOR UPDATE")->fetch_assoc();
     if (!$l) return false;
+    if ($l['subscription_id'] !== null && ($row['subscription_id'] ?? null) !== null && $l['subscription_id'] !== $row['subscription_id']) return false;
     $pt = palette_sub_later($l['paid_through'], $paidThrough);
     $gapOk = $periodStart !== null && ($l['period_start'] === null || strtotime($periodStart) > strtotime($l['period_start']) + PALETTE_SUB_RECONCILE_MIN_GAP);
     $ps = $gapOk ? palette_sub_later($l['period_start'], $periodStart) : $l['period_start'];
@@ -661,10 +666,19 @@ function palette_sub_refund(mysqli $c, string $type, array $res): string
         $ins->execute();
         $ins->close();
     }
-    if ($row['license_id'] !== null) {
-        $lid = (int)$row['license_id'];
+    $lid = $row['license_id'] !== null ? (int)$row['license_id'] : null;
+    $backs = $lid === null ? null : $c->query("SELECT subscription_id FROM palette_licenses WHERE id = $lid")->fetch_row();
+    if ($backs !== null && $backs[0] !== null && $backs[0] !== $sid) {
+        // A refund of a PayPal payment made before this licence moved to card: the licence is paid by Stripe now, so it is not
+        // revoked. Recorded above; the admin decides (licence page history).
+        error_log("PALETTE_MOVE_OLD_REFUND licence=$lid subscription=$sid sale=" . ($saleId ?? '-') . " $type; licence moved to card, not revoked");
+        palette_admin_log($c, 0, 'move_old_refund', $lid, $sid, ['sale' => $saleId, 'type' => $type], null);
+        if (in_array($row['status'], ['active', 'suspended'], true)) palette_sub_stop_billing($c, $row, $sid, $type);
+        return 'recorded';
+    }
+    if ($lid !== null) {
         $now = palette_sub_now();
-        $rev = $c->prepare('UPDATE palette_licenses SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL');
+        $rev = $c->prepare("UPDATE palette_licenses SET revoked_at = COALESCE(revoked_at, ?), pay_status = 'refunded' WHERE id = ?");
         $rev->bind_param('si', $now, $lid);
         $rev->execute();
         $rev->close();
@@ -678,16 +692,18 @@ function palette_sub_refund(mysqli $c, string $type, array $res): string
     return 'revoked';
 }
 
-// Owner = the signed-in user the key is claimed by, or whoever knows the key and the subscribing email.
-// A revoked (refunded) key is accepted too, so its owner can still stop billing when the refund's PayPal cancel failed;
-// its access already ended, so ends_on is the revoke date.
-// ['ok' => true, 'ends_on' => 'Y-m-d'] or ['ok' => false, 'error' => err_invalid_key|err_not_owner|err_paypal].
-function palette_sub_cancel(mysqli $c, string $rawKey, ?int $userId, ?string $email): array
+// The subscription row + licence fields for a key, when the caller owns it: the signed-in user the key is claimed by,
+// or whoever knows the key and the subscribing email. A revoked (refunded) key is accepted too, so its owner can still
+// stop billing when the refund's cancel failed. ['ok' => true, 'row' => ...] or ['ok' => false, 'error' => err_invalid_key|err_not_owner].
+function palette_sub_owned_row(mysqli $c, string $rawKey, ?int $userId, ?string $email): array
 {
     $key = palette_normalise_key($rawKey);
     if ($key === null) return ['ok' => false, 'error' => 'err_invalid_key'];
+    // The row that backs the licence (after a move to card the old PayPal row keeps its license_id): the one whose subscription
+    // id the licence holds; the newest row only when the licence holds none.
     $st = $c->prepare("SELECT s.*, l.user_id, l.paid_through, l.revoked_at FROM palette_licenses l JOIN palette_subscriptions s ON s.license_id = l.id
-                       WHERE l.license_key = ? AND l.plan = 'ai'");
+                         AND (l.subscription_id IS NULL OR s.subscription_id <=> l.subscription_id)
+                       WHERE l.license_key = ? AND l.plan = 'ai' ORDER BY s.id DESC LIMIT 1");
     $st->bind_param('s', $key);
     $st->execute();
     $row = $st->get_result()->fetch_assoc();
@@ -696,15 +712,48 @@ function palette_sub_cancel(mysqli $c, string $rawKey, ?int $userId, ?string $em
     $byUser = $userId !== null && $userId > 0 && $row['user_id'] !== null && (int)$row['user_id'] === $userId;
     $byEmail = $email !== null && trim($email) !== '' && strcasecmp(trim($email), (string)$row['email']) === 0;
     if (!$byUser && !$byEmail) return ['ok' => false, 'error' => 'err_not_owner'];
+    return ['ok' => true, 'row' => $row];
+}
+
+// Owner = see palette_sub_owned_row. A revoked key's access already ended, so ends_on is the revoke date.
+// ['ok' => true, 'ends_on' => 'Y-m-d'] or ['ok' => false, 'error' => err_invalid_key|err_not_owner|err_paypal|err_stripe].
+// A Stripe subscription is set to cancel at period end (the webhook then confirms it), or deleted at once when it is past due
+// (suspended) so Stripe stops retrying; a PayPal one is cancelled at once.
+function palette_sub_cancel(mysqli $c, string $rawKey, ?int $userId, ?string $email): array
+{
+    $o = palette_sub_owned_row($c, $rawKey, $userId, $email);
+    if (!$o['ok']) return $o;
+    return palette_sub_cancel_row($c, $o['row']);
+}
+
+// The cancel itself, for a subscription row (with the licence's revoked_at and paid_through) the caller is allowed to act on:
+// the owner (palette_sub_cancel) or an admin (lib/admin.php). No ownership check here.
+function palette_sub_cancel_row(mysqli $c, array $row): array
+{
     $end = $row['revoked_at'] ?? $row['paid_through'];
     $endsOn = $end === null ? null : date('Y-m-d', strtotime($end));
     $revoked = $row['revoked_at'] !== null;
     if ($row['status'] === 'cancelled' || $row['status'] === 'expired') return ['ok' => true, 'ends_on' => $endsOn, 'revoked' => $revoked];
 
     $sid = (string)$row['subscription_id'];
-    if (!palette_sub_paypal_cancel($c, $sid, PALETTE_SUB_CANCEL_REASON)) return ['ok' => false, 'error' => 'err_paypal'];
+    if (($row['provider'] ?? 'paypal') === 'stripe') {
+        $mode = (int)$row['livemode'] === 1 ? 'live' : 'test';
+        // Past due ('suspended'): end it now, so Stripe stops retrying the failed invoice; access still ends at paid_through.
+        // Otherwise cancel at period end (the customer can still resume it in the billing portal).
+        $now = $row['status'] === 'suspended';
+        $r = !palette_stripe_ready($c, $mode) ? ['status' => 0] : ($now
+            ? palette_st_api($c, $mode, 'DELETE', 'subscriptions/' . rawurlencode($sid))
+            : palette_st_api($c, $mode, 'POST', 'subscriptions/' . rawurlencode($sid), ['cancel_at_period_end' => 'true']));
+        if ($now && $r['status'] === 404) $r['status'] = 200;   // already gone at Stripe
+        if ($r['status'] < 200 || $r['status'] >= 300) {
+            error_log("PALETTE_STRIPE_ERROR cancel subscription=$sid http=" . (int)$r['status']);
+            return ['ok' => false, 'error' => 'err_stripe'];
+        }
+    } elseif (!palette_sub_paypal_cancel($c, $sid, PALETTE_SUB_CANCEL_REASON)) {
+        return ['ok' => false, 'error' => 'err_paypal'];
+    }
     palette_sub_set_status($c, $row, 'cancelled', ['active', 'suspended']);
-    $m = palette_sub_cancel_email((string)$endsOn, (string)$row['lang']);
+    $m = palette_sub_cancel_email((string)$endsOn, (string)$row['lang'], (string)($row['provider'] ?? 'paypal'));
     if (!palette_mail((string)$row['email'], $m['subject'], $m['html'])) error_log("PALETTE_MAIL_FAILED cancel=$sid");
     return ['ok' => true, 'ends_on' => $endsOn, 'revoked' => $revoked];
 }
@@ -718,9 +767,9 @@ function palette_sub_reconcile(mysqli $c): array
 {
     $now = palette_sub_now();
     $limit = PALETTE_SUB_RECONCILE_BATCH;
-    $st = $c->prepare("SELECT s.*, l.period_start AS lic_period_start, l.revoked_at AS lic_revoked_at
+    $st = $c->prepare("SELECT s.*, l.period_start AS lic_period_start, l.revoked_at AS lic_revoked_at, l.subscription_id AS lic_subscription_id
                        FROM palette_subscriptions s JOIN palette_licenses l ON l.id = s.license_id
-                       WHERE s.subscription_id IS NOT NULL
+                       WHERE s.subscription_id IS NOT NULL AND s.provider = 'paypal'
                          AND ((l.revoked_at IS NULL AND (s.status IN ('active', 'suspended') OR (s.status = 'cancelled' AND l.paid_through >= ?)))
                            OR (l.revoked_at IS NOT NULL AND s.status IN ('active', 'suspended')))
                        ORDER BY s.updated_at, s.id LIMIT ?");
@@ -743,6 +792,14 @@ function palette_sub_reconcile(mysqli $c): array
             $sub = $g['sub'];
             $to = $map[$sub['status']];
             $changed = false;
+            if ($row['lic_subscription_id'] !== null && $row['lic_subscription_id'] !== $row['subscription_id']) {
+                // The licence moved to card and this PayPal subscription no longer backs it: while PayPal still bills it, the
+                // cancel the move could not do is retried; never extended. set_status leaves the licence alone (not its row).
+                if ($to === 'active' || $to === 'suspended') $changed = palette_sub_stop_billing($c, $row, (string)$row['subscription_id'], 'reconcile after a move to card');
+                else $changed = palette_sub_set_status($c, $row, $to, [$row['status']]);
+                if ($changed) $out['changed']++;
+                continue;
+            }
             if ($row['lic_revoked_at'] !== null) {
                 // Refunded, but PayPal may still bill: stop it; never extend.
                 if ($to === 'active' || $to === 'suspended') $changed = palette_sub_stop_billing($c, $row, (string)$row['subscription_id'], 'reconcile of a refunded subscription');
@@ -774,5 +831,7 @@ function palette_sub_reconcile(mysqli $c): array
             $out['failed']++;
         }
     }
+    $sx = palette_st_reconcile($c, PALETTE_SUB_RECONCILE_BATCH);   // Stripe rows, after the PayPal pass (own limit)
+    foreach (['checked', 'changed', 'failed'] as $f) $out[$f] += $sx[$f];
     return $out;
 }

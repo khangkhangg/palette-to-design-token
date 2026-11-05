@@ -46,7 +46,7 @@ function PlanCard({ plan, on, onPick }: { plan: Plan; on: boolean; onPick(): voi
   );
 }
 
-/** Mockup J: the Pro + AI and Pro plans, PayPal checkout in a new tab, and the license key form for buyers. */
+/** Mockup J: the Pro + AI and Pro plans, the checkout page in a new tab, and the license key form for buyers. */
 export function PlanSheet({ variant, plan: initial = 'pro', start = 'plans', onClose, onUnlocked }: PlanSheetProps) {
   const [plan, setPlan] = useState<Plan>(initial);
   const [mode, setMode] = useState<'plans' | 'key'>(start);
@@ -115,7 +115,7 @@ export function PlanSheet({ variant, plan: initial = 'pro', start = 'plans', onC
           <div class="plan-actions">
             <button
               type="button"
-              class="paypal"
+              class="checkout-btn"
               onClick={() => { void chrome.tabs.create({ url: checkoutUrl(renderedLang(), plan) }); }}
             >
               <span>{t(plan === 'ai' ? 'plans.subscribe' : 'plans.payPro')}</span>

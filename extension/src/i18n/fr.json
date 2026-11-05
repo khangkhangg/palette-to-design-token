@@ -346,9 +346,9 @@
         "scans": "Sites enregistrés illimités"
       }
     },
-    "subscribe": "S'abonner avec PayPal",
-    "payPro": "Payer 1,49 $ US avec PayPal",
-    "aiNote": "Facturé chaque mois via PayPal. Résiliable à tout moment ; Pro et l'IA restent actifs jusqu'à la fin du mois payé.",
+    "subscribe": "S'abonner",
+    "payPro": "Payer 1,49 $ US",
+    "aiNote": "Facturé chaque mois par carte. Résiliable à tout moment ; Pro et l'IA restent actifs jusqu'à la fin du mois payé.",
     "haveKey": "Vous avez déjà une clé ?",
     "enterIt": "Saisissez-la",
     "keyTitle": "Saisissez votre clé de licence",
