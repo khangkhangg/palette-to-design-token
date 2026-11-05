@@ -362,7 +362,7 @@ function palette_admin_tab_licences(mysqli $c, array $session, array $query): ar
         [$paid, $paidCls, $access, $accessCls] = palette_admin_row_state($r);
         $test = $r['livemode'] === 0 ? ' <span class="badge badge-test">Test</span>' : '';
         $body .= '<tr><td class="mono">' . palette_h($r['license_key']) . $test . '</td><td>' . palette_h($r['email']) . '</td>'
-            . '<td>' . ($r['plan'] === 'ai' ? 'Pro + AI' : 'Pro') . '</td><td class="muted">' . palette_h(PALETTE_ADMIN_SOURCES[$r['source']] ?? '') . '</td>'
+            . '<td>' . ($r['plan'] === 'ai' ? 'Pro + AI' : 'Pro') . '</td><td class="muted">' . palette_h(PALETTE_ADMIN_SOURCES[$r['source'] ?? ''] ?? '—') . '</td>'
             . '<td><span class="pill ' . $paidCls . '">' . palette_h($paid) . '</span></td><td><span class="pill ' . $accessCls . '">' . palette_h($access) . '</span></td>'
             . '<td class="muted">' . palette_h(palette_admin_date($r['created_at'])) . '</td>'
             . '<td class="end"><a class="btn btn-sm" href="' . palette_h(palette_admin_url('licence', ['id' => $r['id']])) . '">Open</a></td></tr>';
@@ -576,7 +576,24 @@ function palette_admin_set_until(mysqli $c, int $adminId, int $id, string $dateY
 // Changing the plan edits the licence only (the provider is not touched).
 //  - To Pro + AI the licence needs a future paid_through, or it would have no access at all (Pro has none): pass $untilYmd (a future
 //    date, applied in the same UPDATE) or the licence must already have a future paid_through; else plan_needs_until.
-//  - To Pro while the subscription is active or suspended is refused (cancel_first): billing would continue.
+//  - To Pro while the subscription may still bill is refused (cancel_first): see palette_admin_sub_may_bill.
+// True when the licence's backing subscription may still bill: its row is active or suspended, or it is a Stripe row marked
+// cancelled whose paid_through is still in the future and Stripe does not report it as ended (canceled, incomplete_expired or
+// 404). A cancel_at_period_end subscription can be resumed by the customer until the period ends; when Stripe cannot be asked
+// the answer is true (it cannot be proved ended). A cancelled PayPal subscription cannot be resumed.
+function palette_admin_sub_may_bill(mysqli $c, ?array $row): bool
+{
+    if (!$row) return false;
+    if (in_array($row['status'], ['active', 'suspended'], true)) return true;
+    if (($row['provider'] ?? 'paypal') !== 'stripe' || $row['status'] !== 'cancelled' || !palette_admin_is_future($row['paid_through'] ?? null)) return false;
+    $mode = (int)$row['livemode'] === 1 ? 'live' : 'test';
+    if (!palette_stripe_ready($c, $mode)) return true;
+    $r = palette_st_api($c, $mode, 'GET', 'subscriptions/' . rawurlencode((string)$row['subscription_id']));
+    if ($r['status'] === 404) return false;
+    if ($r['status'] < 200 || $r['status'] >= 300) return true;
+    return !in_array($r['json']['status'] ?? '', ['canceled', 'incomplete_expired'], true);
+}
+
 function palette_admin_set_plan(mysqli $c, int $adminId, int $id, string $plan, string $note, bool $notify, ?string $untilYmd = null): array
 {
     if (!palette_admin_note_ok($note)) return ['ok' => false, 'error' => 'note_required'];
@@ -589,7 +606,7 @@ function palette_admin_set_plan(mysqli $c, int $adminId, int $id, string $plan, 
     $status = $lic['sub_status'];
     $items = [['plan', ['plan' => $plan === 'ai' ? 'Pro + AI' : 'Pro']]];
     if ($plan === 'pro') {
-        if ($row && in_array($row['status'], ['active', 'suspended'], true)) return ['ok' => false, 'error' => 'cancel_first'];
+        if (palette_admin_sub_may_bill($c, $row)) return ['ok' => false, 'error' => 'cancel_first'];
     } elseif ($untilYmd !== null && $untilYmd !== '') {
         $to = palette_admin_until_stamp($untilYmd);
         if ($to === null) return ['ok' => false, 'error' => 'until_bad'];
@@ -720,7 +737,7 @@ function palette_admin_do_change(mysqli $c, array $session, array $post): array
     elseif ($wantUntil && $stamp === null) $err = 'until_bad';
     elseif ($wantUntil && $plan !== 'ai') $err = 'until_pro';
     elseif ($toAi && !($wantUntil ? palette_admin_is_future($stamp) : palette_admin_is_future($lic['paid_through']))) $err = 'plan_needs_until';
-    elseif ($toPro && (($row = palette_admin_sub_row($c, $id)) && in_array($row['status'], ['active', 'suspended'], true))) $err = 'cancel_first';
+    elseif ($toPro && palette_admin_sub_may_bill($c, palette_admin_sub_row($c, $id))) $err = 'cancel_first';
     if ($err !== null) return palette_admin_result(['ok' => false, 'error' => $err], $id, 'saved');
 
     $steps = [];
@@ -782,23 +799,28 @@ function palette_admin_licence_payments(mysqli $c, array $lic): array
 {
     $out = [];
     $id = (int)$lic['id'];
-    $st = $c->prepare('SELECT order_id, stripe_payment_intent, capture_id, amount_usd, status, created_at, captured_at FROM palette_orders WHERE license_id = ?');
+    $st = $c->prepare('SELECT order_id, provider, stripe_payment_intent, capture_id, amount_usd, status, created_at, captured_at FROM palette_orders WHERE license_id = ?');
     $st->bind_param('i', $id);
     $st->execute();
     foreach ($st->get_result() as $o) {
         $ref = (string)($o['stripe_payment_intent'] ?: ($o['capture_id'] ?: $o['order_id']));
         $out[] = ['at' => (string)($o['captured_at'] ?? $o['created_at']), 'amount' => palette_admin_usd($o['amount_usd']),
-                  'result' => ['captured' => 'Paid', 'failed' => 'Failed', 'created' => 'Not paid'][$o['status']] ?? $o['status'], 'ref' => $ref];
+                  'result' => ['captured' => 'Paid', 'failed' => 'Failed', 'created' => 'Not paid'][$o['status']] ?? $o['status'], 'ref' => $ref,
+                  'provider' => (string)$o['provider']];
     }
     $st->close();
-    $st = $c->prepare('SELECT sale_id, amount_usd, status, paid_at FROM palette_sub_payments WHERE subscription_id = ?
-                       OR subscription_id IN (SELECT subscription_id FROM palette_subscriptions WHERE license_id = ? AND subscription_id IS NOT NULL)');
+    // Each payment's provider is its own subscription row's (a moved licence lists old PayPal payments next to Stripe ones).
+    $st = $c->prepare('SELECT p.sale_id, p.subscription_id, p.amount_usd, p.status, p.paid_at,
+                              (SELECT s.provider FROM palette_subscriptions s WHERE s.subscription_id = p.subscription_id ORDER BY s.id DESC LIMIT 1) AS provider
+                       FROM palette_sub_payments p WHERE p.subscription_id = ?
+                       OR p.subscription_id IN (SELECT subscription_id FROM palette_subscriptions WHERE license_id = ? AND subscription_id IS NOT NULL)');
     $sid = (string)($lic['subscription_id'] ?? '');
     $st->bind_param('si', $sid, $id);
     $st->execute();
     foreach ($st->get_result() as $p) {
         $out[] = ['at' => (string)$p['paid_at'], 'amount' => palette_admin_usd($p['amount_usd']),
-                  'result' => ['completed' => 'Paid', 'refunded' => 'Refunded', 'reversed' => 'Reversed'][$p['status']] ?? $p['status'], 'ref' => (string)$p['sale_id']];
+                  'result' => ['completed' => 'Paid', 'refunded' => 'Refunded', 'reversed' => 'Reversed'][$p['status']] ?? $p['status'], 'ref' => (string)$p['sale_id'],
+                  'provider' => (string)($p['provider'] ?? (str_starts_with((string)$p['subscription_id'], 'sub_') ? 'stripe' : 'paypal'))];
     }
     $st->close();
     usort($out, fn($a, $b) => strcmp($b['at'], $a['at']));
@@ -846,7 +868,8 @@ function palette_admin_history(mysqli $c, array $lic, array $payments): array
     }
     $st->close();
     foreach ($payments as $p) {
-        $items[] = ['at' => $p['at'], 'html' => palette_h(($lic['source'] === 'paypal' ? 'PayPal' : 'Stripe') . ': ' . $p['amount'] . ' ' . strtolower($p['result']) . '.')];
+        $by = ['stripe' => 'Stripe', 'paypal' => 'PayPal', 'admin' => 'Admin'][$p['provider'] ?? ''] ?? 'Payment';   // the payment's own provider
+        $items[] = ['at' => $p['at'], 'html' => palette_h($by . ': ' . $p['amount'] . ' ' . strtolower($p['result']) . '.')];
     }
     $items[] = ['at' => (string)$lic['created_at'], 'html' => 'Key issued.'];
     usort($items, fn($a, $b) => strcmp($b['at'], $a['at']));

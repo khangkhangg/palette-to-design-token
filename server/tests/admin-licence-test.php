@@ -137,6 +137,7 @@ ok('plan: ai -> pro with an active subscription -> cancel_first, unchanged', $r 
 $conn->query("UPDATE palette_subscriptions SET status = 'suspended' WHERE license_id = $cf");
 ok('plan: a suspended subscription also needs cancelling first', palette_admin_set_plan($conn, AL_ADMIN, $cf, 'pro', 'Downgrade', true)['error'] === 'cancel_first');
 $conn->query("UPDATE palette_subscriptions SET status = 'cancelled' WHERE license_id = $cf");
+$GLOBALS['st_routes']['GET /v1/subscriptions/sub_CF'] = ['status' => 200, 'json' => ['id' => 'sub_CF', 'status' => 'canceled']];   // #10: ended at Stripe
 ok('plan: a cancelled subscription allows the downgrade', palette_admin_set_plan($conn, AL_ADMIN, $cf, 'pro', 'Downgrade', false)['ok'] === true);
 
 // ---- revoke ends billing
@@ -352,6 +353,87 @@ ok('page: Pro licence shows the date input with the switching label, +1 month an
 $h = palette_admin_page($conn, $admin, ['tab' => 'licence', 'id' => (string)$rf], [], 'GET')['body'];
 ok('page: live subscriber sees the renewal hint', str_contains($h, 'An earlier date is replaced at the next renewal.'));
 ok('page: Pro without a subscription has no renewal hint', !str_contains(palette_admin_page($conn, $admin, ['tab' => 'licence', 'id' => (string)$mf], [], 'GET')['body'], 'replaced at the next renewal'));
+
+// ---- final review #2: history labels each payment by its own provider; list shows a dash for an unknown source; backfill
+$mv = al_lic($conn, 'SDT-MVMV-MVMV-MVMV', 'moved@example.com', 'ai', ['sub_status' => 'active', 'subscription_id' => 'sub_MV1', 'paid_through' => gmdate('Y-m-d H:i:s', time() + 5 * 86400)]);
+al_sub($conn, $mv, 'I-OLDPAYPAL1', 'paypal', 'cancelled');
+al_sub($conn, $mv, 'sub_MV1', 'stripe');
+$conn->query("INSERT INTO palette_sub_payments (subscription_id, sale_id, amount_usd, status, paid_at) VALUES ('I-OLDPAYPAL1', 'SALE-MV-OLD', 2.97, 'completed', '2026-09-03 09:01:00')");
+$conn->query("INSERT INTO palette_sub_payments (subscription_id, sale_id, amount_usd, status, paid_at) VALUES ('sub_MV1', 'in_MV1AAAAAAAAAAAAAAAAAAAA', 3.98, 'completed', '2026-10-03 09:01:00')");
+$conn->query("INSERT INTO palette_orders (order_id, email, lang, amount_usd, status, consent_at, created_at, captured_at, license_id, provider) VALUES ('ORD-MVPP', 'moved@example.com', 'en', 1.47, 'captured', NOW(), '2026-08-01 08:00:00', '2026-08-01 08:01:00', $mv, 'paypal')");
+$h = palette_admin_page($conn, $admin, ['tab' => 'licence', 'id' => (string)$mv], [], 'GET')['body'];
+ok('#2 history: old PayPal subscription payment labelled PayPal on a Stripe licence', str_contains($h, 'PayPal: $2.97 paid.'));
+ok('#2 history: Stripe payment labelled Stripe', str_contains($h, 'Stripe: $3.98 paid.'));
+ok('#2 history: PayPal order labelled PayPal', str_contains($h, 'PayPal: $1.47 paid.'));
+$nul = al_lic($conn, 'SDT-NULL-NULL-NULL', 'nosource@example.com', 'pro', ['source' => null, 'order_id' => 'ADM-NULLSRC']);
+$h = palette_admin_page($conn, $admin, ['tab' => 'licences', 'q' => 'nosource@example.com'], [], 'GET')['body'];
+ok('#2 list: unknown source shows a dash', str_contains($h, 'nosource@example.com') && str_contains($h, '<td class="muted">—</td>'));
+$bf = [];
+foreach (['I-BACKFILL01', 'ORD-BACKFILL2', 'ADM-BACKFILL3', 'ST-BACKFILL4', 'sub_BACKFILL5'] as $i => $oid) {
+    $bf[$oid] = al_lic($conn, 'SDT-BF0' . $i . '-BFBF-BFBF', 'bf@example.com', 'pro', ['source' => null, 'order_id' => $oid]);
+}
+$adminSrc = al_lic($conn, 'SDT-BFAD-BFAD-BFAD', 'bf@example.com', 'pro', ['source' => 'admin', 'order_id' => 'I-ADMINLIKE1']);
+palette_migrate($conn);
+palette_migrate($conn);
+$src = fn(int $id) => al_lrow($conn, $id)['source'];
+ok('#2 backfill: PayPal subscription and order licences become paypal', $src($bf['I-BACKFILL01']) === 'paypal' && $src($bf['ORD-BACKFILL2']) === 'paypal');
+ok('#2 backfill: ADM-, ST- and sub_ rows are left alone', $src($bf['ADM-BACKFILL3']) === null && $src($bf['ST-BACKFILL4']) === null && $src($bf['sub_BACKFILL5']) === null);
+ok('#2 backfill: a row with a source keeps it', $src($adminSrc) === 'admin');
+
+// ---- final review #4: cancelling a past-due Stripe subscription deletes it now; an active one cancels at period end
+$GLOBALS['mails'] = [];
+$ptPd = gmdate('Y-m-d H:i:s', time() + 6 * 86400);
+$pd = al_lic($conn, 'SDT-PDPD-PDPD-PDPD', 'pastdue@example.com', 'ai', ['sub_status' => 'suspended', 'subscription_id' => 'sub_PD1', 'paid_through' => $ptPd]);
+al_sub($conn, $pd, 'sub_PD1', 'stripe', 'suspended', 'pastdue@example.com');
+$GLOBALS['st_calls'] = [];
+$GLOBALS['st_routes']['DELETE /v1/subscriptions/sub_PD1'] = ['status' => 200, 'json' => ['id' => 'sub_PD1', 'status' => 'canceled']];
+$r = palette_admin_cancel($conn, AL_ADMIN, $pd);
+$call = $GLOBALS['st_calls'][0] ?? [];
+ok('#4 admin cancel, past due: Stripe subscription deleted now', $r['ok'] === true && ($call['method'] ?? '') === 'DELETE' && ($call['path'] ?? '') === '/v1/subscriptions/sub_PD1'
+    && count($GLOBALS['st_calls']) === 1);
+ok('#4 admin cancel, past due: row cancelled, access still ends at paid_through', al_lrow($conn, $pd)['sub_status'] === 'cancelled' && al_lrow($conn, $pd)['paid_through'] === $ptPd
+    && palette_sub_row($conn, 'subscription_id', 'sub_PD1')['status'] === 'cancelled');
+$pd2 = al_lic($conn, 'SDT-PDP2-PDP2-PDP2', 'pastdue2@example.com', 'ai', ['sub_status' => 'suspended', 'subscription_id' => 'sub_PD2', 'paid_through' => $ptPd]);
+al_sub($conn, $pd2, 'sub_PD2', 'stripe', 'suspended', 'pastdue2@example.com');
+$GLOBALS['st_calls'] = [];
+$GLOBALS['st_routes']['DELETE /v1/subscriptions/sub_PD2'] = ['status' => 200, 'json' => ['id' => 'sub_PD2', 'status' => 'canceled']];
+$r = palette_sub_cancel($conn, 'SDT-PDP2-PDP2-PDP2', null, 'pastdue2@example.com');
+ok('#4 account cancel, past due: DELETE, ends on paid_through', $r['ok'] === true && ($GLOBALS['st_calls'][0]['method'] ?? '') === 'DELETE'
+    && $r['ends_on'] === date('Y-m-d', strtotime($ptPd)) && al_lrow($conn, $pd2)['sub_status'] === 'cancelled');
+$ac = al_lic($conn, 'SDT-ACAC-ACAC-ACAC', 'active4@example.com', 'ai', ['sub_status' => 'active', 'subscription_id' => 'sub_AC4', 'paid_through' => $ptPd]);
+al_sub($conn, $ac, 'sub_AC4', 'stripe', 'active', 'active4@example.com');
+$GLOBALS['st_calls'] = [];
+$GLOBALS['st_routes']['POST /v1/subscriptions/sub_AC4'] = ['status' => 200, 'json' => ['id' => 'sub_AC4', 'cancel_at_period_end' => true]];
+$r = palette_sub_cancel($conn, 'SDT-ACAC-ACAC-ACAC', null, 'active4@example.com');
+ok('#4 account cancel, active: cancel_at_period_end, no DELETE', $r['ok'] === true && ($GLOBALS['st_calls'][0]['method'] ?? '') === 'POST'
+    && ($GLOBALS['st_calls'][0]['params']['cancel_at_period_end'] ?? '') === 'true' && count($GLOBALS['st_calls']) === 1);
+$pd3 = al_lic($conn, 'SDT-PDP3-PDP3-PDP3', 'pastdue3@example.com', 'ai', ['sub_status' => 'suspended', 'subscription_id' => 'sub_PD3', 'paid_through' => $ptPd]);
+al_sub($conn, $pd3, 'sub_PD3', 'stripe', 'suspended', 'pastdue3@example.com');
+$GLOBALS['st_routes']['DELETE /v1/subscriptions/sub_PD3'] = ['status' => 500, 'json' => []];
+$r = palette_admin_cancel($conn, AL_ADMIN, $pd3);
+ok('#4 past due, Stripe DELETE fails: error, nothing changes', $r === ['ok' => false, 'error' => 'stripe'] && al_lrow($conn, $pd3)['sub_status'] === 'suspended');
+
+// ---- final review #10: to Pro is refused while a cancelled Stripe subscription could still be resumed
+// Rule: refuse while the backing row is active/suspended, or while it is a Stripe row marked cancelled whose paid_through is still
+// in the future and Stripe does not report the subscription as ended (status canceled/incomplete_expired, or 404).
+$rs = al_lic($conn, 'SDT-RSRS-RSRS-RSRS', 'resume@example.com', 'ai', ['sub_status' => 'cancelled', 'subscription_id' => 'sub_RS1', 'paid_through' => $ptPd]);
+al_sub($conn, $rs, 'sub_RS1', 'stripe', 'cancelled', 'resume@example.com');
+$GLOBALS['st_routes']['GET /v1/subscriptions/sub_RS1'] = ['status' => 200, 'json' => ['id' => 'sub_RS1', 'status' => 'active', 'cancel_at_period_end' => true]];
+ok('#10 to Pro: cancelled-at-period-end Stripe subscription -> cancel_first', palette_admin_set_plan($conn, AL_ADMIN, $rs, 'pro', 'Downgrade', false)['error'] === 'cancel_first'
+    && al_lrow($conn, $rs)['plan'] === 'ai');
+$rt = palette_admin_page($conn, $admin, [], ['csrf' => str_repeat('a', 64), 'action' => 'change', 'id' => (string)$rs, 'plan' => 'pro', 'note' => 'Downgrade'], 'POST');
+ok('#10 to Pro through the change form: cancel_first', str_contains($rt['headers']['Location'], 'err=cancel_first') && al_lrow($conn, $rs)['plan'] === 'ai');
+$GLOBALS['st_routes']['GET /v1/subscriptions/sub_RS1'] = ['status' => 500, 'json' => []];
+ok('#10 to Pro: Stripe unreachable -> cancel_first (cannot prove it ended)', palette_admin_set_plan($conn, AL_ADMIN, $rs, 'pro', 'Downgrade', false)['error'] === 'cancel_first');
+$GLOBALS['st_routes']['GET /v1/subscriptions/sub_RS1'] = ['status' => 200, 'json' => ['id' => 'sub_RS1', 'status' => 'canceled']];
+ok('#10 to Pro: subscription ended at Stripe -> allowed', palette_admin_set_plan($conn, AL_ADMIN, $rs, 'pro', 'Downgrade', false)['ok'] === true && al_lrow($conn, $rs)['plan'] === 'pro');
+$rp = al_lic($conn, 'SDT-RPRP-RPRP-RPRP', 'ppcancel@example.com', 'ai', ['source' => 'paypal', 'sub_status' => 'cancelled', 'subscription_id' => 'I-RPCANCEL1', 'paid_through' => $ptPd]);
+al_sub($conn, $rp, 'I-RPCANCEL1', 'paypal', 'cancelled', 'ppcancel@example.com');
+$GLOBALS['st_calls'] = [];
+ok('#10 to Pro: cancelled PayPal subscription (cannot resume) -> allowed, no Stripe call', palette_admin_set_plan($conn, AL_ADMIN, $rp, 'pro', 'Downgrade', false)['ok'] === true && !$GLOBALS['st_calls']);
+$ro = al_lic($conn, 'SDT-RORO-RORO-RORO', 'past@example.com', 'ai', ['sub_status' => 'cancelled', 'subscription_id' => 'sub_RO1', 'paid_through' => gmdate('Y-m-d H:i:s', time() - 86400)]);
+al_sub($conn, $ro, 'sub_RO1', 'stripe', 'cancelled', 'past@example.com');
+ok('#10 to Pro: cancelled Stripe subscription past paid_through -> allowed', palette_admin_set_plan($conn, AL_ADMIN, $ro, 'pro', 'Downgrade', false)['ok'] === true);
 
 st_stub_reset($conn);
 $conn->query('DELETE FROM palette_ai_usage');

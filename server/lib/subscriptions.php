@@ -343,7 +343,7 @@ function palette_sub_fulfil(mysqli $c, array $subRow, array $paypalSub, ?int $sa
             return $r['ok'] ? $r + ['already' => true] : $r;
         }
         $lic = palette_issue_license($c, (string)$subRow['email'], $sid, (string)$subRow['lang'],
-            ['subscription_id' => $sid, 'paid_through' => $paidThrough, 'period_start' => $now]);
+            ['subscription_id' => $sid, 'paid_through' => $paidThrough, 'period_start' => $now], 'paypal');
         $lid = (int)$lic['id'];
         $c->query("UPDATE palette_subscriptions SET license_id = $lid WHERE id = $id");
         if ($initial !== 'active') $c->query("UPDATE palette_licenses SET sub_status = '$initial' WHERE id = $lid");   // cancelled|suspended
@@ -717,7 +717,8 @@ function palette_sub_owned_row(mysqli $c, string $rawKey, ?int $userId, ?string 
 
 // Owner = see palette_sub_owned_row. A revoked key's access already ended, so ends_on is the revoke date.
 // ['ok' => true, 'ends_on' => 'Y-m-d'] or ['ok' => false, 'error' => err_invalid_key|err_not_owner|err_paypal|err_stripe].
-// A Stripe subscription is set to cancel at period end (the webhook then confirms it); a PayPal one is cancelled at once.
+// A Stripe subscription is set to cancel at period end (the webhook then confirms it), or deleted at once when it is past due
+// (suspended) so Stripe stops retrying; a PayPal one is cancelled at once.
 function palette_sub_cancel(mysqli $c, string $rawKey, ?int $userId, ?string $email): array
 {
     $o = palette_sub_owned_row($c, $rawKey, $userId, $email);
@@ -737,7 +738,13 @@ function palette_sub_cancel_row(mysqli $c, array $row): array
     $sid = (string)$row['subscription_id'];
     if (($row['provider'] ?? 'paypal') === 'stripe') {
         $mode = (int)$row['livemode'] === 1 ? 'live' : 'test';
-        $r = palette_stripe_ready($c, $mode) ? palette_st_api($c, $mode, 'POST', 'subscriptions/' . rawurlencode($sid), ['cancel_at_period_end' => 'true']) : ['status' => 0];
+        // Past due ('suspended'): end it now, so Stripe stops retrying the failed invoice; access still ends at paid_through.
+        // Otherwise cancel at period end (the customer can still resume it in the billing portal).
+        $now = $row['status'] === 'suspended';
+        $r = !palette_stripe_ready($c, $mode) ? ['status' => 0] : ($now
+            ? palette_st_api($c, $mode, 'DELETE', 'subscriptions/' . rawurlencode($sid))
+            : palette_st_api($c, $mode, 'POST', 'subscriptions/' . rawurlencode($sid), ['cancel_at_period_end' => 'true']));
+        if ($now && $r['status'] === 404) $r['status'] = 200;   // already gone at Stripe
         if ($r['status'] < 200 || $r['status'] >= 300) {
             error_log("PALETTE_STRIPE_ERROR cancel subscription=$sid http=" . (int)$r['status']);
             return ['ok' => false, 'error' => 'err_stripe'];

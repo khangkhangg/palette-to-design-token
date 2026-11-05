@@ -232,6 +232,7 @@ $r = palette_sub_confirm($conn, SUB);
 $lic = ai_lic($conn);
 ok('confirm ACTIVE: key returned', $r['ok'] === true && preg_match(PALETTE_KEY_RE, (string)$r['key']) === 1 && $r['key'] === $lic['license_key']
     && $r['email_masked'] === 'b***@studio.vn' && $r['row_id'] === $id);
+ok('#2 PayPal subscription licence has source paypal', $lic['source'] === 'paypal');
 ok('licence: plan ai, subscription, active', $lic['plan'] === 'ai' && $lic['subscription_id'] === SUB && $lic['sub_status'] === 'active'
     && $lic['email'] === 'buyer@studio.vn' && $lic['lang'] === 'fr' && $lic['revoked_at'] === null);
 ok('licence: paid_through = next_billing_time (PHP local time)', $lic['paid_through'] === local($next));

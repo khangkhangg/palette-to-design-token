@@ -223,7 +223,7 @@ function palette_fulfil(mysqli $c, array $order, array $capture, string $payerEm
             if (!$r['ok']) error_log("palette: paid capture $capId for order {$order['order_id']} but the order is not fulfillable");
             return $r['ok'] ? $r + ['already' => true] : $r;
         }
-        $lic = palette_issue_license($c, (string)$order['email'], (string)$order['order_id'], (string)$order['lang']);
+        $lic = palette_issue_license($c, (string)$order['email'], (string)$order['order_id'], (string)$order['lang'], null, 'paypal');
         $lid = (int)$lic['id'];
         $c->query("UPDATE palette_orders SET license_id = $lid WHERE id = $id");
         $c->commit();

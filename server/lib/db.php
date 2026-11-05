@@ -155,6 +155,10 @@ function palette_migrate(mysqli $conn): void
     palette_add_column($conn, 'palette_licenses', 'source', "ENUM('paypal','stripe','admin') NULL");
     palette_add_column($conn, 'palette_licenses', 'pay_status', "ENUM('provider','manual_paid','comp','refunded') NOT NULL DEFAULT 'provider'");
     palette_add_column($conn, 'palette_licenses', 'livemode', 'TINYINT(1) NOT NULL DEFAULT 1');
+    // PayPal licences issued before 0.3.0 have no source. Stripe (ST-, sub_) and admin (ADM-) rows always had one, but they are
+    // excluded by prefix too so nothing is mislabelled. Idempotent.
+    $conn->query("UPDATE palette_licenses SET source = 'paypal' WHERE source IS NULL
+                  AND order_id NOT LIKE 'ADM-%' AND order_id NOT LIKE 'ST-%' AND order_id NOT LIKE 'sub\_%'");
     palette_widen_column($conn, 'palette_licenses', 'subscription_id', 'VARCHAR(80) NULL');
     palette_widen_column($conn, 'palette_subscriptions', 'subscription_id', 'VARCHAR(80) NULL');
     palette_widen_column($conn, 'palette_sub_payments', 'subscription_id', 'VARCHAR(80) NOT NULL');
