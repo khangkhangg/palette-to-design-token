@@ -86,7 +86,7 @@ function palette_admin_like(string $s): string
 }
 
 // Filters: q, plan (pro|ai), status (active|suspended|revoked|refunded|test), source (stripe|paypal|admin). Unknown values are ignored.
-// Returns ['rows' => [...], 'total' => int], 50 a page, newest first.
+// Returns ['rows' => [...], 'total' => int, 'page' => the page shown], 50 a page, newest first; $page is clamped to [1, last page].
 function palette_admin_licences(mysqli $c, array $filters, int $page): array
 {
     $where = ['1 = 1'];
@@ -121,7 +121,8 @@ function palette_admin_licences(mysqli $c, array $filters, int $page): array
     $st->close();
 
     $limit = PALETTE_ADMIN_PER_PAGE;
-    $offset = (max(1, $page) - 1) * $limit;
+    $page = min(max(1, $page), max(1, (int)ceil($total / $limit)));   // clamped: a huge ?page= never reaches SQL
+    $offset = ($page - 1) * $limit;
     $st = $c->prepare("SELECT l.id, l.license_key, l.email, l.plan, l.source, l.pay_status, l.livemode, l.sub_status, l.paid_through, l.revoked_at, l.created_at
                        FROM palette_licenses l WHERE $w ORDER BY l.created_at DESC, l.id DESC LIMIT $limit OFFSET $offset");
     if ($types !== '') $st->bind_param($types, ...$args);
@@ -133,7 +134,7 @@ function palette_admin_licences(mysqli $c, array $filters, int $page): array
         $rows[] = $r;
     }
     $st->close();
-    return ['rows' => $rows, 'total' => $total];
+    return ['rows' => $rows, 'total' => $total, 'page' => $page];
 }
 
 // ['pro' => active live Pro keys, 'ai' => active live Pro + AI keys, 'unfulfilled' => live orders paid with no key
@@ -343,6 +344,7 @@ function palette_admin_tab_licences(mysqli $c, array $session, array $query): ar
     $filters = ['q' => trim($str('q')), 'plan' => $str('plan'), 'status' => $str('status'), 'source' => $str('source')];
     $page = max(1, (int)$str('page'));
     $res = palette_admin_licences($c, $filters, $page);
+    $page = $res['page'];
     $totals = palette_admin_totals($c);
 
     $card = fn(string $label, string $value, string $cls = '') => '<div class="stat"><span>' . palette_h($label) . '</span><b' . ($cls ? ' class="' . $cls . '"' : '') . '>' . palette_h($value) . '</b></div>';
@@ -373,7 +375,7 @@ function palette_admin_tab_licences(mysqli $c, array $session, array $query): ar
     $pages = max(1, (int)ceil($res['total'] / PALETTE_ADMIN_PER_PAGE));
     $keep = array_filter($filters, fn($v) => $v !== '');
     $link = fn(int $p, string $label) => '<a class="btn btn-sm" href="' . palette_h(palette_admin_url('licences', $keep + ['page' => $p])) . '">' . $label . '</a>';
-    $pager = '<nav class="pager" aria-label="Pages"><span class="muted">' . $res['total'] . ' licence' . ($res['total'] === 1 ? '' : 's') . ', page ' . min($page, $pages) . ' of ' . $pages . '</span>'
+    $pager = '<nav class="pager" aria-label="Pages"><span class="muted">' . $res['total'] . ' licence' . ($res['total'] === 1 ? '' : 's') . ', page ' . $page . ' of ' . $pages . '</span>'
         . ($page > 1 ? $link($page - 1, 'Previous') : '') . ($page < $pages ? $link($page + 1, 'Next') : '') . '</nav>';
 
     $table = '<div class="table-wrap"><table><thead><tr><th>Key</th><th>Email</th><th>Plan</th><th>Source</th><th>Paid</th><th>Access</th><th>Created</th>'
@@ -1590,7 +1592,7 @@ function palette_admin_st_card(array $session, string $mode, array $p, ?array $c
     $out = '<section class="card card-pad st-card" aria-labelledby="st-' . $mode . '"><div class="st-head"><h2 id="st-' . $mode . '">' . $label . ' mode</h2>'
         . '<span class="pill ' . $cls . '">' . $pill . '</span></div>'
         . '<div class="kvs">' . $row('Key', $p['key_hint'] !== '' ? '<span class="mono">' . palette_h($p['key_hint']) . '</span>' : 'None')
-        . $row('Webhook', 'Webhook: ' . ($p['webhook'] ? 'registered' : 'missing'))
+        . $row('Webhook', $p['webhook'] ? 'Registered' : 'Missing')
         . $row('Last checked', $p['checked_at'] !== '' ? palette_h(palette_admin_date($p['checked_at'], 'j M Y H:i') . ' UTC') : 'Never') . '</div>';
     if ($p['error'] !== '') $out .= '<p class="hint is-bad" role="alert">' . palette_icon('alert', 14) . ' ' . palette_h($p['error']) . '</p>';
 
@@ -1629,7 +1631,8 @@ function palette_admin_st_card(array $session, string $mode, array $p, ?array $c
     }
 
     $out .= '<p class="hint" id="help-' . $mode . '">Get keys at <span class="mono">dashboard.stripe.com/apikeys</span>'
-        . ($mode === 'test' ? ' (switch the dashboard to test mode first)' : '') . '. A restricted key needs Balance read and Webhook endpoints write.</p>';
+        . ($mode === 'test' ? ' (switch the dashboard to test mode first)' : '') . '. Use a standard secret key. A restricted key works only with Balance read, Checkout Sessions write, Subscriptions write,'
+        . ' Customer portal write, Charges read, Invoices read and Webhook endpoints write.</p>';
     if ($mode === 'test') {
         $out .= '<p class="hint"><a href="/palette/checkout?test=1">Open the test checkout</a> (admins only; pay with card 4242 4242 4242 4242).</p>';
     }

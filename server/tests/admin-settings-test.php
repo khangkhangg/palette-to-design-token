@@ -20,6 +20,12 @@ $r = $get();
 ok('settings: renders in shell, not a placeholder', $r['status'] === 200 && !str_contains($r['body'], 'Coming in a later task') && str_contains($r['body'], 'Issue a key'));
 ok('settings: both cards, not connected', substr_count($r['body'], 'Not connected') >= 2 && str_contains($r['body'], 'Live') && str_contains($r['body'], 'Test'));
 ok('settings: help text and keys link', str_contains($r['body'], 'dashboard.stripe.com/apikeys') && str_contains($r['body'], 'Balance') && str_contains($r['body'], 'Webhook endpoints'));
+ok('#5 help text recommends a standard secret key and lists every restricted-key permission palette uses',
+    str_contains($r['body'], 'Use a standard secret key') && str_contains($r['body'], 'Balance read, Checkout Sessions write, Subscriptions write, Customer portal write, Charges read, Invoices read and Webhook endpoints write'));
+$dep = (string)file_get_contents(__DIR__ . '/../DEPLOY.md');
+ok('#5 DEPLOY: Customer portal configuration saved in live and in test mode', str_contains($dep, 'Settings → Billing → Customer portal') && str_contains($dep, 'test mode')
+    && str_contains($dep, 'Charges read, Invoices read'));
+ok('#12 DEPLOY: no leftover "(disclosed)"', !str_contains($dep, '(disclosed)'));
 ok('settings: key field is a password, off, never prefilled', preg_match('/<input[^>]*type="password"[^>]*name="secret"[^>]*autocomplete="off"/', $r['body']) === 1
     && !preg_match('/name="secret"[^>]*value="[^"]/', $r['body']));
 ok('settings: live source radios, shared by default', str_contains($r['body'], 'Use the vietnamcos.com Stripe account') && str_contains($r['body'], 'Use a separate key')
@@ -36,7 +42,7 @@ ok('connect: URL carries no secret', !str_contains($loc($res), 'sk_test') && !st
 $r = palette_admin_page($conn, $sess(), ['tab' => 'settings', 'ok' => 'st_connected'], [], 'GET');
 ok('settings page never contains a secret', !str_contains($r['body'], 'sk_test_x1234567') && !str_contains($r['body'], 'whsec_'));
 ok('settings: Connected pill, key hint, webhook registered, last checked', str_contains($r['body'], 'Connected') && str_contains($r['body'], 'sk_test_…4567')
-    && str_contains($r['body'], 'Webhook: registered') && str_contains($r['body'], 'Last checked'));
+    && str_contains($r['body'], '<span>Webhook</span><b>Registered</b>') && !str_contains($r['body'], 'Webhook: ') && str_contains($r['body'], 'Last checked'));
 ok('settings: ok flash shows', str_contains($r['body'], 'Stripe is connected.'));
 ok('connect action logs without secret', str_contains($logs(), 'st_connect') && !preg_match('/sk_|rk_|whsec_/', $logs()));
 $d = json_decode($conn->query("SELECT detail FROM palette_admin_log WHERE action = 'st_connect'")->fetch_row()[0], true);

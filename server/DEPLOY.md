@@ -298,7 +298,7 @@ Sandbox payments cost nothing; on 6a fix and repeat as needed, on 6b close the w
 
 ## 6d. Stripe (0.3.0)
 
-0.3.0 adds card payments through Stripe (Checkout, Apple Pay and Google Pay come with it) and the licence admin at `/palette/admin`. PayPal stays in the code but is off by default (`checkout_methods` is `stripe` only once you set it in step 7). Do these in order; each step ends with a check.
+0.3.0 adds card payments through Stripe (Checkout, Apple Pay and Google Pay come with it) and the licence admin at `/palette/admin`. PayPal stays in the code but is off by default (`checkout_methods` is `stripe` only once you set it in step 8). Do these in order; each step ends with a check.
 
 1. **Back up.** The database and the files you are about to replace.
 
@@ -335,6 +335,10 @@ Sandbox payments cost nothing; on 6a fix and repeat as needed, on 6b close the w
 
 5. **Connect Test.** Sign in to companies as an admin, open `/palette/admin` › Settings, paste the Stripe **test** secret key and press connect. The server registers the webhook endpoint and shows "Test: connected". Never paste a key into a shell or a chat.
 
+   Use a standard secret key (`sk_…`). A restricted key (`rk_…`) works only with all of these permissions: Balance read, Checkout Sessions write, Subscriptions write, Customer portal write, Charges read, Invoices read and Webhook endpoints write. With fewer, connect may pass but cancels, refunds or the billing portal fail later.
+
+   **Customer portal (test mode).** With the dashboard switched to test mode, open Settings → Billing → Customer portal and save the default configuration: allow customers to cancel subscriptions, update payment methods and see their invoice history. Until it is saved once, "Manage billing" on `/palette/account` and the admin "Send billing link" fail. Test and live mode each need it saved.
+
 6. **Rehearse in Test.** Open `https://vietnamcos.com/palette/checkout?test=1` (admin session only; it shows the test banner) and pay with card `4242 4242 4242 4242`, any future expiry, any CVC.
    - [ ] Pro: the key appears on the page, the email arrives, and the extension unlocks Pro with that key.
    - [ ] Pro + AI: the subscription starts, the key shows Pro + AI, one analysis works.
@@ -342,7 +346,9 @@ Sandbox payments cost nothing; on 6a fix and repeat as needed, on 6b close the w
    - [ ] Refund in the Stripe **test** dashboard: the webhook delivers 2xx, `verify` returns revoked, billing stops.
    - [ ] `/palette/admin` › Payments lists the test payments, and `grep -a 'PALETTE_' <FPM error log>` shows no `PALETTE_PAID_UNFULFILLED`.
 
-7. **Connect Live.** In `/palette/admin` › Settings connect Live with the live secret key (a shared key; the same Stripe account may serve companies). Then set the checkout methods to **Stripe only**. The checkout page then shows the card button and no PayPal block.
+7. **Customer portal (live mode), before going live.** In the Stripe dashboard in live mode, open Settings → Billing → Customer portal and save the default configuration: allow cancel, update payment method and invoice history. Check: after step 8, "Manage billing" on `/palette/account` with a live Pro + AI key opens the Stripe portal.
+
+8. **Connect Live.** In `/palette/admin` › Settings connect Live with the live secret key (a shared key; the same Stripe account may serve companies). Then set the checkout methods to **Stripe only**. The checkout page then shows the card button and no PayPal block.
 
    ```bash
    curl -s 'https://vietnamcos.com/palette/api.php?action=config' | head -c 400     # ok:true; no secret appears
@@ -350,7 +356,7 @@ Sandbox payments cost nothing; on 6a fix and repeat as needed, on 6b close the w
 
    Make one real $1.49 Pro purchase yourself, check the key and the email, then refund it from the Stripe dashboard.
 
-8. **Cron is unchanged.** The 03:15 `cron-subscriptions.php` line from step 4b stays as it is; it now also reconciles Stripe subscriptions and recovers paid checkouts the webhook missed.
+9. **Cron is unchanged.** The 03:15 `cron-subscriptions.php` line from step 4b stays as it is; it now also reconciles Stripe subscriptions and recovers paid checkouts the webhook missed.
 
 ## 7. Extension
 
@@ -410,7 +416,7 @@ curl -si -X OPTIONS -H "Origin: chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 - [ ] Single purpose: extract a page's colours and fonts and export them as design tokens.
 - [ ] Permission justifications: `activeTab` (read only the page the user clicked the icon on), `scripting` (run the extractor in that tab), `storage` (settings and Pro licence state), `sidePanel` (show results in the side panel); `externally_connectable` for `https://vietnamcos.com/palette/*` and `https://www.vietnamcos.com/palette/*` (receive the licence key from the checkout page). No host permissions, no remote code.
 - [ ] Data disclosure (Privacy practices tab), from `## Data disclosure` in `docs/store/listing.en.md`: declare **Website content** (title and description, plus the design summary) and **Web history** (the address of the analysed page, without its query string) as collected, both only when the user presses Analyse (user-initiated; Brave Search and DeepSeek process them for us), plus **Authentication information** (the licence key). Tick the three certifications (no sale, no unrelated use, no use for creditworthiness). The permission justifications and the single purpose stay unchanged (no new permission: the extension only calls `vietnamcos.com`, which the build already allows).
-- [ ] Pricing note in the description (the `## Pricing note` section of the listing): free to use, with an optional one-time Pro upgrade ($1.49) and an optional Pro + AI subscription ($3.99 a month, cancel any time), both bought on an external website by card, Apple Pay or Google Pay (processed by Stripe) (disclosed). Every `listing.<lang>.md` already describes Pro + AI, its price, the cancel rule and the Analyse data flow.
+- [ ] Pricing note in the description (the `## Pricing note` section of the listing): free to use, with an optional one-time Pro upgrade ($1.49) and an optional Pro + AI subscription ($3.99 a month, cancel any time), both bought on an external website by card, Apple Pay or Google Pay (processed by Stripe). Every `listing.<lang>.md` already describes Pro + AI, its price, the cancel rule and the Analyse data flow.
 - [ ] After approval, confirm the published id equals the one in `extension_ids`.
 
 ## 10. Rollback

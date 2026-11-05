@@ -86,7 +86,14 @@ for ($i = 0; $i < 55; $i++) lic($conn, sprintf('SDT-P%03d-PPPP-PPPP', $i), "p$i@
 $p1 = palette_admin_licences($conn, ['q' => '@page.example'], 1);
 $p2 = palette_admin_licences($conn, ['q' => '@page.example'], 2);
 ok('paging: 50 a page, total over all pages', $p1['total'] === 55 && count($p1['rows']) === 50 && count($p2['rows']) === 5);
-ok('paging: page out of range is empty', palette_admin_licences($conn, ['q' => '@page.example'], 9)['rows'] === []);
+$p9 = palette_admin_licences($conn, ['q' => '@page.example'], 9);
+ok('#7 paging: a page past the end is clamped to the last page', $p9['page'] === 2 && count($p9['rows']) === 5);
+ok('#7 paging: page 0 and negatives are page 1', palette_admin_licences($conn, ['q' => '@page.example'], -3)['page'] === 1);
+$r = palette_admin_page($conn, $admin, ['tab' => 'licences', 'q' => '@page.example', 'page' => '99999999999999999999999'], [], 'GET');
+ok('#7 list: a huge ?page= is 200, clamped to the last page', $r['status'] === 200 && str_contains($r['body'], '55 licences, page 2 of 2')
+    && str_contains($r['body'], 'p4@page.example') && !str_contains($r['body'], 'p54@page.example'));
+$r = palette_admin_page($conn, $admin, ['tab' => 'licences', 'q' => 'nobody-at-all@none.example', 'page' => '7'], [], 'GET');
+ok('#7 list: no rows, any page -> page 1 of 1', $r['status'] === 200 && str_contains($r['body'], '0 licences, page 1 of 1'));
 $conn->query("DELETE FROM palette_licenses WHERE email LIKE '%@page.example'");
 
 // ---- totals (active live pro = AAAA BBBB EEEE XXXX; active ai = FFFF; suspended ai, revoked, refunded, test excluded)
@@ -139,6 +146,10 @@ ok('log: row written', $row && (int)$row['admin_user_id'] === 1 && (int)$row['li
     && json_decode($row['detail'], true) === ['from' => 'a', 'to' => 'b'] && strlen($row['created_at']) === 19);
 $row = $conn->query("SELECT * FROM palette_admin_log WHERE action = 'bare'")->fetch_assoc();
 ok('log: nulls', $row && $row['license_id'] === null && $row['order_ref'] === null && $row['note'] === null);
+
+// ---- final review #6: the test-only dev router serves the admin
+$dr = (string)file_get_contents(__DIR__ . '/dev-router.php');
+ok('#6 dev-router routes /palette/admin and /palette/admin.php to admin.php', str_contains($dr, "'/palette/admin' => 'admin.php'") && str_contains($dr, "'/palette/admin.php' => 'admin.php'"));
 
 // ---- cleanup so other test files start clean
 foreach (['palette_licenses', 'palette_orders', 'palette_sub_payments', 'palette_admin_log', 'palette_sites', 'palette_site_links'] as $t) $conn->query("DELETE FROM $t");

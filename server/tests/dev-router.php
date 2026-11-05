@@ -256,7 +256,7 @@ if ($path === '/') {
     return true;
 }
 
-$routes = ['/palette/' => 'index.php', '/palette/index' => 'index.php', '/palette/terms' => 'terms.php', '/palette/checkout' => 'checkout.php', '/palette/account' => 'account.php', '/palette/privacy' => 'privacy.php', '/palette/api.php' => 'api.php', '/palette/admin-sites' => 'admin-sites.php'];
+$routes = ['/palette/' => 'index.php', '/palette/index' => 'index.php', '/palette/terms' => 'terms.php', '/palette/checkout' => 'checkout.php', '/palette/account' => 'account.php', '/palette/privacy' => 'privacy.php', '/palette/api.php' => 'api.php', '/palette/admin-sites' => 'admin-sites.php', '/palette/admin' => 'admin.php', '/palette/admin.php' => 'admin.php'];
 $route = $routes[$path] ?? $routes[preg_replace('#\.php$#', '', $path)] ?? null;
 if ($route === null) {
     http_response_code(404);
