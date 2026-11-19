@@ -17,6 +17,7 @@ function run(cmd, args, env = {}) {
 export function buildE2e() {
   run('npx', ['vite', 'build'], { SDT_E2E: '1', SDT_E2E_HOSTS: HOST });
   run('npx', ['vite', 'build', '-c', 'vite.extract.config.ts'], { SDT_E2E: '1', SDT_E2E_HOSTS: HOST });
+  run('npx', ['vite', 'build', '-c', 'vite.edit.config.ts'], { SDT_E2E: '1' });
 }
 
 /** Starts the fixture server and the extension. Returns what capture() needs, plus close(). */

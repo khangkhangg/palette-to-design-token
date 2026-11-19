@@ -15,10 +15,14 @@ function roleLeaders(colours: ColourToken[]): { role: Role; colour: ColourToken 
 
 export interface SystemViewProps {
   tokens: Tokens;
+  /** The tokens as scanned, when `tokens` carries the user's edits: AI insights are about the site itself. */
+  source?: Tokens;
+  /** Replaces the list of export formats under the button, e.g. with a count of the user's changes. */
+  caption?: string;
   onExport(): void;
 }
 
-export function SystemView({ tokens, onExport }: SystemViewProps) {
+export function SystemView({ tokens, source = tokens, caption, onExport }: SystemViewProps) {
   const { colours, type, spacing, radius, shadows } = tokens;
   const strip = orderedColours(colours);
   return (
@@ -76,14 +80,14 @@ export function SystemView({ tokens, onExport }: SystemViewProps) {
             )}
           </div>
         )}
-        <AiSection key={tokens.site} tokens={tokens} />
+        <AiSection key={source.site} tokens={source} />
       </div>
       <footer class="sp-footer">
         <button type="button" class="sp-export" onClick={onExport}>
           <Icon name="download" size={16} />
           {t('panel.exportDesignSystem')}
         </button>
-        <span class="sp-caption">{t('panel.exportFormats')}</span>
+        <span class="sp-caption">{caption ?? t('panel.exportFormats')}</span>
       </footer>
     </>
   );

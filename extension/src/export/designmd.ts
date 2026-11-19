@@ -86,6 +86,13 @@ export function toDesignMd(t: Tokens, o: ExportOptions): string {
   };
   const page: PageLabel = (hex) => (colours && !colourTokenFor(t, hex) ? `\`${hex}\` (page colour, not a token)` : label(hex));
   add('Contrast rules', t.contrast.map((p) => contrastLine(p, label, page)).filter((l): l is string => l !== null));
+  if (o.layout?.length) {
+    add('Layout adjustments', [
+      'Changes the user made to the page while previewing these tokens. Apply them where you rebuild this layout.',
+      '',
+      ...o.layout.map((l) => `- ${l}`),
+    ]);
+  }
 
   return blocks.flatMap((b, i) => (i ? ['', ...b] : b)).join('\n') + '\n';
 }

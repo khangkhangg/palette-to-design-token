@@ -13,8 +13,8 @@ const PARTS: Part[] = ['colours', 'typography', 'spacing', 'radius', 'shadows'];
 
 interface ZipPreview { text: string }
 
-async function zipPreview(tokens: Tokens, parts: Part[]): Promise<ZipPreview> {
-  const zip = await exportAll(tokens, { parts });
+async function zipPreview(tokens: Tokens, parts: Part[], layout?: string[]): Promise<ZipPreview> {
+  const zip = await exportAll(tokens, { parts, layout });
   const names = Object.keys(unzipSync(zip.bytes));
   const kb = Math.max(1, Math.round(zip.bytes.length / 1024));
   const list = names.map((n) => `  ${n}`).join('\n');
@@ -23,13 +23,15 @@ async function zipPreview(tokens: Tokens, parts: Part[]): Promise<ZipPreview> {
 
 export interface ExportScreenProps {
   tokens: Tokens;
+  /** The user's text, alignment and position edits as sentences; DESIGN.md lists them. */
+  layout?: string[];
   pro: boolean;
   onBack(): void;
   /** Free users: opens the unlock view to enter a key. */
   onHaveKey?(): void;
 }
 
-export function ExportScreen({ tokens, pro, onBack, onHaveKey }: ExportScreenProps) {
+export function ExportScreen({ tokens, layout, pro, onBack, onHaveKey }: ExportScreenProps) {
   const [format, setFormat] = useState<Format>('md');
   const [tailwind, setTailwind] = useState<3 | 4>(4);
   const [on, setOn] = useState<Part[]>(PARTS);
@@ -39,8 +41,8 @@ export function ExportScreen({ tokens, pro, onBack, onHaveKey }: ExportScreenPro
 
   const parts = useMemo(() => PARTS.filter((p) => on.includes(p)), [on]);
   const file = useMemo(
-    () => (format === 'all' ? null : exportFile(tokens, format, { parts, tailwind })),
-    [tokens, format, parts, tailwind],
+    () => (format === 'all' ? null : exportFile(tokens, format, { parts, tailwind, layout })),
+    [tokens, format, parts, tailwind, layout],
   );
   const filename = file ? file.filename : `${slug(tokens.site)}-tokens.zip`;
 
@@ -48,9 +50,9 @@ export function ExportScreen({ tokens, pro, onBack, onHaveKey }: ExportScreenPro
     if (format !== 'all') return;
     let live = true;
     setZip(null);
-    void zipPreview(tokens, parts).then((z) => { if (live) setZip(z); });
+    void zipPreview(tokens, parts, layout).then((z) => { if (live) setZip(z); });
     return () => { live = false; };
-  }, [format, tokens, parts]);
+  }, [format, tokens, parts, layout]);
 
   const togglePart = (p: Part) =>
     setOn((cur) => (cur.includes(p) ? (cur.length > 1 ? cur.filter((x) => x !== p) : cur) : [...cur, p]));
@@ -63,7 +65,7 @@ export function ExportScreen({ tokens, pro, onBack, onHaveKey }: ExportScreenPro
   const onDownload = async () => {
     if (!pro) return setSheet(true);
     if (file) return download(file.filename, file.text, file.mime);
-    const zipFile = await exportAll(tokens, { parts });
+    const zipFile = await exportAll(tokens, { parts, layout });
     download(zipFile.filename, zipFile.bytes, zipFile.mime);
   };
 

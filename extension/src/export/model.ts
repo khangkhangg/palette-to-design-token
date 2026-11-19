@@ -128,6 +128,15 @@ export function cleanFamily(family: string): string {
     .join(', ');
 }
 
+/**
+ * Free text from a page (or typed by the user) made inert for DESIGN.md: control characters become spaces,
+ * unsafe characters are dropped, whitespace is collapsed, and it is cut to `max` characters with an ellipsis.
+ */
+export function cleanText(text: string, max: number): string {
+  const flat = text.replace(CONTROL, ' ').replace(UNSAFE, '').replace(/\s+/g, ' ').trim();
+  return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}\u2026` : flat;
+}
+
 /** Join non-empty sections with a blank line between them. */
 export const joinSections = (sections: string[][]): string[] =>
   sections.filter((s) => s.length).flatMap((s, i) => (i ? ['', ...s] : s));

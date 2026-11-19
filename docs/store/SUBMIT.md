@@ -129,7 +129,7 @@ Reads the styles of the current tab only after the user clicks the extension ico
 scripting:
 
 ```
-Injects the extraction script into that tab to read computed styles and colours.
+Injects the extraction script into that tab to read computed styles and colours and, when the user turns on Edit on page, an editor script that previews their token changes on that tab. Closing the side panel removes the editor and restores the page.
 ```
 
 storage:

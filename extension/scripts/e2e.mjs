@@ -36,8 +36,11 @@ console.log('Production dist: no dev Pro toggle, no host_permissions.');
 // the fixture server (--host-resolver-rules), since AI insights refuse 127.0.0.1.
 run('npx', ['vite', 'build'], { SDT_E2E: '1', SDT_E2E_HOSTS: 'fernleaf.example' });
 run('npx', ['vite', 'build', '-c', 'vite.extract.config.ts'], { SDT_E2E: '1' });
-if (!existsSync(join(root, 'dist-e2e', 'extract.js'))) {
-  console.error('dist-e2e/extract.js missing');
-  process.exit(1);
+run('npx', ['vite', 'build', '-c', 'vite.edit.config.ts'], { SDT_E2E: '1' });
+for (const f of ['extract.js', 'edit.js']) {
+  if (!existsSync(join(root, 'dist-e2e', f))) {
+    console.error(`dist-e2e/${f} missing`);
+    process.exit(1);
+  }
 }
 run('npx', ['playwright', 'test', ...process.argv.slice(2)]);

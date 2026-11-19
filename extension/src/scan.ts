@@ -16,7 +16,7 @@ const RESTRICTED = [
 ];
 const STORE_URL = /^https?:\/\/(chromewebstore\.google\.com|chrome\.google\.com\/webstore|microsoftedge\.microsoft\.com\/addons)/;
 
-function classify(e: unknown): ScanError {
+export function classify(e: unknown): ScanError {
   const raw = e instanceof Error ? e.message : String(e);
   const msg = raw.toLowerCase();
   // `Cannot access contents of url "https://…"`: an ordinary page without an activeTab grant
