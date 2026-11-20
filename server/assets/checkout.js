@@ -600,6 +600,8 @@
         c.setAttribute('tabindex', on ? '0' : '-1');
         c.classList.toggle('is-on', on);
       });
+      var table = document.querySelector('table.plans');
+      if (table) table.setAttribute('data-plan', plan);
       setText('sum-item', ai ? T.co_item_ai : T.co_item);
       setText('sum-price', ai ? data.total_ai : data.total);
       setText('refund', ai ? T.co_refund_ai : T.co_refund);

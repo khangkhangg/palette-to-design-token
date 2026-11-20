@@ -247,9 +247,11 @@ ok('download link: latest zip with download attribute',
     || preg_match('#<a[^>]*\bdownload\b[^>]*href="/palette/download/site-to-design-token-latest\.zip"[^>]*>.*?Download the extension \(free\)#s', $en) === 1);
 ok('Get Pro anchors to the buy card', preg_match('#<a[^>]*href="\#buy"[^>]*>.*?Get Pro — \$1\.49#s', $en) === 1 && str_contains($en, 'id="buy"'));
 ok('works-in line with version', str_contains($en, 'Works in Chrome, Edge and Brave. Version <bdi dir="ltr">' . PALETTE_EXT_VERSION . '</bdi>.'));
-ok('sections in order: hero, what, plans, install, key, then the buy card',
-    $pos('id="hero-actions"') !== false && $pos('id="what"') > $pos('id="hero-actions"') && $pos('id="plans"') > $pos('id="what"')
-    && $pos('id="install"') > $pos('id="plans"') && $pos('id="have-key"') > $pos('id="install"') && $pos('id="buy"') > $pos('id="have-key"'));
+ok('sections in order: hero, the buy card with the summary above the pay button, what, plans, install, key',
+    $pos('id="hero-actions"') !== false && $pos('id="buy"') > $pos('id="hero-actions"')
+    && $pos('id="sum-item"') > $pos('id="buy"') && $pos('id="pay"') > $pos('id="sum-item"')
+    && $pos('id="what"') > $pos('id="pay"') && $pos('id="plans"') > $pos('id="what"')
+    && $pos('id="install"') > $pos('id="plans"') && $pos('id="have-key"') > $pos('id="install"'));
 ok('five features with inline SVG icons, Edit on page among them', preg_match('#id="what".*?</section>#s', $en, $wm) === 1 && substr_count($wm[0], '<li class="feature">') === 5
     && substr_count($wm[0], '<svg') >= 5 && str_contains($wm[0], h(palette_t('en', 'pp_feat_edit_h'))) && str_contains($wm[0], h(palette_t('en', 'pp_feat_export'))));
 ok('free vs pro table', preg_match('#id="plans".*?</section>#s', $en, $pm) === 1 && str_contains($pm[0], '<table')

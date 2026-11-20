@@ -448,7 +448,7 @@ function palette_plan_cards(string $lang, string $plan, bool $aiOn, string $proP
         return '<div class="plan-card' . ($on ? ' is-on' : '') . ($disabled ? ' is-disabled' : '') . '" role="radio" data-plan="' . $id . '"'
             . ' aria-checked="' . ($on ? 'true' : 'false') . '"' . ($disabled ? ' aria-disabled="true"' : '') . ' tabindex="' . ($on ? '0' : '-1') . '"'
             . ' aria-labelledby="plan-' . $id . '-name plan-' . $id . '-price" aria-describedby="plan-' . $id . '-items">'
-            . '<div class="plan-head"><span class="plan-name"><span id="plan-' . $id . '-name">' . palette_h($name) . '</span>'
+            . '<div class="plan-head"><span class="plan-name"><span class="radio" aria-hidden="true"></span><span id="plan-' . $id . '-name">' . palette_h($name) . '</span>'
             . ($badge !== '' ? '<span class="plan-badge">' . palette_h($badge) . '</span>' : '') . '</span>'
             . '<span class="plan-price" id="plan-' . $id . '-price"><span class="num" dir="ltr">' . palette_h($price) . '</span><span class="plan-per">' . palette_h($per) . '</span></span></div>'
             . '<ul class="plan-items" id="plan-' . $id . '-items">' . $list . '</ul></div>';
@@ -488,7 +488,7 @@ function palette_section_features(string $lang): string
 
 // Free / Pro / Pro + AI. The wrapper becomes a focusable, labelled region (checkout.js) only when the table overflows.
 // The Pro + AI header shows its monthly price once the PayPal plan exists for this mode, and "Coming soon" until then.
-function palette_section_plans(string $lang, string $price): string
+function palette_section_plans(string $lang, string $price, string $sel = ''): string
 {
     $t = fn(string $k) => palette_h(palette_t($lang, $k));
     $aiOn = palette_ai_on();
@@ -504,7 +504,7 @@ function palette_section_plans(string $lang, string $price): string
     $aiHead = $aiOn ? palette_h(palette_t($lang, 'pp_plan_ai', ['price' => palette_ai_price_label($lang)]))
         : 'Pro + AI <span class="plan-soon">' . $t('co_plan_soon') . '</span>';
     return '<section class="pp-section" id="plans" aria-labelledby="plans-h"><h2 id="plans-h">' . $t('pp_plans_h') . '</h2>'
-        . '<div class="plans-wrap" data-scroll-label="' . $t('pp_plans_h') . '"><table class="plans"><thead><tr><th scope="col"><span class="sr-only">' . $t('pp_plan_feature') . '</span></th>'
+        . '<div class="plans-wrap" data-scroll-label="' . $t('pp_plans_h') . '"><table class="plans"' . ($sel !== '' ? ' data-plan="' . palette_h($sel) . '"' : '') . '><thead><tr><th scope="col"><span class="sr-only">' . $t('pp_plan_feature') . '</span></th>'
         . '<th scope="col">' . $t('pp_plan_free') . '</th>'
         . '<th scope="col" class="plan-pro">' . palette_h(palette_t($lang, 'pp_plan_pro', ['price' => $price])) . '</th>'
         . '<th scope="col" class="plan-ai">' . $aiHead . '</th></tr></thead>'
@@ -724,7 +724,6 @@ function palette_render_checkout(array $ctx): string
         . '<h1>' . $t('co_h1') . '</h1>'
         . '<p class="lead">' . $t('co_lead') . '</p>'
         . palette_section_hero_actions($lang, $price, '#buy')
-        . $summary
         . '<ul class="trust">' . $trust
         . '<li>' . palette_icon('browser', 15) . $t('co_trust_browsers') . '</li>'
         . '</ul></section>';
@@ -733,8 +732,8 @@ function palette_render_checkout(array $ctx): string
         . '<ol class="steps steps-short"><li>' . $t('pp_key_1') . '</li><li>' . $t('pp_key_2') . '</li></ol>'
         . '<p class="pp-aside">' . $t('pp_key_email') . ' <a href="#resend">' . $t('pp_key_lost') . '</a></p></section>';
 
-    $pitch = '<div class="pitch">' . $hero . palette_section_features($lang) . palette_section_plans($lang, $price)
-        . palette_section_install($lang) . $haveKey . '</div>';
+    $pitch = palette_section_features($lang) . palette_section_plans($lang, $price, $plan)
+        . palette_section_install($lang) . $haveKey;
 
     $tax = '';
     if ($ca) {
@@ -788,6 +787,7 @@ function palette_render_checkout(array $ctx): string
         . ($move !== null ? ' value="' . palette_h((string)$move['licence']['email']) . '" readonly' : '') . '>'
         . '<p class="hint" id="email-hint">' . $t('co_email_hint') . '</p></div>'
         . $tax
+        . $summary
         . '<div class="terms"><p class="refund" id="refund">' . $t($isAi ? 'co_refund_ai' : 'co_refund') . '</p>'
         . '<label class="consent" for="consent"><input type="checkbox" id="consent" name="consent" value="1" required>'
         . '<span>' . $t('co_consent') . '</span></label></div>'
@@ -827,9 +827,10 @@ function palette_render_checkout(array $ctx): string
         . '<p class="lost-status" id="resend-status" role="status"></p>'
         . '</form>';
 
-    $main = '<main class="wrap checkout">' . $pitch
+    // Grid order (checkout.css): hero, buy card, then the product sections, so phones reach the card first.
+    $main = '<main class="wrap checkout">' . $hero
         . '<div class="side"><section class="card buy-card" aria-labelledby="buy-title">' . $banner . $form . $done . '</section>'
-        . $lost . '</div></main>';
+        . $lost . '</div>' . $pitch . '</main>';
 
     $data = ['t' => palette_script_strings($lang), 'plan' => $plan, 'ai_enabled' => $aiOn, 'total' => $price, 'total_ca' => $usd($withTax['amount']), 'total_ai' => $aiPrice,
              'methods' => $active, 'pp_ai' => $ppAi, 'test' => $test];
