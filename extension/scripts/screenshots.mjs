@@ -4,10 +4,11 @@
 //   npm run screenshots                    English, all six shots, to docs/store/screenshots/
 //   npm run screenshots -- --lang fr       the five store shots in French, to docs/store/screenshots/fr/
 //   npm run screenshots -- --all-langs     English plus every other store locale
+//   npm run screenshots -- --only 7-edit-on-page   one shot only, leaving the others as they are
 //
 // --lang takes a Chrome Web Store locale (zh_CN) or the extension's language code (zh-CN). The extension UI renders in that
 // language (right-to-left for ar) and the caption comes from store-l10n.json. The store takes at most five per language:
-// upload 1, 2, 3, 5 and 6; 4-side-panel-dark is English only and used on the landing page.
+// upload 1, 2, 3, 5 and 6; 4-side-panel-dark and 7-edit-on-page are English only and used on the landing page.
 import { mkdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { geistCss } from './lib/fonts.mjs';
@@ -25,7 +26,58 @@ const SHOTS = [
   { file: '4-side-panel-dark', path: 'sidepanel.html', size: [440, 680], theme: 'dark', englishOnly: true },
   { file: '5-export', path: 'sidepanel.html?view=export', size: [440, 680], theme: 'light', pro: true },
   { file: '6-ai-insights', path: 'sidepanel.html', size: [440, 1500], theme: 'light', pro: true, ai: true },
+  // The page being edited beside the side panel: a picked button, a changed token, a one-off and an alignment.
+  { file: '7-edit-on-page', edit: true, englishOnly: true },
 ];
+
+const EDIT_PAGE = [860, 640];
+const EDIT_PANEL = [400, 640];
+
+/** Edit on page in use: returns the fixture page and the side panel as two PNG buffers. */
+async function captureEdit({ context, sw, extId, site }) {
+  await sw.evaluate(async () => {
+    await chrome.storage.local.set({ settings: { theme: 'light', lang: 'en', pro: false } });
+    await chrome.storage.local.remove(['aiResults', 'licenseAi']);
+  });
+  const url = `${site}/light-marketing.html`;
+  const fixture = await context.newPage();
+  await fixture.setViewportSize({ width: EDIT_PAGE[0], height: EDIT_PAGE[1] });
+  await fixture.goto(url);
+  await fixture.bringToFront();
+  await sw.evaluate(async (u) => {
+    const tab = (await chrome.tabs.query({})).find((t) => t.url === u);
+    await chrome.tabs.update(tab.id, { active: true });
+  }, url);
+  const pending = context.waitForEvent('page', (p) => p.url().startsWith(`chrome-extension://${extId}/`));
+  await sw.evaluate(async (u) => { await chrome.tabs.create({ url: u, active: false }); }, `chrome-extension://${extId}/sidepanel.html`);
+  const panel = await pending;
+  try {
+    await panel.setViewportSize({ width: EDIT_PANEL[0], height: EDIT_PANEL[1] });
+    await panel.getByRole('button', { name: 'Edit on page' }).click();
+    await panel.locator('.ed-empty').waitFor();
+    await fixture.locator('.hero .btn-primary').click();
+    const row = (name) => panel.locator('.ed-insp .ed-rows li', { hasText: name });
+    await row('Background').locator('.ed-hex').fill('#7A3FC4');
+    await panel.locator('.ed-insp .ed-scope label', { hasText: 'Only this element' }).click();
+    await row('Radius').locator('.ed-num').fill('24');
+    await panel.locator('.ed-insp .ed-scope label', { hasText: 'Change the token' }).click();
+    await fixture.locator('.hero h1').hover();
+    await fixture.evaluate(() => document.fonts.ready);
+    await fixture.waitForTimeout(300);
+    const page = await fixture.screenshot();
+    await panel.bringToFront();
+    await panel.evaluate(() => document.fonts.ready);
+    await panel.waitForTimeout(600);
+    return { page, panel: await panel.screenshot() };
+  } finally {
+    await panel.close();
+    await fixture.close();
+  }
+}
+
+const b64 = (buf) => `data:image/png;base64,${buf.toString('base64')}`;
+const editBody = ({ page, panel }) =>
+  `<div class="pair" style="gap:20px"><img src="${b64(page)}" style="height:600px"><img src="${b64(panel)}" style="height:600px"></div>`;
 
 /** The canned answer of the dev router's AI stub (same shape as the server's analyse result), in one locale's words. */
 function aiResult(locale) {
@@ -85,6 +137,15 @@ const AI_CSS = `.pair{display:flex;gap:36px;align-items:flex-start}
 .win{position:relative;overflow:hidden}
 .win img{position:absolute;left:0;max-height:none;border-radius:0;box-shadow:none}`;
 
+/** --only <file>: just that shot (e.g. 7-edit-on-page); everything when absent. */
+function onlyShot(argv) {
+  const i = argv.indexOf('--only');
+  if (i === -1) return null;
+  const file = argv[i + 1] ?? '';
+  if (!SHOTS.some((s) => s.file === file)) { console.error(`unknown --only ${file}; use one of ${SHOTS.map((s) => s.file).join(', ')}`); process.exit(2); }
+  return file;
+}
+
 function parseArgs(argv) {
   if (argv.includes('--all-langs')) return LOCALES;
   const i = argv.indexOf('--lang');
@@ -96,6 +157,7 @@ function parseArgs(argv) {
 }
 
 const locales = parseArgs(process.argv.slice(2));
+const only = onlyShot(process.argv.slice(2));
 buildE2e();
 const ext = await launch({ port: 4518 });
 try {
@@ -107,6 +169,14 @@ try {
     mkdirSync(dir, { recursive: true });
     for (const s of SHOTS) {
       if (s.englishOnly && locale !== 'en') continue;
+      if (only && s.file !== only) continue;
+      if (s.edit) {
+        await composer.setContent(frame(editBody(await captureEdit(ext)), captions[s.file], lang));
+        await composer.evaluate(() => document.fonts.ready);
+        await composer.screenshot({ path: resolve(dir, `${s.file}.png`) });
+        console.log('wrote', `${s.file}.png`);
+        continue;
+      }
       const shot = { ...s, ai: s.ai ? { result: aiResult(locale), lang } : undefined };
       const buf = await capture(ext, shot, lang);
       const img = `data:image/png;base64,${buf.toString('base64')}`;

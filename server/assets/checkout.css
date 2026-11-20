@@ -174,7 +174,9 @@ h3 { margin: 0; }
 .pp-section h2 { display: flex; align-items: center; gap: 10px; font-size: 21px; line-height: 1.25; font-weight: 700; letter-spacing: -0.015em; }
 .pp-section h2 .icon { color: var(--accent); }
 
-.features { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+/* Five cards: flex, so a short last row stretches to the full width instead of leaving an empty column. */
+.features { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 12px; }
+.features > .feature { flex: 1 1 280px; }
 .feature {
   display: flex; gap: 14px; padding: 16px; border-radius: 14px;
   background: var(--surface); border: 1px solid var(--line);

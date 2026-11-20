@@ -228,9 +228,9 @@ ok('co_consent en exact', palette_t('en', 'co_consent') === $consentEn && palett
 
 // ---- product page: download, what it does, free vs pro, install, entering a key
 const PP_KEYS = ['pp_download', 'pp_get_pro', 'pp_works_in', 'pp_what_h', 'pp_feat_colours_h', 'pp_feat_colours', 'pp_feat_system_h',
-    'pp_feat_system', 'pp_feat_contrast_h', 'pp_feat_contrast', 'pp_feat_export_h', 'pp_feat_export', 'pp_plans_h', 'pp_plan_feature',
+    'pp_feat_system', 'pp_feat_contrast_h', 'pp_feat_contrast', 'pp_feat_edit_h', 'pp_feat_edit', 'pp_feat_export_h', 'pp_feat_export', 'pp_plans_h', 'pp_plan_feature',
     'pp_plan_free', 'pp_plan_pro', 'pp_yes', 'pp_no', 'pp_row_scan', 'pp_row_view', 'pp_row_copy', 'pp_row_contrast', 'pp_row_saved',
-    'pp_saved_free', 'pp_saved_pro', 'pp_row_copy_export', 'pp_row_exports', 'pp_row_fixes', 'pp_install_h', 'pp_install_1', 'pp_install_2', 'pp_install_3',
+    'pp_saved_free', 'pp_saved_pro', 'pp_row_edit', 'pp_row_copy_export', 'pp_row_exports', 'pp_row_fixes', 'pp_install_h', 'pp_install_1', 'pp_install_2', 'pp_install_3',
     'pp_install_4', 'pp_install_5', 'pp_install_note', 'pp_key_h', 'pp_key_1', 'pp_key_2', 'pp_key_email', 'pp_key_lost'];
 $missing = [];
 foreach (LANGS as $l) foreach (PP_KEYS as $k) {
@@ -250,10 +250,10 @@ ok('works-in line with version', str_contains($en, 'Works in Chrome, Edge and Br
 ok('sections in order: hero, what, plans, install, key, then the buy card',
     $pos('id="hero-actions"') !== false && $pos('id="what"') > $pos('id="hero-actions"') && $pos('id="plans"') > $pos('id="what"')
     && $pos('id="install"') > $pos('id="plans"') && $pos('id="have-key"') > $pos('id="install"') && $pos('id="buy"') > $pos('id="have-key"'));
-ok('four features with inline SVG icons', preg_match('#id="what".*?</section>#s', $en, $wm) === 1 && substr_count($wm[0], '<li class="feature">') === 4
-    && substr_count($wm[0], '<svg') >= 4 && str_contains($wm[0], h(palette_t('en', 'pp_feat_export'))));
+ok('five features with inline SVG icons, Edit on page among them', preg_match('#id="what".*?</section>#s', $en, $wm) === 1 && substr_count($wm[0], '<li class="feature">') === 5
+    && substr_count($wm[0], '<svg') >= 5 && str_contains($wm[0], h(palette_t('en', 'pp_feat_edit_h'))) && str_contains($wm[0], h(palette_t('en', 'pp_feat_export'))));
 ok('free vs pro table', preg_match('#id="plans".*?</section>#s', $en, $pm) === 1 && str_contains($pm[0], '<table')
-    && str_contains($pm[0], 'Pro, $1.49 once') && substr_count($pm[0], '<tr') === 10 && str_contains($pm[0], h(palette_t('en', 'pp_saved_free'))));
+    && str_contains($pm[0], 'Pro, $1.49 once') && substr_count($pm[0], '<tr') === 11 && str_contains($pm[0], h(palette_t('en', 'pp_saved_free'))));
 ok('install steps: 5, chrome://extensions as copyable code, not a link', preg_match('#id="install".*?</section>#s', $en, $im) === 1
     && substr_count($im[0], '<li') === 5 && str_contains($im[0], '<code dir="ltr">chrome://extensions</code>')
     && str_contains($im[0], 'data-copy="chrome://extensions"') && !str_contains($im[0], 'href="chrome:')
@@ -295,7 +295,8 @@ const LP_KEYS = ['lp_title', 'lp_h1', 'lp_lead', 'lp_shots_h', 'lp_shot_1', 'lp_
     'terms_use_h', 'terms_use', 'terms_asis_h', 'terms_asis', 'terms_liability_h', 'terms_liability', 'terms_changes_h', 'terms_changes',
     'terms_contact_h', 'terms_contact',
     'priv_ai_h', 'priv_ai', 'terms_sub_h', 'terms_sub', 'terms_ai_h', 'terms_ai', 'pp_plan_ai', 'pp_row_ai', 'pp_ai_n',
-    'lp_ins_h', 'lp_ins_text', 'lp_ins_b1', 'lp_ins_b2', 'lp_ins_b3', 'lp_shot_6', 'lp_faq_ai_q', 'lp_faq_ai_a', 'lp_faq_cancel_q', 'lp_faq_cancel_a'];
+    'lp_ins_h', 'lp_ins_text', 'lp_ins_b1', 'lp_ins_b2', 'lp_ins_b3', 'lp_shot_6', 'lp_faq_ai_q', 'lp_faq_ai_a', 'lp_faq_cancel_q', 'lp_faq_cancel_a',
+    'lp_edit_h', 'lp_edit_text', 'lp_edit_b1', 'lp_edit_b2', 'lp_edit_b3', 'lp_edit_b4', 'lp_shot_7'];
 $missing = [];
 foreach (LANGS as $l) foreach (LP_KEYS as $k) {
     $v = palette_strings($l)[$k] ?? '';
@@ -654,7 +655,7 @@ preg_match('#id="plans".*?</section>#s', $lp3, $pl);
 ok('plans table: Free, Pro and Pro + AI columns with prices from settings', preg_match('#<thead>(.*?)</thead>#s', $pl[0], $th) === 1
     && substr_count($th[1], '<th scope="col"') === 4 && str_contains($th[1], 'Pro, $1.49 once') && str_contains($th[1], 'Pro + AI, $3.99 a month')
     && !str_contains($th[1], h(palette_t('en', 'co_plan_soon'))));
-ok('plans table: every row has three value cells; AI insights row is Pro + AI only', preg_match_all('#<tr><th scope="row">.*?</tr>#s', $pl[0], $rows) === 9
+ok('plans table: every row has three value cells; AI insights row is Pro + AI only', preg_match_all('#<tr><th scope="row">.*?</tr>#s', $pl[0], $rows) === 10
     && count(array_filter($rows[0], fn($r) => substr_count($r, '<td>') !== 3)) === 0
     && preg_match('#<tr><th scope="row">AI insights</th><td>(.*?)</td><td>(.*?)</td><td>(.*?100 a month.*?)</td></tr>#s', $pl[0], $air) === 1
     && str_contains($air[1], 'Not included') && str_contains($air[2], 'Not included'));
@@ -685,6 +686,22 @@ ok('AI insights screenshot: 6-ai-insights.png, sized, lazy, alt mentions Pro + A
     preg_match('#<img src="/palette/assets/screenshots/6-ai-insights\.png" width="1280" height="800" alt="([^"]+)" loading="lazy"#', $ins[0], $sm) === 1
     && $sm[1] === h(palette_t('en', 'lp_shot_6')) && str_contains($sm[1], 'Pro + AI') && is_file(PALETTE_DIR . '/assets/screenshots/6-ai-insights.png')
     && is_file(PALETTE_DIR . '/../docs/store/screenshots/6-ai-insights.png'));
+// Edit on page (0.4.0): its own section with a screenshot, a feature, and a row that is free on every plan
+preg_match('#id="edit".*?</section>#s', $lpOn, $ed);
+ok('Edit on page section: heading, text, four bullets, between the features and the plans table', ($ed[0] ?? '') !== ''
+    && str_contains($ed[0], h(palette_t('en', 'lp_edit_h'))) && str_contains($ed[0], h(palette_t('en', 'lp_edit_text')))
+    && preg_match_all('#<li>#', $ed[0]) === 4 && str_contains($ed[0], h(palette_t('en', 'lp_edit_b4')))
+    && strpos($lpOn, 'id="what"') < strpos($lpOn, 'id="edit"') && strpos($lpOn, 'id="edit"') < strpos($lpOn, 'id="plans"'));
+ok('Edit on page screenshot: 7-edit-on-page.png, sized, lazy, alt; files exist',
+    preg_match('#<img src="/palette/assets/screenshots/7-edit-on-page\.png" width="1280" height="800" alt="([^"]+)" loading="lazy"#', $ed[0] ?? '', $em) === 1
+    && $em[1] === h(palette_t('en', 'lp_shot_7')) && is_file(PALETTE_DIR . '/assets/screenshots/7-edit-on-page.png')
+    && is_file(PALETTE_DIR . '/../docs/store/screenshots/7-edit-on-page.png'));
+ok('plans table: Edit on page is included in Free, Pro and Pro + AI', $planRow($lpOn, 'pp_row_edit') === ['yes', 'yes', 'yes']);
+foreach (LANGS as $l) {
+    $h = landing(['lang' => $l]);
+    ok("landing $l: Edit on page section, feature and plan row", str_contains($h, h(palette_t($l, 'lp_edit_h'))) && str_contains($h, h(palette_t($l, 'lp_edit_b3')))
+        && str_contains($h, 'alt="' . h(palette_t($l, 'lp_shot_7')) . '"') && str_contains($h, h(palette_t($l, 'pp_feat_edit'))) && str_contains($h, h(palette_t($l, 'pp_row_edit'))));
+}
 ok('landing: still five gallery screenshots (the sixth lives in the AI section)', preg_match_all('#<img src="/palette/assets/screenshots/[1-5]-#', $lpOn) === 5);
 preg_match('#id="faq".*?</section>#s', $lpOn, $faq);
 ok('FAQ gains what Pro + AI is (price and limit) and how to cancel', str_contains($faq[0], h(palette_t('en', 'lp_faq_ai_q'))) && str_contains($faq[0], h(palette_t('en', 'lp_faq_ai_a', ['price' => '$3.99', 'n' => 100])))

@@ -96,6 +96,7 @@ Phase 1 — built and tested in this change:
 - [x] Page restored exactly when the panel closes; token changes survive a reload
 - [x] 7 languages, RTL-safe styles
 - [x] Store permission justification updated (docs/store/SUBMIT.md)
+- [x] Version 0.4.0; landing page (vietnamcos.com/palette) gains the feature card, an Edit on page section with a screenshot, and a plans row, in 7 languages. Deploy steps: server/DEPLOY.md section 6e
 
 Phase 2 — proposed, not built:
 
@@ -105,7 +106,7 @@ Phase 2 — proposed, not built:
 - [ ] Keyboard: arrow-key nudge for spacing, Ctrl+Z / Ctrl+Shift+Z history
 - [ ] Hover/focus states (inline styles currently freeze the resting state on edited elements)
 - [ ] Touch dragging
-- [ ] Store listing copy and a screenshot for the new mode; version bump
+- [ ] Chrome Web Store listing copy for the new mode (7 languages)
 - [ ] Decide Free vs Pro for editing itself
 
 ## Prompts for phase 2
@@ -115,7 +116,7 @@ Phase 2 — proposed, not built:
 - "Add margin rows and drag-to-resize handles to the Edit on page inspector."
 - "Add undo/redo history (Ctrl+Z, Ctrl+Shift+Z) and arrow-key nudging to Edit on page."
 - "Make token edits apply to hover and focus states, not only the resting state."
-- "Update the store listing in all 7 languages and add a screenshot for Edit on page; bump the version."
+- "Update the Chrome Web Store listing copy in all 7 languages for Edit on page."
 - "Gate <these parts> of Edit on page behind Pro."
 
 ## Known limits

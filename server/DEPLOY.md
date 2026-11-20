@@ -358,6 +358,24 @@ Sandbox payments cost nothing; on 6a fix and repeat as needed, on 6b close the w
 
 9. **Cron is unchanged.** The 03:15 `cron-subscriptions.php` line from step 4b stays as it is; it now also reconciles Stripe subscriptions and recovers paid checkouts the webhook missed.
 
+## 6e. Edit on page (0.4.0)
+
+0.4.0 adds Edit on page to the extension and to the landing page: a fifth feature card, an "Edit on the page, then export" section with `assets/screenshots/7-edit-on-page.png`, and an "Edit on page" row (included in every plan) in the plans table, in all 7 languages. No database change, no new settings, no new extension permission.
+
+1. **Local checks.** `php server/tests/run.php` (ALL PASSED) and, in `extension/`, `npm test` and `npm run e2e`.
+2. **Deploy the server files.** Same command as step 2 (dry run first, then the real run, then the `chown`/`chmod` line). Changed: `lib/pages.php`, `lib/i18n/*.php`, `assets/checkout.css`; new: `assets/screenshots/7-edit-on-page.png`.
+3. **Publish the extension.** Step 7: `npm run package:direct`, upload the direct zip to `$DOCROOT/palette/download/` as `site-to-design-token-0.4.0.zip` and `site-to-design-token-latest.zip`. The landing page says "Version 0.4.0" as soon as step 2 is live, so do steps 2 and 3 together.
+4. **Verify.**
+
+   ```bash
+   curl -s https://vietnamcos.com/palette/ | grep -c 'id="edit"'                                                              # 1
+   curl -s https://vietnamcos.com/palette/ | grep -o 'Version <bdi dir="ltr">[0-9.]*'                                         # ...0.4.0
+   curl -s -o /dev/null -w '%{http_code} %{content_type}\n' https://vietnamcos.com/palette/assets/screenshots/7-edit-on-page.png   # 200 image/png
+   ```
+
+   `checkout.css` is cached by browsers; hard-reload once if the five feature cards look misaligned.
+5. **Web Store.** Upload `extension/site-to-design-token-0.4.0.zip` (`npm run package`) and paste the updated `scripting` justification from `docs/store/SUBMIT.md`. `npm run screenshots -- --only 7-edit-on-page` regenerates the landing-page shot; the store still takes shots 1, 2, 3, 5 and 6.
+
 ## 7. Extension
 
 1. Build: `cd extension && npm run build` (output `extension/dist`; production manifest has no `host_permissions`).
@@ -367,7 +385,7 @@ Sandbox payments cost nothing; on 6a fix and repeat as needed, on 6b close the w
      ```bash
      curl -sI https://vietnamcos.com/palette/download/site-to-design-token-latest.zip | grep -iE '^HTTP|^content-type'   # HTTP/2 200, content-type: application/zip
      ```
-   - **Web Store, unlisted** (store id differs from the direct id; add both): `npm run package` (strips `"key"`, which the Store rejects), upload `extension/site-to-design-token-0.3.0.zip` in the Developer Dashboard with Visibility = Unlisted, save, and copy the item id (that is the extension id).
+   - **Web Store, unlisted** (store id differs from the direct id; add both): `npm run package` (strips `"key"`, which the Store rejects), upload `extension/site-to-design-token-0.4.0.zip` in the Developer Dashboard with Visibility = Unlisted, save, and copy the item id (that is the extension id).
 3. Add the id to settings (merge, do not overwrite):
 
 ```bash
@@ -407,7 +425,7 @@ curl -si -X OPTIONS -H "Origin: chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 ## 9. Store submission checklist
 
-- [ ] `cd extension && npm run package && npm run package:check` (`package:check` is not part of `npm test`); zip is `extension/site-to-design-token-0.3.0.zip`, manifest version matches.
+- [ ] `cd extension && npm run package && npm run package:check` (`package:check` is not part of `npm test`); zip is `extension/site-to-design-token-0.4.0.zip`, manifest version matches.
 - [ ] Upload the zip in the Chrome Web Store Developer Dashboard.
 - [ ] Listing text from `docs/store/listing.<lang>.md` (en, zh_CN, hi, es, ar, fr, bn).
 - [ ] Field-by-field guide: `docs/store/SUBMIT.md`. Screenshots from `docs/store/screenshots/` (English) and `docs/store/screenshots/<locale>/` (zh_CN, hi, es, ar, fr, bn; `npm run screenshots -- --all-langs`), promo tiles `docs/store/promo-440x280.png` and `docs/store/promo-marquee-1400x560.png`, store icon `docs/store/store-icon-128.png` (`npm run promo`). The store takes **five** per language: upload `1-popup-colours`, `2-contrast`, `3-side-panel-light`, `5-export` and `6-ai-insights` (the Pro + AI results, made with a stubbed analysis by `npm run screenshots`); `4-side-panel-dark` is used only on the landing page. Known polish: screenshots show host `fernleaf.example`, not a real site.
