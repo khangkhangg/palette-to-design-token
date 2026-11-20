@@ -1,6 +1,6 @@
 import type { Tokens } from './model/tokens';
 
-export interface Settings { theme: 'light' | 'dark' | 'system'; lang: string; pro: boolean }
+export interface Settings { theme: 'light' | 'dark' | 'system'; lang: string; pro: boolean; /** Directory upload token from the connect page; '' or missing when not connected. */ dirToken?: string }
 
 const DEFAULTS: Settings = { theme: 'system', lang: '', pro: false };
 const FREE_SCAN_LIMIT = 3;

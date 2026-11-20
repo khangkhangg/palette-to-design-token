@@ -7,6 +7,7 @@ import { PlanSheet } from '../components/PlanSheet';
 import { download } from '../download';
 import { t } from '../i18n';
 import { useCopy } from '../popup/ColoursTab';
+import { ShareView } from './ShareView';
 
 const FORMATS: Format[] = ['md', 'css', 'tailwind', 'figma', 'json', 'all'];
 const PARTS: Part[] = ['colours', 'typography', 'spacing', 'radius', 'shadows'];
@@ -38,6 +39,7 @@ export function ExportScreen({ tokens, layout, edits, pro, onBack, onHaveKey }: 
   const [tailwind, setTailwind] = useState<3 | 4>(4);
   const [on, setOn] = useState<Part[]>(PARTS);
   const [sheet, setSheet] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [zip, setZip] = useState<ZipPreview | null>(null);
   const { copied, failed, copy } = useCopy();
 
@@ -72,6 +74,8 @@ export function ExportScreen({ tokens, layout, edits, pro, onBack, onHaveKey }: 
   };
 
   const previewText = file ? file.text : zip ? zip.text : t('export.zipBuilding');
+
+  if (sharing) return <ShareView tokens={tokens} layout={layout} edits={edits} onBack={() => setSharing(false)} />;
 
   return (
     <div class="sp export">
@@ -114,6 +118,15 @@ export function ExportScreen({ tokens, layout, edits, pro, onBack, onHaveKey }: 
             </div>
           )}
         </section>
+
+        <div class="share-cta">
+          <Icon name="external" />
+          <div>
+            <b>{t('share.title')}</b>
+            <span>{t('share.cardBody', { site: tokens.site })}</span>
+          </div>
+          <button type="button" class="btn btn-small" onClick={() => setSharing(true)}>{t('share.open')}</button>
+        </div>
 
         <section class="sp-section" aria-labelledby="ex-include">
           <h2 class="sp-h" id="ex-include">{t('export.include')}</h2>

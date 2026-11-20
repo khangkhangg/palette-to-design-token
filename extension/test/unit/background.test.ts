@@ -14,9 +14,10 @@ const sidePanel = () => ({
 async function boot() {
   const external: ((m: unknown, s: { url?: string }, r: (x: unknown) => void) => boolean | void)[] = [];
   const panel = sidePanel();
-  (globalThis as any).chrome = { sidePanel: panel, runtime: { onMessageExternal: { addListener: (l: any) => external.push(l) } } };
+  const { chrome, data } = installFakeChrome();
+  (globalThis as any).chrome = { ...chrome, sidePanel: panel, runtime: { onMessageExternal: { addListener: (l: any) => external.push(l) } } };
   await import('../../src/background');
-  return { panel, listener: external[0] };
+  return { panel, listener: external[0], data };
 }
 
 describe('background', () => {
@@ -65,6 +66,28 @@ describe('background', () => {
       [null, good],
     ] as const) expect(listener(m, s, respond)).toBeUndefined();
     expect(activate).not.toHaveBeenCalled();
+    expect(respond).not.toHaveBeenCalled();
+  });
+
+  it('stores a directory token from the connect page and answers ok', async () => {
+    const { listener, data } = await boot();
+    const respond = vi.fn();
+    expect(listener({ type: 'dir_token', token: 'tok-123' }, { url: 'https://vietnamcos.com/palette/directory/connect?ext=x' }, respond)).toBe(true);
+    await vi.waitFor(() => expect(respond).toHaveBeenCalledWith({ ok: true }));
+    expect((data.settings as { dirToken: string }).dirToken).toBe('tok-123');
+    expect(activate).not.toHaveBeenCalled();
+  });
+
+  it('ignores directory tokens from untrusted senders or without a token', async () => {
+    const { listener, data } = await boot();
+    const respond = vi.fn();
+    for (const [m, s] of [
+      [{ type: 'dir_token', token: 'tok-123' }, { url: 'https://evil.example/palette/' }],
+      [{ type: 'dir_token', token: 'tok-123' }, { url: 'https://vietnamcos.com.evil.example/palette/' }],
+      [{ type: 'dir_token', token: '' }, { url: 'https://vietnamcos.com/palette/directory/connect' }],
+      [{ type: 'dir_token', token: 7 }, { url: 'https://vietnamcos.com/palette/directory/connect' }],
+    ] as const) expect(listener(m, s, respond)).toBeUndefined();
+    expect(data.settings).toBeUndefined();
     expect(respond).not.toHaveBeenCalled();
   });
 });

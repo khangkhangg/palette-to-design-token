@@ -15,6 +15,8 @@ export interface Overlay {
 
 const CSS = `
   :host { all: initial !important; position: fixed !important; inset: 0 !important; pointer-events: none !important; z-index: 2147483647 !important; display: block !important; }
+  /* Share to directory hides the overlay while it takes the screenshot. */
+  :host([data-off]) { display: none !important; }
   .box, .line, .tag, .mark { position: fixed; box-sizing: border-box; pointer-events: none; }
   .box { border: 2px solid #D6249F; border-radius: 2px; }
   .box.sel { border-color: #3B4BD8; box-shadow: 0 0 0 4px rgba(59, 75, 216, .18); }
