@@ -19,8 +19,9 @@ is the design system they want rather than exactly what the site shipped.
 
 | Topic | Call | Why |
 | --- | --- | --- |
-| One-off element edits | Stay out of the export until saved as a token ("Save as new token" or "Update <token>") | The export is a token set; a single button's colour is not a token until the user says so |
-| Text, alignment, position | Listed in DESIGN.md under "Layout adjustments"; other formats ignore them | They are not tokens, and DESIGN.md is the file written for AI coding tools |
+| One-off element edits | Not tokens until saved as one ("Save as new token" or "Update <token>"). `tokens.json` lists them as `elementEdits` under `$extensions` (owner agreed 2026-11-20) | The token set stays clean, and the JSON is a complete record of what the user did |
+| Text, alignment, position | DESIGN.md "Layout adjustments" as sentences, and `tokens.json` `layoutAdjustments` as data (owner agreed 2026-11-20). CSS, Tailwind and Figma ignore them | They are not tokens; DESIGN.md is for AI coding tools, JSON for other tools |
+| Figma | `figma-variables.json` gains the type scale as number variables, plus text styles and shadow styles under `$extensions`; our own plugin in `figma-plugin/` imports the file (owner agreed 2026-11-20) | Figma has no built-in import for variables, and variables cannot hold text styles or shadows |
 | Plan | Editing is free; export keeps today's Free/Pro rules | Edits only pay off at export, which is already the Pro step |
 | Persistence | Edits live while the side panel is open. A reload or navigation keeps token changes (replayed on the next "Edit on page") and clears one-off and page edits. Re-scan clears everything | The scan must read the page as the site made it; element edits cannot be re-found on a new DOM |
 | Closing the panel | Puts the page back exactly and removes the editor | No surprise leftovers on someone's tab |
@@ -75,6 +76,7 @@ extension/
   test/unit/edit/*.test.ts       apply/notes and editor (jsdom)
   test/unit/ui-edit.test.tsx     panel behaviour against a fake page editor
   test/e2e/edit.spec.ts          real Chrome: repaint, one-off, text/align/drag, restore
+figma-plugin/                    Figma plugin (plain JS, no build): manifest.json, code.js, ui.html, README.md
 ```
 
 ## Feature checklist
@@ -96,6 +98,9 @@ Phase 1 — built and tested in this change:
 - [x] Page restored exactly when the panel closes; token changes survive a reload
 - [x] 7 languages, RTL-safe styles
 - [x] Store permission justification updated (docs/store/SUBMIT.md)
+- [x] `tokens.json`: `layoutAdjustments` and `elementEdits` under `$extensions["com.vietnamcos.site-to-design-token"]`
+- [x] `figma-variables.json`: `text/<step>/size|line-height|weight` number variables; text and shadow styles for the plugin
+- [x] Figma plugin (`figma-plugin/`): creates the variable collection, text styles and effect styles; re-import updates. Logic tested against a stand-in for the Figma API; **not yet run inside Figma**
 - [x] Version 0.4.0; landing page (vietnamcos.com/palette) gains the feature card, an Edit on page section with a screenshot, and a plans row, in 7 languages. Deploy steps: server/DEPLOY.md section 6e
 
 Phase 2 — proposed, not built:
@@ -108,6 +113,8 @@ Phase 2 — proposed, not built:
 - [ ] Touch dragging
 - [ ] Chrome Web Store listing copy for the new mode (7 languages)
 - [ ] Decide Free vs Pro for editing itself
+- [ ] Run the Figma plugin in Figma, then publish it to Figma Community and link it from the export screen and the landing page
+- [ ] Export the edited page itself as Figma layers
 
 ## Prompts for phase 2
 

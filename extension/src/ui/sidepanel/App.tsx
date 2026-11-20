@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { applyEdits, countEdits, hasEdits, tokenSpecs } from '../../edit/apply';
 import { openEditor, type EditorLink } from '../../edit/client';
-import { layoutNotes } from '../../edit/notes';
+import { exportEdits, layoutNotes } from '../../edit/notes';
 import { NO_EDITS, type Command, type EditorState } from '../../edit/types';
 import type { Tokens } from '../../model/tokens';
 import { scanActiveTab, shownReason, type ShownScanError } from '../../scan';
@@ -61,6 +61,7 @@ export function App({ initialView = viewFromSearch(location.search) }: AppProps)
   const edits = edit?.edits;
   const edited = useMemo(() => (tokens && edits ? applyEdits(tokens, edits) : tokens), [tokens, edits]);
   const layout = useMemo(() => layoutNotes(edits?.page ?? []), [edits]);
+  const notTokens = useMemo(() => (edits && edited ? exportEdits(edits, specs, edited) : undefined), [edits, specs, edited]);
 
   const send = (cmd: Command) => link.current?.send(cmd);
 
@@ -162,7 +163,7 @@ export function App({ initialView = viewFromSearch(location.search) }: AppProps)
 
   if (view === 'export' && edited) {
     return (
-      <ExportScreen tokens={edited} layout={layout} pro={settings.pro} onBack={() => setView('system')} onHaveKey={() => setView('key')} />
+      <ExportScreen tokens={edited} layout={layout} edits={notTokens} pro={settings.pro} onBack={() => setView('system')} onHaveKey={() => setView('key')} />
     );
   }
 

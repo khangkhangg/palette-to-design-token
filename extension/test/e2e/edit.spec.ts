@@ -93,7 +93,17 @@ test('a one-off edit changes one element, stays out of the export, and can becom
   await expect.poll(() => css('.hero .btn-primary', 'border-top-left-radius')).toBe('24px');
   expect(await css('header .btn-primary', 'border-top-left-radius')).toBe('8px');
   const oneOffs = panel.locator('.ed-group', { hasText: 'One-off element edits' });
-  await expect(oneOffs).toContainText('not in export');
+  await expect(oneOffs).toContainText('in tokens.json only');
+  // tokens.json lists it as an element edit; tokens.css does not know about it
+  await panel.getByRole('button', { name: /Export design system/ }).click();
+  await panel.locator('label.fmt', { has: panel.locator('input[value="json"]') }).click();
+  await expect(panel.locator('pre.code')).toContainText('"elementEdits"');
+  await expect(panel.locator('pre.code')).toContainText('"property": "border-radius"');
+  await expect(panel.locator('pre.code')).toContainText('"token": "radius.sm"');
+  await panel.locator('label.fmt', { has: panel.locator('input[value="css"]') }).click();
+  await expect(panel.locator('pre.code')).toContainText('--radius-sm: 8px;');
+  await expect(panel.locator('pre.code')).not.toContainText('--radius-lg');
+  await panel.getByRole('button', { name: 'Back to design system' }).click();
   await expect(oneOffs).toContainText('24px');
 
   await oneOffs.getByRole('button', { name: 'Save as new token' }).click();
@@ -143,6 +153,11 @@ test('text, alignment and drag edits change the page and are listed in DESIGN.md
   await expect(md).toContainText('Align the h1 “Grow more with less work” centre.');
   await expect(md).toContainText('Align the div .wrap containing \u201cFernleaf\u201d to the bottom of its container.');
   await expect(md).toContainText('Move the article .card containing \u201cHarvest log\u201d before the article .card containing \u201cBed planner\u201d.');
+  await panel.locator('label.fmt', { has: panel.locator('input[value="json"]') }).click();
+  await expect(panel.locator('pre.code')).toContainText('"layoutAdjustments"');
+  await expect(panel.locator('pre.code')).toContainText('"type": "vertical-align"');
+  await panel.locator('label.fmt', { has: panel.locator('input[value="figma"]') }).click();
+  await expect(panel.locator('pre.code')).toContainText('"textStyles"');
   await panel.getByRole('button', { name: 'Back to design system' }).click();
 
   // Reset all puts everything back.

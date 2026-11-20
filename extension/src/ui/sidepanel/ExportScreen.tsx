@@ -1,6 +1,6 @@
 import { unzipSync } from 'fflate';
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { exportAll, exportFile, slug, type Format, type Part } from '../../export';
+import { exportAll, exportFile, slug, type ExportEdits, type Format, type Part } from '../../export';
 import type { Tokens } from '../../model/tokens';
 import { Icon } from '../components/Icon';
 import { PlanSheet } from '../components/PlanSheet';
@@ -13,8 +13,8 @@ const PARTS: Part[] = ['colours', 'typography', 'spacing', 'radius', 'shadows'];
 
 interface ZipPreview { text: string }
 
-async function zipPreview(tokens: Tokens, parts: Part[], layout?: string[]): Promise<ZipPreview> {
-  const zip = await exportAll(tokens, { parts, layout });
+async function zipPreview(tokens: Tokens, parts: Part[], layout?: string[], edits?: ExportEdits): Promise<ZipPreview> {
+  const zip = await exportAll(tokens, { parts, layout, edits });
   const names = Object.keys(unzipSync(zip.bytes));
   const kb = Math.max(1, Math.round(zip.bytes.length / 1024));
   const list = names.map((n) => `  ${n}`).join('\n');
@@ -25,13 +25,15 @@ export interface ExportScreenProps {
   tokens: Tokens;
   /** The user's text, alignment and position edits as sentences; DESIGN.md lists them. */
   layout?: string[];
+  /** The same edits and one-off element edits as data; tokens.json carries them. */
+  edits?: ExportEdits;
   pro: boolean;
   onBack(): void;
   /** Free users: opens the unlock view to enter a key. */
   onHaveKey?(): void;
 }
 
-export function ExportScreen({ tokens, layout, pro, onBack, onHaveKey }: ExportScreenProps) {
+export function ExportScreen({ tokens, layout, edits, pro, onBack, onHaveKey }: ExportScreenProps) {
   const [format, setFormat] = useState<Format>('md');
   const [tailwind, setTailwind] = useState<3 | 4>(4);
   const [on, setOn] = useState<Part[]>(PARTS);
@@ -41,8 +43,8 @@ export function ExportScreen({ tokens, layout, pro, onBack, onHaveKey }: ExportS
 
   const parts = useMemo(() => PARTS.filter((p) => on.includes(p)), [on]);
   const file = useMemo(
-    () => (format === 'all' ? null : exportFile(tokens, format, { parts, tailwind, layout })),
-    [tokens, format, parts, tailwind, layout],
+    () => (format === 'all' ? null : exportFile(tokens, format, { parts, tailwind, layout, edits })),
+    [tokens, format, parts, tailwind, layout, edits],
   );
   const filename = file ? file.filename : `${slug(tokens.site)}-tokens.zip`;
 
@@ -50,9 +52,9 @@ export function ExportScreen({ tokens, layout, pro, onBack, onHaveKey }: ExportS
     if (format !== 'all') return;
     let live = true;
     setZip(null);
-    void zipPreview(tokens, parts, layout).then((z) => { if (live) setZip(z); });
+    void zipPreview(tokens, parts, layout, edits).then((z) => { if (live) setZip(z); });
     return () => { live = false; };
-  }, [format, tokens, parts, layout]);
+  }, [format, tokens, parts, layout, edits]);
 
   const togglePart = (p: Part) =>
     setOn((cur) => (cur.includes(p) ? (cur.length > 1 ? cur.filter((x) => x !== p) : cur) : [...cur, p]));
@@ -65,7 +67,7 @@ export function ExportScreen({ tokens, layout, pro, onBack, onHaveKey }: ExportS
   const onDownload = async () => {
     if (!pro) return setSheet(true);
     if (file) return download(file.filename, file.text, file.mime);
-    const zipFile = await exportAll(tokens, { parts, layout });
+    const zipFile = await exportAll(tokens, { parts, layout, edits });
     download(zipFile.filename, zipFile.bytes, zipFile.mime);
   };
 

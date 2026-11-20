@@ -3,7 +3,7 @@ import {
   cleanFamily, colourEntries, fontEntries, radiusEntries, shadowEntries, spaceEntries, splitFamily, wants,
 } from './model';
 import { parseShadow, type ShadowLayer } from './shadow';
-import type { ExportOptions } from './types';
+import { EXTENSION_KEY, type ExportOptions } from './types';
 
 const dim = (value: number) => ({ value, unit: 'px' });
 type Group = Record<string, { $type: string; $value: unknown }>;
@@ -48,5 +48,13 @@ export function toDtcg(t: Tokens, o: ExportOptions): string {
     });
     put('shadow', group(parsed, 'shadow', shadowValue));
   }
-  return JSON.stringify(out, null, 2) + '\n';
+  // What the user changed on the page that is not a token: listed as data, for tools and people to act on.
+  const e = o.edits;
+  const extra = e && (e.layoutAdjustments.length || e.elementEdits.length)
+    ? { $extensions: { [EXTENSION_KEY]: {
+        ...(e.layoutAdjustments.length ? { layoutAdjustments: e.layoutAdjustments } : {}),
+        ...(e.elementEdits.length ? { elementEdits: e.elementEdits } : {}),
+      } } }
+    : {};
+  return JSON.stringify({ ...out, ...extra }, null, 2) + '\n';
 }

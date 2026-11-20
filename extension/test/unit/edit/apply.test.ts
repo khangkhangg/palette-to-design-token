@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyEdits, countEdits, hasEdits, tokenSpecs } from '../../../src/edit/apply';
-import { layoutNotes } from '../../../src/edit/notes';
+import { exportEdits, layoutNotes } from '../../../src/edit/notes';
+import { toDtcg } from '../../../src/export/dtcg';
 import { NO_EDITS, newTokenName, type Edits } from '../../../src/edit/types';
 import { toDesignMd } from '../../../src/export/designmd';
 import { toCss } from '../../../src/export/css';
@@ -131,5 +132,55 @@ describe('layout notes in DESIGN.md', () => {
     expect(md).toContain('## Layout adjustments\n\nChanges the user made to the page while previewing these tokens.');
     expect(md).toContain('\n- Align the div .hero to the bottom of its container.\n');
     expect(md.startsWith(plain.trimEnd())).toBe(true);
+  });
+});
+
+describe('edits that are not tokens, in tokens.json', () => {
+  const btn = { tag: 'a', text: 'Shop the `range`', hook: '.btn', inside: '' };
+  const card = { tag: 'article', text: '', hook: '.card', inside: 'Harvest log' };
+  const e = edits({
+    values: { 'colour:primary': '#7A3FC4', 'space:8': 10 },
+    added: [{ id: 'colour:+1', kind: 'colour', name: 'primary-2', from: 'colour:primary', value: '#0E7490' }],
+    oneOffs: [
+      { el: 1, target: btn, row: 'background-color', label: 'background', kind: 'colour', value: '#000000', token: 'colour:primary' },
+      { el: 1, target: btn, row: 'padding-inline', label: 'paddingInline', kind: 'space', value: 20, token: 'space:8' },
+      { el: 2, target: card, row: 'border-radius', label: 'radius', kind: 'radius', value: 30, token: null },
+      { el: 2, target: card, row: 'color', label: 'color', kind: 'colour', value: '#111111', token: 'colour:+1' },
+    ],
+    page: [
+      { el: 1, type: 'text', target: btn, from: 'Shop', to: 'Shop the range' },
+      { el: 2, type: 'valign', target: card, value: 'bottom' },
+      { el: 2, type: 'move', target: card, where: 'before', anchor: { ...card, inside: 'Bed planner' } },
+    ],
+  });
+  const edited = applyEdits(tokens(), e);
+  const data = exportEdits(e, tokenSpecs(tokens()), edited);
+
+  it('names each one-off by element, property and value, with the token it replaced as a path in the exported file', () => {
+    expect(data.elementEdits).toEqual([
+      { element: { tag: 'a', text: 'Shop the range', selector: '.btn' }, property: 'background-color', value: '#000000', token: 'color.primary' },
+      { element: { tag: 'a', text: 'Shop the range', selector: '.btn' }, property: 'padding-inline', value: '20px', token: 'space.1' },
+      { element: { tag: 'article', selector: '.card', contains: 'Harvest log' }, property: 'border-radius', value: '30px', token: null },
+      { element: { tag: 'article', selector: '.card', contains: 'Harvest log' }, property: 'color', value: '#111111', token: 'color.primary-2' },
+    ]);
+  });
+
+  it('lists text, alignment and position edits as data', () => {
+    expect(data.layoutAdjustments).toEqual([
+      { type: 'text', element: { tag: 'a', text: 'Shop the range', selector: '.btn' }, from: 'Shop', to: 'Shop the range' },
+      { type: 'vertical-align', element: { tag: 'article', selector: '.card', contains: 'Harvest log' }, value: 'bottom' },
+      { type: 'move', element: { tag: 'article', selector: '.card', contains: 'Harvest log' }, where: 'before', anchor: { tag: 'article', selector: '.card', contains: 'Bed planner' } },
+    ]);
+  });
+
+  it('tokens.json carries them under $extensions, and has no $extensions without edits', () => {
+    const o = { parts: [...ALL.parts] };
+    expect(JSON.parse(toDtcg(edited, o))).not.toHaveProperty('$extensions');
+    const j = JSON.parse(toDtcg(edited, { ...o, edits: data }));
+    expect(j.color.primary.$value).toBe('#7A3FC4');
+    expect(j.$extensions['com.vietnamcos.site-to-design-token']).toEqual(data);
+    const onlyLayout = JSON.parse(toDtcg(edited, { ...o, edits: { ...data, elementEdits: [] } }));
+    expect(Object.keys(onlyLayout.$extensions['com.vietnamcos.site-to-design-token'])).toEqual(['layoutAdjustments']);
+    expect(JSON.parse(toDtcg(edited, { ...o, edits: { layoutAdjustments: [], elementEdits: [] } }))).not.toHaveProperty('$extensions');
   });
 });

@@ -6,7 +6,7 @@ import { toFigma } from './figma';
 import { toTailwind3, toTailwind4 } from './tailwind';
 import type { ExportOptions } from './types';
 
-export type { ExportOptions, Part } from './types';
+export type { ElementEdit, ExportEdits, ExportElement, ExportOptions, LayoutAdjustment, Part } from './types';
 export { exportAll } from './zip';
 export type Format = 'css' | 'tailwind' | 'json' | 'figma' | 'md' | 'all';
 
