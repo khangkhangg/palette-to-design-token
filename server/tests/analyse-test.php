@@ -489,7 +489,7 @@ ok('api: analyse 200 without csrf', $r['status'] === 200 && $r['body']['ok'] ===
 ok('api: CORS for an allowed extension', ($r['headers']['Access-Control-Allow-Origin'] ?? null) === 'chrome-extension://' . AN_EXT);
 ok('api: no CORS for another extension', !isset($api(['origin' => 'chrome-extension://ponmlkjihgfedcbaponmlkjihgfedcba'])['headers']['Access-Control-Allow-Origin']));
 $r = $api(['method' => 'OPTIONS']);
-ok('api: preflight 204 with CORS', $r['status'] === 204 && ($r['headers']['Access-Control-Allow-Methods'] ?? '') === 'POST'
+ok('api: preflight 204 with CORS', $r['status'] === 204 && ($r['headers']['Access-Control-Allow-Methods'] ?? '') === 'GET, POST'
     && ($r['headers']['Access-Control-Allow-Origin'] ?? null) === 'chrome-extension://' . AN_EXT);
 ok('api: GET -> 405', $api(['method' => 'GET'])['status'] === 405);
 $r = $api(['body_bytes' => 16385]);

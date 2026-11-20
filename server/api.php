@@ -18,6 +18,8 @@ $res = palette_api_handle([
     'ip' => palette_client_ip($_SERVER),   // CF-Connecting-IP only from Cloudflare's edge; never X-Forwarded-For (lib/rate.php)
     'session' => $_SESSION ?? [],
     'body_bytes' => $bodyBytes,
+    'files' => $_FILES,
+    'auth' => (string)($_SERVER['HTTP_AUTHORIZATION'] ?? ''),
 ]);
 http_response_code($res['status']);
 foreach ($res['headers'] as $k => $v) header("$k: $v");

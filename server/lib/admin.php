@@ -13,6 +13,8 @@ const PALETTE_ADMIN_TABS = [
     'licences' => ['Licences', 'palette_admin_tab_licences'],
     'payments' => ['Payments', 'palette_admin_tab_payments'],
     'sites'    => ['Sites', 'palette_admin_tab_sites'],
+    'directory' => ['Directory', 'palette_admin_tab_directory'], // lib/directory-admin.php
+    'members'  => ['Members', 'palette_admin_tab_members'],
     'settings' => ['Settings', 'palette_admin_tab_settings'],
     'licence'  => ['', 'palette_admin_tab_licence'],
     'issue'    => ['', 'palette_admin_tab_issue'],
@@ -30,6 +32,16 @@ const PALETTE_ADMIN_ACTIONS = [
     'st_check'      => 'palette_admin_do_st_check',
     'st_disconnect' => 'palette_admin_do_st_disconnect',
     'methods'       => 'palette_admin_do_methods',
+    'dir_reviewed'  => 'palette_admin_do_dir_reviewed',
+    'dir_hide'      => 'palette_admin_do_dir_hide',
+    'dir_unhide'    => 'palette_admin_do_dir_unhide',
+    'dir_delete'    => 'palette_admin_do_dir_delete',
+    'dir_dismiss_reports' => 'palette_admin_do_dir_dismiss_reports',
+    'dir_style'     => 'palette_admin_do_dir_style',
+    'dir_settings'  => 'palette_admin_do_dir_settings',
+    'member_deactivate' => 'palette_admin_do_member_deactivate',
+    'member_ban'    => 'palette_admin_do_member_ban',
+    'member_restore' => 'palette_admin_do_member_restore',
 ];
 
 // ---- access, CSRF, log
@@ -221,6 +233,12 @@ const PALETTE_ADMIN_MESSAGES = [
         'st_connected'    => 'Stripe is connected.',
         'st_disconnected' => 'Stripe is disconnected.',
         'methods_saved'   => 'Checkout payment methods saved.',
+        'dir_checked'   => 'Marked as checked.',
+        'dir_hidden'    => 'Hidden. The member sees the reason on My submissions.',
+        'dir_shown'     => 'The item is public again.',
+        'dir_dismissed' => 'Reports dismissed.',
+        'dir_deleted'   => 'Deleted. The files are removed.',
+        'member_saved'  => 'Member status saved.',
     ],
     'err' => [
         'note_required' => 'Write a reason (1 to 500 characters).',
@@ -245,6 +263,10 @@ const PALETTE_ADMIN_MESSAGES = [
         'order_pending' => 'That Stripe checkout is not paid yet but may still complete, and then it gets its own key. Check it in Stripe, or issue the key once the checkout has expired.',
         'st_disconnect_failed' => "Stripe refused or failed; nothing was changed. Try again or check the key's webhook permission.",
         'st_bad_mode'   => 'Choose Live or Test.',
+        'dir_missing'   => 'That item or member was not found.',
+        'bad_style'     => 'That style is not in the list.',
+        'dir_files'     => 'The files could not be deleted from the disk. The item is hidden. Check the PHP error log for PALETTE_DIR_FILES.',
+        'dir_limit'     => 'The report limit must be a number from 1 to 20.',
         'stripe_not_live' => 'Card payments are not on: connect Stripe Live and turn Stripe on in the checkout methods first.',
     ],
 ];
@@ -273,7 +295,8 @@ function palette_admin_shell(string $tab, string $title, string $inner, array $s
     foreach (PALETTE_ADMIN_TABS as $key => [$label]) {
         if ($label === '') continue;
         $cur = $key === $navTab ? ' aria-current="page"' : '';
-        $nav .= '<a href="' . palette_h(palette_admin_url($key)) . '"' . $cur . '>' . palette_h($label) . '</a>';
+        $nav .= '<a href="' . palette_h(palette_admin_url($key)) . '"' . $cur . '>' . palette_h($label)
+            . ($key === 'directory' ? palette_dir_admin_badge($GLOBALS['conn']) : '') . '</a>';
     }
     $h1 = $title !== '' ? $title : (PALETTE_ADMIN_TABS[$navTab][0] ?: 'Licences');
     return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
@@ -1676,5 +1699,6 @@ function palette_admin_tab_settings(mysqli $c, array $session, array $query): ar
         . '<fieldset class="fld"><legend>Offer these methods</legend>' . $boxes . '</fieldset>'
         . '<div class="fld"><label for="st-order">When both are on, show first</label><select id="st-order" name="order">' . $opts . '</select></div>'
         . '<div class="actions"><button class="btn btn-accent" type="submit">Save methods</button></div></form></section>';
+    $html .= palette_dir_admin_settings_html($c, $session);
     return ['title' => 'Settings', 'html' => $html];
 }

@@ -156,6 +156,7 @@ function palette_icon(string $name, int $size = 16): string
         'minus' => '<path d="M5 12h14"/>',
         'plus' => '<path d="M12 5v14M5 12h14"/>',
         'search' => '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+        'plug' => '<path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/>',
         'info' => '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
         'spark' => '<path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 3v4M17 5h4"/>',
         'pointer' => '<path d="M4 4l6.5 16 2.3-6.7L19.5 11z"/>',
@@ -194,6 +195,10 @@ function palette_page_shell(string $page, string $lang, array $keep, string $tit
         . '<a class="brand" href="' . palette_h(palette_page_url('', $lang)) . '">'
         . '<span class="mark" aria-hidden="true"></span><span class="brand-name">Site to Design Token</span>'
         . '<span class="brand-by">' . $t('page_by') . '</span></a>'
+        . '<nav class="topnav"><a href="' . palette_h(palette_page_url('directory', $lang)) . '"'
+        . ($page === 'directory' ? ' aria-current="page"' : '') . '>' . $t('dir_nav') . '</a>'
+        . '<a href="' . palette_h(palette_page_url('directory/mine', $lang)) . '"'
+        . ($page === 'directory/mine' ? ' aria-current="page"' : '') . '>' . $t('dir_nav_mine') . '</a></nav>'
         . palette_lang_switcher($page === 'landing' ? '' : $page, $lang, $keep)
         . '</div></header>' . "\n"
         . $main . "\n"

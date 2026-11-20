@@ -5,6 +5,10 @@ if (!defined('PALETTE_DIR')) define('PALETTE_DIR', __DIR__);
 if (!defined('PALETTE_COMPANIES_DIR')) {
     define('PALETTE_COMPANIES_DIR', rtrim((string)(getenv('PALETTE_COMPANIES_DIR') ?: dirname(__DIR__)), '/\\'));
 }
+// Token directory files: outside the docroot and outside the deploy's rsync --delete target.
+if (!defined('PALETTE_DIR_DATA')) {
+    define('PALETTE_DIR_DATA', rtrim((string)(getenv('PALETTE_DIR_DATA') ?: '/var/www/duykhang/palette-data/directory'), '/\\'));
+}
 if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) session_start();
 
 require_once PALETTE_COMPANIES_DIR . '/config.php';

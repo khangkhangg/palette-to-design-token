@@ -33,6 +33,7 @@ foreach (['DB_HOST_LOCAL' => '127.0.0.1', 'DB_HOST_REMOTE' => '127.0.0.1', 'DB_U
 $_ENV['DEEPSEEK_API_KEY'] = '';   // companies' .env holds a real platform AI key; never let ai_key_for() fall back to it
 putenv('DEEPSEEK_API_KEY=');
 if (!getenv('PALETTE_COMPANIES_DIR')) putenv('PALETTE_COMPANIES_DIR=C:\\Projects\\companies');
+if (!getenv('PALETTE_DIR_DATA')) putenv('PALETTE_DIR_DATA=' . sys_get_temp_dir() . '/palette-dir-e2e');
 $server = dirname(__DIR__);
 $path = (string)parse_url((string)($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH);
 
@@ -258,6 +259,7 @@ if ($path === '/') {
 
 $routes = ['/palette/' => 'index.php', '/palette/index' => 'index.php', '/palette/terms' => 'terms.php', '/palette/checkout' => 'checkout.php', '/palette/account' => 'account.php', '/palette/privacy' => 'privacy.php', '/palette/api.php' => 'api.php', '/palette/admin-sites' => 'admin-sites.php', '/palette/admin' => 'admin.php', '/palette/admin.php' => 'admin.php'];
 $route = $routes[$path] ?? $routes[preg_replace('#\.php$#', '', $path)] ?? null;
+if (preg_match('#^/palette/directory(/.*)?$#', $path)) $route = 'directory.php'; // the nginx rewrite in DEPLOY.md
 if ($route === null) {
     http_response_code(404);
     echo 'not found';

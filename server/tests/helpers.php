@@ -13,6 +13,8 @@ foreach (['DB_HOST_LOCAL' => '127.0.0.1', 'DB_HOST_REMOTE' => '127.0.0.1', 'DB_U
 $_ENV['DEEPSEEK_API_KEY'] = '';
 putenv('DEEPSEEK_API_KEY=');
 if (!getenv('PALETTE_COMPANIES_DIR')) putenv('PALETTE_COMPANIES_DIR=C:\\Projects\\companies');
+// Directory files go to a temp dir, never the real data folder.
+if (!getenv('PALETTE_DIR_DATA')) putenv('PALETTE_DIR_DATA=' . sys_get_temp_dir() . '/palette-dir-test');
 if (!defined('PALETTE_NO_MAIL')) define('PALETTE_NO_MAIL', true);
 
 require __DIR__ . '/../bootstrap.php';

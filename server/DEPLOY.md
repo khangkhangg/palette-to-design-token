@@ -376,6 +376,45 @@ Sandbox payments cost nothing; on 6a fix and repeat as needed, on 6b close the w
    `checkout.css` is cached by browsers; hard-reload once if the five feature cards look misaligned.
 5. **Web Store.** Upload `extension/site-to-design-token-0.4.0.zip` (`npm run package`) and paste the updated `scripting` justification from `docs/store/SUBMIT.md`. `npm run screenshots -- --only 7-edit-on-page` regenerates the landing-page shot; the store still takes shots 1, 2, 3, 5 and 6.
 
+## 6f. Token directory
+
+The public directory lives at `/palette/directory`, rendered by `directory.php` and `lib/directory.php`.
+Admins get two new tabs, Directory and Members, and a "Token directory" block in Settings. The extension
+uploads to `api.php?action=dir_upload` with `Authorization: Bearer <token>`.
+
+1. **Check the server (read-only).** The disk must have room before uploads open, because uploads stop
+   with `disk_full` under 512 MB free.
+   ```bash
+   $SSH "php -m | grep -E '^(gd|zip)$'; php -r 'var_dump(function_exists(\"imagewebp\"));'; df -h /var/www; \
+     grep -n client_max_body_size /etc/nginx/sites-enabled/vietnamcos.com; php -i | grep -E 'upload_max_filesize|post_max_size'"
+   ```
+   Uploads need 8 MB: `client_max_body_size 10m;` in the vhost and `upload_max_filesize = 10M`,
+   `post_max_size = 12M` for PHP-FPM.
+2. **Create the data folder.** It is outside the docroot and outside the rsync target of step 2, so a
+   deploy never deletes it. The path can be changed with the `PALETTE_DIR_DATA` environment variable.
+   ```bash
+   $SSH "mkdir -p /var/www/duykhang/palette-data/directory && chown -R www-data:www-data /var/www/duykhang/palette-data && chmod 750 /var/www/duykhang/palette-data /var/www/duykhang/palette-data/directory"
+   ```
+3. **Back it up with the rest.** Add `palette-data` to the tar in the backup step of 6d:
+   `tar czf ... -C /var/www/duykhang companies palette palette-data`.
+4. **Deploy the server files** (step 2) and **run the migration** (step 4). It adds six `palette_dir_*`
+   tables and seeds the eight styles. New files: `directory.php`, `lib/directory.php`, `lib/directory-admin.php`.
+5. **nginx rewrite.** In the REAL file `/etc/nginx/sites-enabled/vietnamcos.com`, at server level next to the
+   rewrites from step 3 (back it up first, as in 6d step 4):
+   ```
+   rewrite ^/palette/directory(/.*)?$ /palette/directory.php last;
+   ```
+   Then `nginx -t && systemctl reload nginx`.
+6. **Verify.**
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}\n' https://vietnamcos.com/palette/directory        # 200
+   curl -s -o /dev/null -w '%{http_code}\n' https://vietnamcos.com/palette/directory/new    # 303 to the companies sign-in
+   curl -s -H 'Authorization: Bearer 0000000000000000000000000000000000000000000000000000000000000000' \
+     'https://vietnamcos.com/palette/api.php?action=dir_me'                                 # 401 token_revoked
+   ```
+   Then sign in, share one item at `/palette/directory/new`, open it, download the zip, delete it on
+   My submissions, and check the folder under `palette-data/directory/YYYY/MM/` is gone.
+
 ## 7. Extension
 
 1. Build: `cd extension && npm run build` (output `extension/dist`; production manifest has no `host_permissions`).
