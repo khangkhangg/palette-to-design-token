@@ -279,6 +279,8 @@ return [
     'lp_edit_b3' => 'Réécrivez les textes, alignez les éléments et faites-les glisser ailleurs ; DESIGN.md liste ces changements',
     'lp_edit_b4' => 'Chaque changement s’annule séparément, et fermer le panneau remet la page en l’état',
     'lp_shot_7' => 'Modifier sur la page : un site web avec un bouton sélectionné, et le panneau latéral qui liste les tokens utilisés et les changements effectués.',
+    'lp_kicker' => 'Fini le design générique d’IA',
+    'lp_slop' => 'Arrêtez de publier des apps et des landing pages qui sentent l’IA. Partez d’un design que vous admirez, reprenez ses couleurs, sa typographie et ses espacements, ajustez-les sur la page et faites-en le vôtre.',
     'lp_faq_ai_q' => 'Qu’est-ce que Pro + AI ?',
     'lp_faq_ai_a' => 'Pro plus les analyses IA : appuyez sur Analyser sur un site pour obtenir un verdict, la signification de ses couleurs et des sites similaires et concurrents trouvés par recherche web. Il coûte {price} par mois et inclut jusqu’à {n} analyses par mois.',
     'lp_faq_cancel_q' => 'Comment résilier Pro + AI ?',

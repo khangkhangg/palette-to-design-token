@@ -380,7 +380,9 @@ function palette_render_landing(array $ctx): string
     $price = palette_price_label($lang);
 
     $hero = '<section class="hero lp-hero">'
+        . '<p class="lp-kicker">' . $t('lp_kicker') . '</p>'
         . '<h1>' . $t('lp_h1') . '</h1>'
+        . '<p class="lead lp-slop">' . $t('lp_slop') . '</p>'
         . '<p class="lead">' . $t('lp_lead') . '</p>'
         . palette_section_hero_actions($lang, $price, palette_page_url('checkout', $lang) . '#buy',
             palette_ai_on() ? palette_page_url('checkout', $lang, ['plan' => 'ai']) . '#buy' : null, palette_ai_price_label($lang))

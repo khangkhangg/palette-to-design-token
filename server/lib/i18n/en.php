@@ -280,6 +280,8 @@ return [
     'lp_edit_b3' => 'Rewrite text, align elements and drag them to a new place; DESIGN.md lists these changes',
     'lp_edit_b4' => 'Every change has its own undo, and closing the panel puts the page back',
     'lp_shot_7' => 'Edit on page: a website with one button selected, and the side panel listing the tokens it uses and the changes made.',
+    'lp_kicker' => 'No more AI slop',
+    'lp_slop' => 'Stop shipping apps and landing pages that look AI-generated. Start from a design you admire, take its colours, type and spacing, adjust them on the page, and make it your own.',
     'lp_faq_ai_q' => 'What is Pro + AI?',
     'lp_faq_ai_a' => 'Pro plus AI insights: press Analyse on a site to get a verdict, what its colours mean, and similar and competitor sites found with a web search. It costs {price} a month and includes up to {n} analyses a month.',
     'lp_faq_cancel_q' => 'How do I cancel Pro + AI?',

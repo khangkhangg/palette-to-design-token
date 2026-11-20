@@ -296,7 +296,7 @@ const LP_KEYS = ['lp_title', 'lp_h1', 'lp_lead', 'lp_shots_h', 'lp_shot_1', 'lp_
     'terms_contact_h', 'terms_contact',
     'priv_ai_h', 'priv_ai', 'terms_sub_h', 'terms_sub', 'terms_ai_h', 'terms_ai', 'pp_plan_ai', 'pp_row_ai', 'pp_ai_n',
     'lp_ins_h', 'lp_ins_text', 'lp_ins_b1', 'lp_ins_b2', 'lp_ins_b3', 'lp_shot_6', 'lp_faq_ai_q', 'lp_faq_ai_a', 'lp_faq_cancel_q', 'lp_faq_cancel_a',
-    'lp_edit_h', 'lp_edit_text', 'lp_edit_b1', 'lp_edit_b2', 'lp_edit_b3', 'lp_edit_b4', 'lp_shot_7'];
+    'lp_edit_h', 'lp_edit_text', 'lp_edit_b1', 'lp_edit_b2', 'lp_edit_b3', 'lp_edit_b4', 'lp_shot_7', 'lp_kicker', 'lp_slop'];
 $missing = [];
 foreach (LANGS as $l) foreach (LP_KEYS as $k) {
     $v = palette_strings($l)[$k] ?? '';
@@ -696,6 +696,9 @@ ok('Edit on page screenshot: 7-edit-on-page.png, sized, lazy, alt; files exist',
     preg_match('#<img src="/palette/assets/screenshots/7-edit-on-page\.png" width="1280" height="800" alt="([^"]+)" loading="lazy"#', $ed[0] ?? '', $em) === 1
     && $em[1] === h(palette_t('en', 'lp_shot_7')) && is_file(PALETTE_DIR . '/assets/screenshots/7-edit-on-page.png')
     && is_file(PALETTE_DIR . '/../docs/store/screenshots/7-edit-on-page.png'));
+ok('hero: the "No more AI slop" kicker sits above the headline, its sentence between the headline and the lead',
+    preg_match('#<section class="hero lp-hero"><p class="lp-kicker">No more AI slop</p><h1>.*?</h1><p class="lead lp-slop">(.*?)</p><p class="lead">#s', $lpOn, $sl) === 1
+    && $sl[1] === h(palette_t('en', 'lp_slop')) && str_contains($sl[1], 'make it your own'));
 ok('plans table: Edit on page is included in Free, Pro and Pro + AI', $planRow($lpOn, 'pp_row_edit') === ['yes', 'yes', 'yes']);
 foreach (LANGS as $l) {
     $h = landing(['lang' => $l]);
