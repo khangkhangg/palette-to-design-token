@@ -39,10 +39,11 @@ describe('icons', () => {
 
 describe('screenshots', () => {
   const dir = resolve(import.meta.dirname, '../../../docs/store/screenshots');
-  it('has six 1280x800 PNGs, the sixth being the AI insights shot (the store takes five: see listing.en.md)', () => {
+  it('has seven 1280x800 PNGs: AI insights sixth, Edit on page seventh (the store takes five: see listing.en.md)', () => {
     const files = readdirSync(dir).filter((f) => f.endsWith('.png'));
-    expect(files).toHaveLength(6);
+    expect(files).toHaveLength(7);
     expect(files).toContain('6-ai-insights.png');
+    expect(files).toContain('7-edit-on-page.png');
     for (const f of files) {
       const b = readFileSync(resolve(dir, f));
       expect([b.readUInt32BE(16), b.readUInt32BE(20)], f).toEqual([1280, 800]);

@@ -10,7 +10,7 @@ const PALETTE_PRIVACY_UPDATED = '2026-11-04';
 const PALETTE_TERMS_UPDATED = '2026-11-04';
 const PALETTE_SUPPORT_EMAIL = 'support@vietnamcos.com';
 // The extension version the checkout page offers (keep in step with extension/public/manifest.json; pages-test checks).
-const PALETTE_EXT_VERSION = '0.3.0';
+const PALETTE_EXT_VERSION = '0.4.0';
 // Direct download, uploaded to server/download/ at deploy (npm run package:direct); never committed.
 const PALETTE_DOWNLOAD_URL = PALETTE_BASE . '/download/site-to-design-token-latest.zip';
 const PALETTE_US_STATES = [
@@ -158,6 +158,7 @@ function palette_icon(string $name, int $size = 16): string
         'search' => '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
         'info' => '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
         'spark' => '<path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 3v4M17 5h4"/>',
+        'pointer' => '<path d="M4 4l6.5 16 2.3-6.7L19.5 11z"/>',
     ];
     return '<svg class="icon icon-' . $name . '" width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
         . ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' . ($paths[$name] ?? '') . '</svg>';
@@ -303,7 +304,7 @@ function palette_section_features(string $lang): string
 {
     $t = fn(string $k) => palette_h(palette_t($lang, $k));
     $features = '';
-    foreach (['colours' => 'palette', 'system' => 'layers', 'contrast' => 'contrast', 'export' => 'code'] as $k => $icon) {
+    foreach (['colours' => 'palette', 'system' => 'layers', 'contrast' => 'contrast', 'edit' => 'pointer', 'export' => 'code'] as $k => $icon) {
         $features .= '<li class="feature"><span class="feature-icon">' . palette_icon($icon, 18) . '</span><div>'
             . '<h3>' . $t('pp_feat_' . $k . '_h') . '</h3><p>' . $t('pp_feat_' . $k) . '</p></div></li>';
     }
@@ -322,7 +323,7 @@ function palette_section_plans(string $lang, string $price): string
     $perMonth = palette_h(palette_t($lang, 'pp_ai_n', ['n' => palette_usage_limit(palette_settings($GLOBALS['conn']))]));
     $rows = '';
     foreach ([['pp_row_scan', $yes, $yes, $yes], ['pp_row_view', $yes, $yes, $yes], ['pp_row_copy', $yes, $yes, $yes], ['pp_row_contrast', $yes, $yes, $yes],
-              ['pp_row_saved', $t('pp_saved_free'), $t('pp_saved_pro'), $t('pp_saved_pro')], ['pp_row_copy_export', $yes, $yes, $yes], ['pp_row_exports', $no, $yes, $yes], ['pp_row_fixes', $no, $yes, $yes],
+              ['pp_row_saved', $t('pp_saved_free'), $t('pp_saved_pro'), $t('pp_saved_pro')], ['pp_row_edit', $yes, $yes, $yes], ['pp_row_copy_export', $yes, $yes, $yes], ['pp_row_exports', $no, $yes, $yes], ['pp_row_fixes', $no, $yes, $yes],
               ['pp_row_ai', $no, $no, $perMonth]] as [$k, $free, $pro, $ai]) {
         $rows .= '<tr><th scope="row">' . $t($k) . '</th><td>' . $free . '</td><td>' . $pro . '</td><td>' . $ai . '</td></tr>';
     }
@@ -364,6 +365,8 @@ function palette_script_strings(string $lang): array
 const PALETTE_SCREENSHOTS = ['1-popup-colours.png', '2-contrast.png', '3-side-panel-light.png', '4-side-panel-dark.png', '5-export.png'];
 // The AI results shot sits in the AI insights section, not in the gallery.
 const PALETTE_AI_SCREENSHOT = '6-ai-insights.png';
+// Edit on page has its own section on the landing page, like the AI shot.
+const PALETTE_EDIT_SCREENSHOT = '7-edit-on-page.png';
 // A short DESIGN.md excerpt for the landing page (code, so not translated).
 const PALETTE_DESIGN_MD_SAMPLE = "# Design system — fernleaf.example\n\nUse only these tokens for UI.\nDo not invent new colours, fonts or spacing.\n\n"
     . "| Role    | Token           | Hex     |\n| ------- | --------------- | ------- |\n| primary | --color-primary | #1F5E4B |\n"
@@ -377,7 +380,9 @@ function palette_render_landing(array $ctx): string
     $price = palette_price_label($lang);
 
     $hero = '<section class="hero lp-hero">'
+        . '<p class="lp-kicker">' . $t('lp_kicker') . '</p>'
         . '<h1>' . $t('lp_h1') . '</h1>'
+        . '<p class="lead lp-slop">' . $t('lp_slop') . '</p>'
         . '<p class="lead">' . $t('lp_lead') . '</p>'
         . palette_section_hero_actions($lang, $price, palette_page_url('checkout', $lang) . '#buy',
             palette_ai_on() ? palette_page_url('checkout', $lang, ['plan' => 'ai']) . '#buy' : null, palette_ai_price_label($lang))
@@ -393,6 +398,14 @@ function palette_render_landing(array $ctx): string
 
     $how = '<section class="pp-section" id="how" aria-labelledby="how-h"><h2 id="how-h">' . $t('lp_how_h') . '</h2>'
         . '<ol class="steps steps-row"><li>' . $t('lp_how_1') . '</li><li>' . $t('lp_how_2') . '</li><li>' . $t('lp_how_3') . '</li></ol></section>';
+
+    $editBullets = '';
+    foreach (['lp_edit_b1', 'lp_edit_b2', 'lp_edit_b3', 'lp_edit_b4'] as $k) $editBullets .= '<li>' . palette_icon('check', 16) . '<span>' . $t($k) . '</span></li>';
+    $edit = '<section class="pp-section lp-insights lp-edit" id="edit" aria-labelledby="edit-h"><div class="lp-ins-text">'
+        . '<h2 id="edit-h">' . palette_icon('pointer', 18) . $t('lp_edit_h') . '</h2><p>' . $t('lp_edit_text') . '</p>'
+        . '<ul class="ticks">' . $editBullets . '</ul></div>'
+        . '<figure class="shot"><img src="' . PALETTE_BASE . '/assets/screenshots/' . PALETTE_EDIT_SCREENSHOT . '" width="1280" height="800"'
+        . ' alt="' . $t('lp_shot_7') . '" loading="lazy" decoding="async"></figure></section>';
 
     $aiOn = palette_ai_on();
     $bullets = '';
@@ -429,7 +442,7 @@ function palette_render_landing(array $ctx): string
     $faq = '<section class="pp-section" id="faq" aria-labelledby="faq-h"><h2 id="faq-h">' . $t('lp_faq_h') . '</h2>'
         . '<div class="faq">' . $items . '</div></section>';
 
-    $main = '<main class="wrap landing">' . $hero . $showcase . $how . palette_section_features($lang) . palette_section_plans($lang, $price)
+    $main = '<main class="wrap landing">' . $hero . $showcase . $how . palette_section_features($lang) . $edit . palette_section_plans($lang, $price)
         . $insights . $ai . palette_section_install($lang) . $faq . '</main>';
     return palette_page_shell('landing', $lang, [], palette_t($lang, 'lp_title'), $main, ['t' => palette_script_strings($lang)]);
 }

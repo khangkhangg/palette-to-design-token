@@ -1,4 +1,4 @@
-# Submitting Site to Design Token 0.3.0 to the Chrome Web Store
+# Submitting Site to Design Token 0.4.0 to the Chrome Web Store
 
 A field-by-field guide for the Chrome Web Store Developer Dashboard, in the order the dashboard shows the tabs and
 fields. The item is already registered: its id is `jknkphgicofbpibajdcjncfdkbbehbgn`.
@@ -7,13 +7,13 @@ All paths are relative to the repository root. Text in code blocks is the exact 
 
 ## 1. Package
 
-Upload `extension/site-to-design-token-0.3.0.zip`.
+Upload `extension/site-to-design-token-0.4.0.zip`.
 
 - This is the Store build: its manifest has no `key` field (the Web Store assigns the id). Do not upload
   `site-to-design-token-0.1.0-direct.zip` or any `-direct` zip; those carry the key and are for loading unpacked.
 - Rebuild it with `npm run package` in `extension/` if the source has changed since 2026-10-17
   (`npm run package:check` verifies it).
-- Version 0.3.0. The title and the short description (summary) come from the package's `_locales/<lang>/messages.json`
+- Version 0.4.0. The title and the short description (summary) come from the package's `_locales/<lang>/messages.json`
   and cannot be edited in the dashboard. They match the "Title" and "Short description" sections of each
   `listing.<lang>.md`.
 
@@ -129,7 +129,7 @@ Reads the styles of the current tab only after the user clicks the extension ico
 scripting:
 
 ```
-Injects the extraction script into that tab to read computed styles and colours.
+Injects the extraction script into that tab to read computed styles and colours and, when the user turns on Edit on page, an editor script that previews their token changes on that tab. Closing the side panel removes the editor and restores the page.
 ```
 
 storage:
@@ -216,7 +216,7 @@ Click the toolbar icon on any website to see its colours, type, spacing and cont
       setting, which allows that extension's origin to call the licence and analyse API). Nothing to change there.
 - [ ] https://vietnamcos.com/palette/, https://vietnamcos.com/palette/privacy and https://vietnamcos.com/palette/terms
       all load.
-- [ ] Uploaded `extension/site-to-design-token-0.3.0.zip` (no `key` in its manifest).
+- [ ] Uploaded `extension/site-to-design-token-0.4.0.zip` (no `key` in its manifest).
 - [ ] Every language has its description and five screenshots; English has the icon and both promo tiles.
 - [ ] Privacy tab: single purpose, four permission justifications, remote code No, data types ticked, three
       certifications, privacy policy URL.

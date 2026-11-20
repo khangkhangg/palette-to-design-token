@@ -47,6 +47,64 @@
       "$value": "Fraunces, serif"
     }
   },
+  "text": {
+    "display": {
+      "size": {
+        "$type": "number",
+        "$value": 48
+      },
+      "line-height": {
+        "$type": "number",
+        "$value": 56
+      },
+      "weight": {
+        "$type": "number",
+        "$value": 600
+      }
+    },
+    "h1": {
+      "size": {
+        "$type": "number",
+        "$value": 24
+      },
+      "line-height": {
+        "$type": "number",
+        "$value": 32
+      },
+      "weight": {
+        "$type": "number",
+        "$value": 600
+      }
+    },
+    "body": {
+      "size": {
+        "$type": "number",
+        "$value": 16
+      },
+      "line-height": {
+        "$type": "number",
+        "$value": 26
+      },
+      "weight": {
+        "$type": "number",
+        "$value": 400
+      }
+    },
+    "small": {
+      "size": {
+        "$type": "number",
+        "$value": 13
+      },
+      "line-height": {
+        "$type": "number",
+        "$value": 18
+      },
+      "weight": {
+        "$type": "number",
+        "$value": 500
+      }
+    }
+  },
   "space": {
     "1": {
       "$type": "number",
@@ -95,6 +153,67 @@
     "com.figma": {
       "modes": [
         "Light"
+      ]
+    },
+    "com.vietnamcos.site-to-design-token": {
+      "site": "brewline.co",
+      "textStyles": [
+        {
+          "name": "display",
+          "fontFamily": "Fraunces",
+          "fontWeight": 600,
+          "fontSize": 48,
+          "lineHeight": 56
+        },
+        {
+          "name": "h1",
+          "fontFamily": "DM Sans",
+          "fontWeight": 600,
+          "fontSize": 24,
+          "lineHeight": 32
+        },
+        {
+          "name": "body",
+          "fontFamily": "DM Sans",
+          "fontWeight": 400,
+          "fontSize": 16,
+          "lineHeight": 26
+        },
+        {
+          "name": "small",
+          "fontFamily": "DM Sans",
+          "fontWeight": 500,
+          "fontSize": 13,
+          "lineHeight": 18
+        }
+      ],
+      "shadowStyles": [
+        {
+          "name": "sm",
+          "layers": [
+            {
+              "color": "#000000",
+              "opacity": 0.5,
+              "offsetX": 0,
+              "offsetY": 1,
+              "blur": 2,
+              "spread": 0
+            }
+          ]
+        },
+        {
+          "name": "md",
+          "layers": [
+            {
+              "color": "#000000",
+              "opacity": 0.6,
+              "offsetX": 0,
+              "offsetY": 6,
+              "blur": 16,
+              "spread": 0
+            }
+          ]
+        }
       ]
     }
   }

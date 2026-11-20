@@ -8,7 +8,8 @@
       "3-side-panel-light": "The whole design system in the side panel",
       "4-side-panel-dark": "Light and dark themes",
       "5-export": "Copy free, download with Pro: CSS, Tailwind, Figma, JSON and DESIGN.md",
-      "6-ai-insights": "Pro + AI: a verdict, what the colours mean, and similar sites"
+      "6-ai-insights": "Pro + AI: a verdict, what the colours mean, and similar sites",
+      "7-edit-on-page": "Edit on the page, then export your version"
     },
     "ai": {
       "sector": "Gardening and home",

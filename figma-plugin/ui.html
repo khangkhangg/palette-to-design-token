@@ -1,0 +1,48 @@
+<style>
+  body { margin: 0; padding: 16px; font: 12px/1.45 Inter, system-ui, sans-serif; color: var(--figma-color-text, #1b1e24); background: var(--figma-color-bg, #fff); display: flex; flex-direction: column; gap: 12px; }
+  h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  p { margin: 0; color: var(--figma-color-text-secondary, #5d6270); }
+  label.pick { display: flex; align-items: center; justify-content: center; height: 72px; border: 1px dashed var(--figma-color-border, #c9ccd4); border-radius: 8px; cursor: pointer; font-weight: 500; }
+  label.pick:focus-within { outline: 2px solid var(--figma-color-border-selected, #3b4bd8); outline-offset: 2px; }
+  input[type=file] { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  textarea { width: 100%; height: 88px; box-sizing: border-box; resize: none; padding: 8px; border: 1px solid var(--figma-color-border, #c9ccd4); border-radius: 6px; font: 11px/1.4 ui-monospace, Menlo, Consolas, monospace; background: var(--figma-color-bg, #fff); color: inherit; }
+  button { height: 32px; border: 0; border-radius: 6px; font: inherit; font-weight: 600; cursor: pointer; background: var(--figma-color-bg-brand, #3b4bd8); color: var(--figma-color-text-onbrand, #fff); }
+  button:disabled { opacity: .5; cursor: default; }
+  #status { min-height: 54px; white-space: pre-wrap; }
+  #status.error { color: var(--figma-color-text-danger, #b23a1a); }
+</style>
+<h1>Import design tokens</h1>
+<p>In the Site to Design Token extension, export <b>Figma</b> to get <b>figma-variables.json</b>. Choose that file here, or paste its contents.</p>
+<label class="pick"><input type="file" id="file" accept=".json,application/json"><span id="picked">Choose figma-variables.json</span></label>
+<textarea id="text" placeholder="…or paste the file's contents" aria-label="File contents" spellcheck="false"></textarea>
+<button id="go" disabled>Import</button>
+<p id="status" role="status"></p>
+<script>
+  var text = document.getElementById('text'), go = document.getElementById('go'), status = document.getElementById('status');
+  var say = function (message, error) { status.textContent = message; status.className = error ? 'error' : ''; };
+  var ready = function () { go.disabled = !text.value.trim(); };
+  text.addEventListener('input', ready);
+  document.getElementById('file').addEventListener('change', function (ev) {
+    var file = ev.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () { text.value = String(reader.result); document.getElementById('picked').textContent = file.name; ready(); say(''); };
+    reader.onerror = function () { say('That file could not be read.', true); };
+    reader.readAsText(file);
+  });
+  go.addEventListener('click', function () {
+    go.disabled = true;
+    say('Importing…');
+    parent.postMessage({ pluginMessage: { type: 'import', text: text.value } }, '*');
+  });
+  onmessage = function (ev) {
+    var msg = ev.data && ev.data.pluginMessage;
+    if (!msg) return;
+    ready();
+    if (msg.type === 'error') return say(msg.message, true);
+    var r = msg.result;
+    var lines = ['Imported into "' + r.collection + '":', r.variables + ' variables, ' + r.textStyles + ' text styles, ' + r.shadowStyles + ' shadow styles.'];
+    if (r.notes.length) lines.push('', 'Notes:', r.notes.slice(0, 6).join('\n'));
+    say(lines.join('\n'));
+  };
+</script>

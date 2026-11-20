@@ -1,11 +1,11 @@
 {
   "name": "site-to-design-token",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build && vite build -c vite.extract.config.ts",
-    "build:dev": "vite build --mode development && vite build -c vite.extract.config.ts --mode development",
+    "build": "vite build && vite build -c vite.extract.config.ts && vite build -c vite.edit.config.ts",
+    "build:dev": "vite build --mode development && vite build -c vite.extract.config.ts --mode development && vite build -c vite.edit.config.ts --mode development",
     "test": "vitest run",
     "e2e": "node scripts/e2e.mjs",
     "e2e:checkout": "node scripts/e2e-checkout.mjs",

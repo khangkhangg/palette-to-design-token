@@ -162,7 +162,17 @@ describe('dtcg', () => {
       blur: { value: 8, unit: 'px' },
       spread: { value: 1, unit: 'px' },
     });
-    expect(exportFile(t, 'figma', o).text).not.toMatch(/shadow|inset/);
+    // Figma variables cannot hold a shadow: the parseable one rides along as an effect style for the plugin, as hex plus opacity
+    const fig = JSON.parse(exportFile(t, 'figma', o).text);
+    expect(Object.keys(fig)).not.toContain('shadow');
+    expect(fig.$extensions['com.vietnamcos.site-to-design-token'].shadowStyles).toEqual([{
+      name: 'md',
+      layers: [
+        { color: '#000000', opacity: 1, offsetX: 0, offsetY: 1, blur: 2, spread: 0 },
+        { color: '#000000', opacity: 0.2, offsetX: 0, offsetY: 4, blur: 8, spread: 1 },
+      ],
+    }]);
+    expect(exportFile(t, 'figma', o).text).not.toMatch(/inset|weird/);
     const css = exportFile(t, 'css', o).text;
     expect(css).toContain('--shadow-sm: inset 0 1px 0 #fff;');
     expect(css).toContain('--shadow-lg: weird thing;');

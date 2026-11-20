@@ -92,6 +92,29 @@ const PATHS = {
   ),
   external: <path d="M7 17 17 7M8 7h9v9" />,
   minus: <path d="M5 12h14" />,
+  plus: <path d="M5 12h14M12 5v14" />,
+  cursor: <path d="M4 4l6.5 16 2.3-6.7L19.5 11z" />,
+  alignLeft: <path d="M3 6h18M3 12h11M3 18h15" />,
+  alignCenter: <path d="M3 6h18M6.5 12h11M4.5 18h15" />,
+  alignRight: <path d="M3 6h18M10 12h11M6 18h15" />,
+  alignTop: (
+    <>
+      <path d="M3 4h18" />
+      <rect x="8.5" y="8" width="7" height="11" rx="1.5" />
+    </>
+  ),
+  alignMiddle: (
+    <>
+      <path d="M3 12h5.5M15.5 12H21" />
+      <rect x="8.5" y="6" width="7" height="12" rx="1.5" />
+    </>
+  ),
+  alignBottom: (
+    <>
+      <path d="M3 20h18" />
+      <rect x="8.5" y="5" width="7" height="11" rx="1.5" />
+    </>
+  ),
 } satisfies Record<string, JSX.Element>;
 
 /** Icons that point along the reading direction: mirrored under [dir=rtl]. */
