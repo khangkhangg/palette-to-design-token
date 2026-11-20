@@ -351,6 +351,12 @@
     "aiNote": "Se cobra cada mes con tarjeta. Cancela cuando quieras; Pro y la IA siguen activos hasta el final del mes pagado.",
     "haveKey": "¿Ya tienes una clave?",
     "enterIt": "Introdúcela",
+    "waitTitle": "Esperando el pago",
+    "waitText": "Termina de pagar en la pestaña de pago. Este panel activa {plan} en cuanto se complete el pago.",
+    "openAgain": "Abrir el pago de nuevo",
+    "on": "{plan} está activo",
+    "renews": "Se renueva el {date}.",
+    "backToSystem": "Volver al sistema de diseño",
     "keyTitle": "Introduce tu clave de licencia",
     "keyText": "Pega la clave del correo de compra. Aquí sirven tanto las claves Pro como las Pro + AI."
   },

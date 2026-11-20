@@ -25,7 +25,8 @@ vi.mock('../../src/scan', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../src/scan')>()),
   scanActiveTab: mocks.scanActiveTab,
 }));
-vi.mock('../../src/license', () => ({
+vi.mock('../../src/license', async () => ({
+  addedLicence: (await vi.importActual<typeof import('../../src/license')>('../../src/license')).addedLicence,
   recheckIfDue: mocks.recheckIfDue, activate: mocks.activate, checkoutUrl: () => '', lostKeyUrl: () => '',
   currentLicense: async () => null, currentAiLicense: async () => null, aiState: async () => ({ active: false, paidThrough: null, usage: null }),
   accountUrl: () => '', removeLicense: async () => {},
@@ -68,6 +69,8 @@ const brewline = (over: Partial<Tokens> = {}): Tokens => ({
 const tab = { id: 7, url: 'https://brewline.co/menu' };
 const sidePanel = { setOptions: vi.fn(), open: vi.fn() };
 const tabsQuery = vi.fn();
+type Stored = (changes: Record<string, unknown>, area: string) => void;
+const stored = new Set<Stored>();
 
 beforeEach(() => {
   mocks.settings = { theme: 'system', lang: '', pro: false };
@@ -80,7 +83,12 @@ beforeEach(() => {
   sidePanel.setOptions.mockReset().mockResolvedValue(undefined);
   sidePanel.open.mockReset().mockResolvedValue(undefined);
   tabsQuery.mockReset().mockResolvedValue([tab]);
-  (globalThis as any).chrome = { tabs: { query: tabsQuery }, sidePanel };
+  stored.clear();
+  (globalThis as any).chrome = {
+    tabs: { query: tabsQuery },
+    sidePanel,
+    storage: { onChanged: { addListener: (l: Stored) => stored.add(l), removeListener: (l: Stored) => stored.delete(l) } },
+  };
 });
 afterEach(() => { cleanup(); delete (globalThis as any).chrome; });
 
@@ -172,6 +180,18 @@ describe('side panel App', () => {
     expect((screen.getByRole('radio', { name: /^Pro\s*\$1\.49/ }) as HTMLInputElement).checked).toBe(true);
     expect(screen.queryByRole('dialog')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Back to design system' }));
+    expect((await screen.findAllByText('#1F5E4B')).length).toBeGreaterThan(0);
+  });
+
+  it('the plan sheet no longer stays open after Pro turns on', async () => {
+    mocks.listScans.mockResolvedValue([brewline()]);
+    render(<App initialView="unlock" />);
+    await screen.findByRole('heading', { name: 'Choose your plan' });
+    await waitFor(() => expect(stored.size).toBe(1));
+    act(() => stored.forEach((l) => l({ license: { newValue: { key: 'SDT-ABCD-2345-6789' } } }, 'local')));
+    expect(await screen.findByText('Pro is on')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to the design system' }));
+    expect(screen.queryByText('Pro is on')).toBeNull();
     expect((await screen.findAllByText('#1F5E4B')).length).toBeGreaterThan(0);
   });
 

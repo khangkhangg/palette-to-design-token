@@ -439,6 +439,7 @@ describe('PlanSheet (J)', () => {
     )).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /Pay \$1\.49/ }));
     expect(create).toHaveBeenLastCalledWith({ url: 'https://vietnamcos.com/palette/checkout?lang=en&ext=abcdefghijklmnopabcdefghijklmnop&plan=pro' });
+    fireEvent.click(screen.getByRole('button', { name: 'Back to plans' }));
     fireEvent.click(screen.getByRole('radio', { name: /Pro \+ AI/ }));
     expect(screen.getByText(/Billed monthly by card/)).toBeTruthy();
     for (const item of ['Everything in Pro', '100 AI analyses a month', 'Cancel any time from your account']) expect(screen.getByText(item)).toBeTruthy();

@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { PlanSheet } from '../../src/ui/components/PlanSheet';
+import { installFakeChrome, uninstallFakeChrome, type FakeChrome } from './fake-chrome';
 
 const mocks = vi.hoisted(() => ({ activate: vi.fn() }));
 vi.mock('../../src/license', async (importOriginal) => ({
@@ -14,9 +15,11 @@ const create = vi.fn();
 beforeEach(() => {
   mocks.activate.mockReset();
   create.mockReset().mockResolvedValue({});
-  (globalThis as any).chrome = { tabs: { create }, runtime: { id: 'abcdefghijklmnopabcdefghijklmnop' } };
+  fake = installFakeChrome().chrome;
+  fake.tabs.create = create;
 });
-afterEach(() => { cleanup(); vi.useRealTimers(); delete (globalThis as any).chrome; });
+afterEach(() => { cleanup(); vi.useRealTimers(); uninstallFakeChrome(); });
+let fake: FakeChrome;
 
 const type = (value: string) => fireEvent.input(screen.getByLabelText('License key'), { target: { value } });
 const activate = () => fireEvent.click(screen.getByRole('button', { name: 'Activate' }));
@@ -109,5 +112,49 @@ describe('PlanSheet licensing', () => {
     const d = screen.getByRole('dialog');
     expect(d.getAttribute('aria-modal')).toBe('true');
     expect(d.getAttribute('aria-labelledby')).toBe('plan-title');
+  });
+});
+
+describe('PlanSheet checkout handoff', () => {
+  const subscribe = () => {
+    render(<PlanSheet variant="overlay" onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /Pay \$1\.49/ }));
+  };
+
+  it('Subscribe shows the waiting view, which can reopen the same checkout', () => {
+    subscribe();
+    expect(screen.getByRole('status').textContent).toContain('Waiting for payment');
+    fireEvent.click(screen.getByRole('button', { name: 'Open checkout again' }));
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(create.mock.calls[1]).toEqual(create.mock.calls[0]);
+  });
+
+  it('a stored Pro licence shows "Pro is on"', async () => {
+    subscribe();
+    await act(() => fake.storage.local.set({ license: { key: 'SDT-ABCD-2345-6789', verifiedAt: '2026-11-21T10:00:00Z' } }));
+    expect(screen.getByRole('status').textContent).toContain('Pro is on');
+  });
+
+  it('a stored AI licence shows "Pro + AI is on" with the analyses and renewal date', async () => {
+    subscribe();
+    await act(() => fake.storage.local.set({ licenseAi: { key: 'SDT-ABCD-2345-6789', verifiedAt: '2026-11-21T10:00:00Z', lastCheck: 'ok', paidThrough: '2026-12-21T00:00:00Z' } }));
+    const status = screen.getByRole('status').textContent;
+    expect(status).toContain('Pro + AI is on');
+    expect(status).toContain('100 AI analyses a month');
+    expect(status).toContain('Renews on');
+  });
+
+  it('a recheck of the same key or an ended AI licence does not count', async () => {
+    await fake.storage.local.set({ license: { key: 'SDT-ABCD-2345-6789', verifiedAt: 'a' } });
+    subscribe();
+    await act(() => fake.storage.local.set({ license: { key: 'SDT-ABCD-2345-6789', verifiedAt: 'b' } }));
+    await act(() => fake.storage.local.set({ licenseAi: { key: 'SDT-WXYZ-2345-6789', verifiedAt: 'b', lastCheck: 'ended' } }));
+    expect(screen.getByRole('status').textContent).toContain('Waiting for payment');
+  });
+
+  it('"Have a key? Enter it" opens the key entry', () => {
+    subscribe();
+    fireEvent.click(screen.getByRole('button', { name: 'Enter it' }));
+    expect(screen.getByLabelText('License key')).toBeTruthy();
   });
 });

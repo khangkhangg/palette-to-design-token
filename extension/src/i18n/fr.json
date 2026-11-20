@@ -351,6 +351,12 @@
     "aiNote": "Facturé chaque mois par carte. Résiliable à tout moment ; Pro et l'IA restent actifs jusqu'à la fin du mois payé.",
     "haveKey": "Vous avez déjà une clé ?",
     "enterIt": "Saisissez-la",
+    "waitTitle": "En attente du paiement",
+    "waitText": "Terminez le paiement sur la page de paiement. Ce panneau active {plan} dès que le paiement est validé.",
+    "openAgain": "Rouvrir le paiement",
+    "on": "{plan} est activé",
+    "renews": "Renouvellement le {date}.",
+    "backToSystem": "Retour au système de design",
     "keyTitle": "Saisissez votre clé de licence",
     "keyText": "Collez la clé reçue dans l'e-mail d'achat. Les clés Pro et Pro + AI fonctionnent toutes les deux ici."
   },

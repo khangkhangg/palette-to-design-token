@@ -277,6 +277,16 @@ export function checkoutUrl(lang: string, plan?: 'pro' | 'ai'): string {
   return `${API_BASE}/checkout?lang=${encodeURIComponent(lang)}&ext=${chrome.runtime.id}${plan ? `&plan=${plan}` : ''}`;
 }
 
+/** The licence a storage change just stored or turned back on, such as the key the checkout page hands over. Rechecks of the same key do not count. */
+export function addedLicence(changes: Record<string, chrome.storage.StorageChange>): { plan: 'pro' | 'ai'; paidThrough: string | null } | null {
+  for (const [k, plan] of [[LICENSE_KEY, 'pro'], [AI_KEY, 'ai']] as const) {
+    const n = changes[k]?.newValue as Partial<AiLicense> | undefined;
+    const o = changes[k]?.oldValue as Partial<AiLicense> | undefined;
+    if (n?.key && n.lastCheck !== 'ended' && (n.key !== o?.key || o?.lastCheck === 'ended')) return { plan, paidThrough: n.paidThrough ?? null };
+  }
+  return null;
+}
+
 export function lostKeyUrl(lang: string): string {
   return `${API_BASE}/checkout?lang=${encodeURIComponent(lang)}#resend`;
 }

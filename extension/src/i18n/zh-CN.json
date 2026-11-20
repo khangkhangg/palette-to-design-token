@@ -343,6 +343,12 @@
     "aiNote": "每月通过银行卡扣费。可随时取消；Pro 和 AI 会保留到已付月份结束。",
     "haveKey": "已有密钥？",
     "enterIt": "输入密钥",
+    "waitTitle": "等待付款",
+    "waitText": "请在结账标签页中完成付款。付款成功后，此面板会立即开启 {plan}。",
+    "openAgain": "再次打开结账页面",
+    "on": "{plan} 已开启",
+    "renews": "将于 {date} 续订。",
+    "backToSystem": "返回设计系统",
     "keyTitle": "输入许可证密钥",
     "keyText": "粘贴购买邮件中的密钥。Pro 和 Pro + AI 密钥都可以在这里使用。"
   },

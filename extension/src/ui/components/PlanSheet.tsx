@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { checkoutUrl } from '../../license';
-import { renderedLang, t } from '../i18n';
+import { addedLicence, checkoutUrl } from '../../license';
+import { formatDate, renderedLang, t } from '../i18n';
 import { Icon } from './Icon';
 import { KeyEntry } from './KeyEntry';
 
@@ -49,7 +49,8 @@ function PlanCard({ plan, on, onPick }: { plan: Plan; on: boolean; onPick(): voi
 /** Mockup J: the Pro + AI and Pro plans, the checkout page in a new tab, and the license key form for buyers. */
 export function PlanSheet({ variant, plan: initial = 'pro', start = 'plans', onClose, onUnlocked }: PlanSheetProps) {
   const [plan, setPlan] = useState<Plan>(initial);
-  const [mode, setMode] = useState<'plans' | 'key'>(start);
+  const [mode, setMode] = useState<'plans' | 'key' | 'wait'>(start);
+  const [done, setDone] = useState<{ plan: Plan; paidThrough: string | null } | null>(null);
   const dialog = useRef<HTMLDivElement>(null);
   const closeBtn = useRef<HTMLButtonElement>(null);
   const keyBody = useRef<HTMLDivElement>(null);
@@ -88,9 +89,27 @@ export function PlanSheet({ variant, plan: initial = 'pro', start = 'plans', onC
     if (mode === 'key' && start === 'plans') keyBody.current?.querySelector<HTMLInputElement>('.key-input')?.focus();
   }, [mode, start]);
 
-  // Back from the key form returns to the plans when the sheet started there; otherwise it leaves.
-  const back = mode === 'key' && start === 'plans' ? () => setMode('plans') : variant === 'page' ? onClose : null;
-  const backLabel = mode === 'key' && start === 'plans' ? t('plans.back') : t('panel.back');
+  // The checkout page hands the key to the background script, which stores it. The key form reports its own result.
+  useEffect(() => {
+    if (mode === 'key') return;
+    const onStored = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+      const lic = area === 'local' ? addedLicence(changes) : null;
+      if (lic) setDone(lic);
+    };
+    chrome.storage.onChanged.addListener(onStored);
+    return () => chrome.storage.onChanged.removeListener(onStored);
+  }, [mode]);
+
+  // Back from the key form or the wait returns to the plans when the sheet started there; otherwise it leaves.
+  const back = done ? null : mode !== 'plans' && start === 'plans' ? () => setMode('plans') : variant === 'page' ? onClose : null;
+  const backLabel = mode !== 'plans' && start === 'plans' ? t('plans.back') : t('panel.back');
+  const openCheckout = () => void chrome.tabs.create({ url: checkoutUrl(renderedLang(), plan) });
+  const keyNote = (
+    <p class="plan-note">
+      {t('plans.haveKey')}{' '}
+      <button type="button" class="link-btn plan-key-link" onClick={() => setMode('key')}>{t('plans.enterIt')}</button>
+    </p>
+  );
 
   const content = (
     <>
@@ -100,14 +119,41 @@ export function PlanSheet({ variant, plan: initial = 'pro', start = 'plans', onC
             <Icon name="back" />
           </button>
         )}
-        <h2 class="plan-title" id="plan-title">{mode === 'key' ? t('plans.keyTitle') : t('plans.title')}</h2>
+        <h2 class="plan-title" id="plan-title">{done ? t(`plans.${done.plan}.name`) : mode === 'wait' ? t(`plans.${plan}.name`) : mode === 'key' ? t('plans.keyTitle') : t('plans.title')}</h2>
         {variant === 'overlay' && (
           <button ref={closeBtn} type="button" class="icon-btn plan-close" aria-label={t('unlock.close')} onClick={onClose}>
             <Icon name="close" />
           </button>
         )}
       </div>
-      {mode === 'plans' ? (
+      {done ? (
+        <div class="plan-body">
+          <div class="status" role="status">
+            <Icon name="check" size={22} />
+            <strong>{t('plans.on', { plan: t(`plans.${done.plan}.name`) })}</strong>
+            {done.plan === 'ai' && <span>{t('plans.ai.items.analyses')}</span>}
+            {done.plan === 'ai' && done.paidThrough && <span>{t('plans.renews', { date: formatDate(done.paidThrough) })}</span>}
+          </div>
+          <div class="plan-actions">
+            <button type="button" class="checkout-btn" onClick={onClose}>{t('plans.backToSystem')}</button>
+          </div>
+        </div>
+      ) : mode === 'wait' ? (
+        <div class="plan-body">
+          <div class="status" role="status">
+            <span class="spinner" aria-hidden="true" />
+            <strong>{t('plans.waitTitle')}</strong>
+            <span>{t('plans.waitText', { plan: t(`plans.${plan}.name`) })}</span>
+          </div>
+          <div class="plan-actions">
+            <button type="button" class="btn" onClick={openCheckout}>
+              <span>{t('plans.openAgain')}</span>
+              <Icon name="external" />
+            </button>
+            {keyNote}
+          </div>
+        </div>
+      ) : mode === 'plans' ? (
         <div class="plan-body">
           <div class="plan-cards" role="radiogroup" aria-labelledby="plan-title">
             {(['ai', 'pro'] as const).map((p) => <PlanCard key={p} plan={p} on={plan === p} onPick={() => setPlan(p)} />)}
@@ -116,16 +162,13 @@ export function PlanSheet({ variant, plan: initial = 'pro', start = 'plans', onC
             <button
               type="button"
               class="checkout-btn"
-              onClick={() => { void chrome.tabs.create({ url: checkoutUrl(renderedLang(), plan) }); }}
+              onClick={() => { openCheckout(); setMode('wait'); }}
             >
               <span>{t(plan === 'ai' ? 'plans.subscribe' : 'plans.payPro')}</span>
               <Icon name="external" />
             </button>
             <p class="plan-note">{t(plan === 'ai' ? 'plans.aiNote' : 'unlock.refund')}</p>
-            <p class="plan-note">
-              {t('plans.haveKey')}{' '}
-              <button type="button" class="link-btn plan-key-link" onClick={() => setMode('key')}>{t('plans.enterIt')}</button>
-            </p>
+            {keyNote}
           </div>
         </div>
       ) : (

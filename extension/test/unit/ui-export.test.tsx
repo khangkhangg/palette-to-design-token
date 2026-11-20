@@ -7,6 +7,7 @@ import { Header } from '../../src/ui/components/Header';
 import { PlanSheet } from '../../src/ui/components/PlanSheet';
 import { ExportScreen } from '../../src/ui/sidepanel/ExportScreen';
 import { brewline } from './export/brewline.tokens';
+import { installFakeChrome, uninstallFakeChrome } from './fake-chrome';
 
 const { download } = await vi.importActual<typeof import('../../src/ui/download')>('../../src/ui/download');
 const mocks = vi.hoisted(() => ({ download: vi.fn() }));
@@ -19,8 +20,9 @@ beforeEach(() => {
   mocks.download.mockReset();
   writeText.mockReset().mockResolvedValue(undefined);
   Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  installFakeChrome();
 });
-afterEach(() => { cleanup(); vi.unstubAllEnvs(); });
+afterEach(() => { cleanup(); vi.unstubAllEnvs(); uninstallFakeChrome(); });
 
 const preview = () => document.querySelector('pre')!.textContent;
 const pick = (name: string) => fireEvent.click(screen.getByRole('radio', { name: new RegExp(`^${name}`) }));

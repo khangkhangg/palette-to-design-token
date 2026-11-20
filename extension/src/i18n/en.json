@@ -347,6 +347,12 @@
     "aiNote": "Billed monthly by card. Cancel any time; Pro and AI stay on until the end of the month you paid for.",
     "haveKey": "Already have a key?",
     "enterIt": "Enter it",
+    "waitTitle": "Waiting for payment",
+    "waitText": "Finish paying in the checkout tab. This panel turns on {plan} as soon as the payment goes through.",
+    "openAgain": "Open checkout again",
+    "on": "{plan} is on",
+    "renews": "Renews on {date}.",
+    "backToSystem": "Back to the design system",
     "keyTitle": "Enter your license key",
     "keyText": "Paste the key from your purchase email. Pro and Pro + AI keys both work here."
   },
