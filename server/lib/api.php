@@ -4,9 +4,11 @@
 // (companies' helpers are session based); $req['session'] supplies the logged-in user.
 // Returns ['status','headers','body'] plus 'defer' (a callable to run after the response is flushed) for resend.
 
-const PALETTE_API_POST_ACTIONS = ['create', 'capture', 'resend', 'claim', 'verify', 'analyse', 'subscribe_start', 'subscribe_confirm', 'sub_cancel', 'st_portal', 'st_checkout', 'st_confirm'];
+const PALETTE_API_POST_ACTIONS = ['create', 'capture', 'resend', 'claim', 'verify', 'analyse', 'subscribe_start', 'subscribe_confirm', 'sub_cancel', 'st_portal', 'st_checkout', 'st_confirm',
+    'dir_upload', 'dir_token'];
+const PALETTE_API_GET_ACTIONS = ['config', 'dir_me'];
 // Called from the extension's own origin: CORS for the allowed extension ids, and no CSRF token.
-const PALETTE_API_EXTENSION_ACTIONS = ['verify', 'analyse'];
+const PALETTE_API_EXTENSION_ACTIONS = ['verify', 'analyse', 'dir_upload', 'dir_me'];
 
 function palette_api_extension_ids(array $settings): array
 {
@@ -69,7 +71,7 @@ function palette_api_owns_st(string $kind, int $rowId): bool
 // sub_cancel comes from the account page, whose form token is 'palette_account'.
 function palette_api_csrf_form(string $action): string
 {
-    return in_array($action, ['sub_cancel', 'st_portal'], true) ? 'palette_account' : 'palette_checkout';
+    return in_array($action, ['sub_cancel', 'st_portal', 'dir_token', 'dir_upload'], true) ? 'palette_account' : 'palette_checkout';
 }
 
 function palette_api_handle(array $req): array
@@ -81,14 +83,15 @@ function palette_api_handle(array $req): array
     $str = fn(string $k): string => is_string($post[$k] ?? null) ? $post[$k] : '';
     $lang = palette_lang(is_string($req['lang'] ?? null) ? $req['lang'] : $str('lang'));
 
-    if ($action !== 'config' && !in_array($action, PALETTE_API_POST_ACTIONS, true)) return palette_api_error(404, 'err_unknown_action', $lang);
+    $isGet = in_array($action, PALETTE_API_GET_ACTIONS, true);
+    if (!$isGet && !in_array($action, PALETTE_API_POST_ACTIONS, true)) return palette_api_error(404, 'err_unknown_action', $lang);
 
     $fromExtension = in_array($action, PALETTE_API_EXTENSION_ACTIONS, true);
     $cors = $fromExtension ? palette_api_cors((string)($req['origin'] ?? ''), palette_settings($conn)) : [];
     if ($fromExtension && $method === 'OPTIONS') {
-        return palette_api_reply(204, [], $cors + ['Access-Control-Allow-Methods' => 'POST', 'Access-Control-Allow-Headers' => 'Content-Type', 'Access-Control-Max-Age' => '600']);
+        return palette_api_reply(204, [], $cors + ['Access-Control-Allow-Methods' => 'GET, POST', 'Access-Control-Allow-Headers' => 'Content-Type, Authorization', 'Access-Control-Max-Age' => '600']);
     }
-    if ($method !== ($action === 'config' ? 'GET' : 'POST')) return palette_api_error(405, 'err_method', $lang, $cors);
+    if ($method !== ($isGet ? 'GET' : 'POST')) return palette_api_error(405, 'err_method', $lang, $cors);
 
     if ($action === 'config') {
         $pp = pp_settings($conn);
@@ -112,6 +115,17 @@ function palette_api_handle(array $req): array
         $r = palette_analyse($conn, ['key' => $str('key'), 'url' => $str('url'), 'title' => $str('title'), 'description' => $str('description'),
             'design' => $post['design'] ?? null, 'lang' => $lang, 'ip' => (string)($req['ip'] ?? '')]);
         return palette_api_reply($r['status'], $r['body'], $cors);
+    }
+
+    // Token directory, extension side: Authorization: Bearer <token> instead of the session cookie (lib/directory.php).
+    if ($action === 'dir_me' || ($action === 'dir_upload' && trim((string)($req['auth'] ?? '')) !== '')) {
+        $uid = palette_dir_token_user($conn, (string)($req['auth'] ?? ''));
+        if ($uid === null) return palette_api_error(401, 'token_revoked', $lang, $cors);
+        if ($action === 'dir_me') {
+            $styles = array_map(fn($s) => ['slug' => $s['slug'], 'name' => $s['name']], palette_dir_styles($conn));
+            return palette_api_reply(200, ['ok' => true, 'status' => palette_dir_member($conn, $uid)['status'], 'styles' => $styles], $cors);
+        }
+        return palette_dir_upload_reply($conn, $uid, 'extension', $req, $lang, $cors);
     }
 
     if (!verifyCSRFToken(is_string($post['csrf'] ?? null) ? $post['csrf'] : '', palette_api_csrf_form($action))) return palette_api_error(419, 'err_csrf', $lang);
@@ -230,6 +244,14 @@ function palette_api_handle(array $req): array
             $res = palette_api_reply(200, ['ok' => true, 'message' => palette_t($lang, 'api_resend_ok')]);
             $res['defer'] = fn() => palette_resend($conn, $email, (string)($req['ip'] ?? ''));
             return $res;
+        case 'dir_upload': // web form: session + CSRF
+        case 'dir_token': // connect page: hands a new extension token to the extension
+            $uid = palette_session_user((array)($req['session'] ?? []));
+            if ($uid < 1) return palette_api_error(403, 'err_login', $lang);
+            if ($action === 'dir_upload') return palette_dir_upload_reply($conn, $uid, 'web', $req, $lang, []);
+            if (palette_dir_member($conn, $uid)['status'] === 'banned') return palette_api_error(403, 'blocked', $lang);
+            if (!palette_rate_hit('dir:token:' . $uid, 10, 3600)) return palette_api_error(429, 'rate_limited', $lang);
+            return palette_api_reply(200, ['ok' => true, 'token' => palette_dir_token_new($conn, $uid)]);
         default: // claim
             $uid = $req['session']['user_id'] ?? null;
             if (!(is_int($uid) || (is_string($uid) && ctype_digit($uid))) || (int)$uid < 1) return palette_api_error(403, 'err_login', $lang);

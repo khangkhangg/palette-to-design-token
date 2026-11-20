@@ -774,8 +774,45 @@
     });
   }
 
+  // ---- directory connect: a fresh token from the API, handed to the extension like a licence key
+  function initDirConnect() {
+    var btn = $('dir-connect');
+    if (!btn) return;
+    var status = $('dir-connect-status');
+    function done(ok) {
+      btn.disabled = false;
+      status.textContent = ok ? T.dir_connect_ok : T.dir_connect_err;
+      status.className = ok ? 'pending' : 'error';
+      show(status, true);
+    }
+    btn.addEventListener('click', function () {
+      var rt = window.chrome && window.chrome.runtime;
+      if (!rt || typeof rt.sendMessage !== 'function') { done(false); return; }
+      btn.disabled = true;
+      api('dir_token', { csrf: data.csrf || '' }).then(function (r) {
+        if (!r.ok) { done(false); if (r.message) status.textContent = r.message; return; }
+        var settled = false;
+        var timer = setTimeout(function () { if (!settled) { settled = true; done(false); } }, 4000);
+        try {
+          rt.sendMessage(btn.getAttribute('data-ext'), { type: 'dir_token', token: r.token }, function (resp) {
+            void rt.lastError;
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            done(!!(resp && resp.ok === true));
+          });
+        } catch (e) {
+          settled = true;
+          clearTimeout(timer);
+          done(false);
+        }
+      });
+    });
+  }
+
   initCheckout();
   initResend();
   initClaim();
   initCancel();
+  initDirConnect();
 })();

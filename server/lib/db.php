@@ -9,7 +9,9 @@ function palette_defaults(): array
             'ai_price_usd' => '3.99', 'ai_monthly_analyses' => 100, 'ai_monthly_token_cap' => 600000,
             'search_provider' => 'brave', 'search_key' => '', 'ai_paypal_plan_id' => '', 'ai_paypal_plan_mode' => '', 'ai_paypal_product_id' => '',
             // The USD price the stored PayPal plan bills (ruling A18): written by setup.php, shown and sold.
-            'ai_paypal_plan_price' => ''];
+            'ai_paypal_plan_price' => '',
+            // Token directory: open reports from this many different members hide an item until an admin checks it.
+            'dir_report_limit' => 3];
 }
 
 // The HMAC secret behind subscription custom_ids (ruling A20) has its own admin_settings row, created once by
@@ -173,6 +175,78 @@ function palette_migrate(mysqli $conn): void
         note          VARCHAR(500) NULL,
         created_at    DATETIME NOT NULL,
         KEY license_id (license_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    // Token directory (lib/directory.php). Deleting an item removes its row and its folder.
+    $conn->query("CREATE TABLE IF NOT EXISTS palette_dir_items (
+        id           INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        slug         VARCHAR(80) NOT NULL,
+        user_id      INT NOT NULL,
+        host         VARCHAR(190) NOT NULL,
+        url          VARCHAR(500) NOT NULL,
+        title        VARCHAR(120) NOT NULL,
+        status       ENUM('published','hidden') NOT NULL DEFAULT 'published',
+        hidden_by    ENUM('admin','reports') NULL,
+        reviewed_at  DATETIME NULL,
+        reports      INT UNSIGNED NOT NULL DEFAULT 0,
+        source       ENUM('web','extension') NOT NULL,
+        token_format ENUM('dtcg','figma') NOT NULL,
+        style_id     SMALLINT UNSIGNED NOT NULL,
+        summary_json TEXT NOT NULL,
+        files_json   TEXT NOT NULL,
+        bytes        INT UNSIGNED NOT NULL,
+        downloads    INT UNSIGNED NOT NULL DEFAULT 0,
+        status_note  VARCHAR(500) NULL,
+        created_at   DATETIME NOT NULL,
+        UNIQUE KEY slug (slug), KEY list (status, created_at), KEY review (reviewed_at),
+        KEY user_id (user_id), KEY host (host), KEY style (style_id, status, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $conn->query("CREATE TABLE IF NOT EXISTS palette_dir_styles (
+        id     SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        slug   VARCHAR(40) NOT NULL,
+        name   VARCHAR(60) NOT NULL,
+        sort   SMALLINT NOT NULL DEFAULT 0,
+        active TINYINT(1) NOT NULL DEFAULT 1,
+        UNIQUE KEY slug (slug)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $conn->query("INSERT IGNORE INTO palette_dir_styles (slug, name, sort) VALUES ('minimal', 'Minimal', 1),
+        ('corporate', 'Corporate', 2), ('editorial', 'Editorial', 3), ('playful', 'Playful', 4), ('bold', 'Bold', 5),
+        ('luxury', 'Luxury', 6), ('retro', 'Retro', 7), ('tech', 'Tech', 8)");
+    $conn->query("CREATE TABLE IF NOT EXISTS palette_dir_reports (
+        id         INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        item_id    INT UNSIGNED NOT NULL,
+        user_id    INT NOT NULL,
+        reason     ENUM('personal_data','copyright','offensive','spam','broken','other') NOT NULL,
+        note       VARCHAR(500) NULL,
+        status     ENUM('open','resolved') NOT NULL DEFAULT 'open',
+        created_at DATETIME NOT NULL,
+        UNIQUE KEY one_per_member (item_id, user_id), KEY open_reports (status, item_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $conn->query("CREATE TABLE IF NOT EXISTS palette_dir_members (
+        user_id    INT NOT NULL PRIMARY KEY,
+        status     ENUM('active','deactivated','banned') NOT NULL DEFAULT 'active',
+        note       VARCHAR(500) NULL,
+        changed_by INT NULL,
+        changed_at DATETIME NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $conn->query("CREATE TABLE IF NOT EXISTS palette_dir_tokens (
+        id           INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        user_id      INT NOT NULL,
+        token_hash   CHAR(64) NOT NULL,
+        created_at   DATETIME NOT NULL,
+        last_used_at DATETIME NULL,
+        revoked_at   DATETIME NULL,
+        UNIQUE KEY token_hash (token_hash), KEY user_id (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $conn->query("CREATE TABLE IF NOT EXISTS palette_dir_log (
+        id            INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        admin_user_id INT NOT NULL,
+        target        ENUM('item','member') NOT NULL,
+        target_id     INT NOT NULL,
+        action        VARCHAR(40) NOT NULL,
+        note          VARCHAR(500) NULL,
+        created_at    DATETIME NOT NULL,
+        KEY target (target, target_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
     palette_migrate_sub_secret($conn);

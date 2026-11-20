@@ -208,3 +208,8 @@ td.bad { color: var(--fail-ink); font-weight: 600; }
 .st-confirm { border: 1px solid var(--fail-ink); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .st-confirm p, .st-confirm form { margin: 0; }
 @media (max-width: 860px) { .st-grid, .st-card .kvs { grid-template-columns: 1fr; } }
+
+/* Directory and Members tabs */
+.thumb { inline-size: 64px; aspect-ratio: 16 / 10; object-fit: cover; object-position: top; border-radius: 6px; border: 1px solid var(--line); flex-shrink: 0; }
+.filters .key-row .btn[aria-current] { background: var(--key-bg); border-color: var(--key-line); color: var(--key-ink); }
+.adm-nav .badge { margin-inline-start: 4px; }

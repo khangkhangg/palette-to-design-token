@@ -240,7 +240,7 @@ palette_settings_put($conn, ['extension_ids' => [EXT]]);
 // preflight
 $r = call('OPTIONS', 'verify', [], ['origin' => $origin]);
 ok('preflight 204 with CORS headers', $r['status'] === 204 && acao($r) === $origin
-    && $r['headers']['Access-Control-Allow-Methods'] === 'POST' && $r['headers']['Access-Control-Allow-Headers'] === 'Content-Type'
+    && $r['headers']['Access-Control-Allow-Methods'] === 'GET, POST' && $r['headers']['Access-Control-Allow-Headers'] === 'Content-Type, Authorization'
     && $r['headers']['Access-Control-Max-Age'] === '600' && $r['headers']['Vary'] === 'Origin');
 $r = call('OPTIONS', 'verify', [], ['origin' => 'chrome-extension://' . OTHER_EXT]);
 ok('preflight from unlisted ext: 204 without ACAO', $r['status'] === 204 && acao($r) === null);
