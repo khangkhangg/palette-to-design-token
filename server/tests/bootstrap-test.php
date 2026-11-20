@@ -20,7 +20,7 @@ function cols(mysqli $c, string $t): array
     return $o;
 }
 $o = cols($conn, 'palette_orders');
-ok('orders columns', array_keys($o) === ['id','order_id','email','lang','country','region','amount_usd','tax_usd','status','capture_id','consent_at','created_at','captured_at','license_id','provider','stripe_session','stripe_payment_intent','livemode']);
+ok('orders columns', array_keys($o) === ['id','order_id','email','lang','country','region','amount_usd','tax_usd','status','capture_id','consent_at','created_at','captured_at','license_id','provider','stripe_session','stripe_payment_intent','livemode','user_id']);
 ok('orders status enum', str_contains($o['status']['Type'], "'created','captured','failed'"));
 ok('orders country nullable char(2)', $o['country']['Null'] === 'YES' && $o['country']['Type'] === 'char(2)');
 $l = cols($conn, 'palette_licenses');

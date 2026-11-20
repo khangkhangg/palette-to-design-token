@@ -22,7 +22,7 @@ function palette_st_log_error(string $what, string $orderId, int $status): void
     error_log("PALETTE_STRIPE_ERROR $what order=$orderId http=$status");   // never the key or any secret
 }
 
-function palette_st_order_start(mysqli $c, string $mode, string $email, string $lang, bool $consent): array
+function palette_st_order_start(mysqli $c, string $mode, string $email, string $lang, bool $consent, ?int $userId = null): array
 {
     if (preg_match('/[\r\n]/', $email)) return ['ok' => false, 'error' => 'err_email'];
     $email = strtolower(trim($email));
@@ -36,9 +36,9 @@ function palette_st_order_start(mysqli $c, string $mode, string $email, string $
     $cents = (int)palette_cents($t['amount']);
     $orderId = 'ST-' . strtoupper(bin2hex(random_bytes(8)));
     $live = $mode === 'live' ? 1 : 0;
-    $st = $c->prepare("INSERT INTO palette_orders (order_id, email, lang, amount_usd, tax_usd, status, consent_at, created_at, provider, livemode)
-                       VALUES (?, ?, ?, ?, ?, 'created', NOW(), NOW(), 'stripe', ?)");
-    $st->bind_param('sssssi', $orderId, $email, $lang, $t['amount'], $t['tax'], $live);
+    $st = $c->prepare("INSERT INTO palette_orders (order_id, email, lang, amount_usd, tax_usd, status, consent_at, created_at, provider, livemode, user_id)
+                       VALUES (?, ?, ?, ?, ?, 'created', NOW(), NOW(), 'stripe', ?, ?)");
+    $st->bind_param('sssssii', $orderId, $email, $lang, $t['amount'], $t['tax'], $live, $userId);
     $st->execute();
     $id = (int)$c->insert_id;
     $st->close();
@@ -159,7 +159,7 @@ function palette_st_fulfil_order(mysqli $c, array $order, array $session): array
             $c->commit();
             return palette_st_fulfil_loser($c, $id);
         }
-        $lic = palette_issue_license($c, (string)$order['email'], $oid, (string)$order['lang'], null, 'stripe', (int)$order['livemode']);
+        $lic = palette_issue_license($c, (string)$order['email'], $oid, (string)$order['lang'], null, 'stripe', (int)$order['livemode'], isset($order['user_id']) ? (int)$order['user_id'] : null);
         $lid = (int)$lic['id'];
         $c->query("UPDATE palette_orders SET license_id = $lid WHERE id = $id");
         $c->commit();
@@ -188,7 +188,7 @@ function palette_st_fulfil_loser(mysqli $c, int $id): array
 
 // ---- Pro + AI by Stripe (subscription). Same shape as the one-payment flow above; rows live in palette_subscriptions.
 
-function palette_st_sub_start(mysqli $c, string $mode, string $email, string $lang, bool $consent, ?int $moveLicenceId = null, ?string $trialEnd = null): array
+function palette_st_sub_start(mysqli $c, string $mode, string $email, string $lang, bool $consent, ?int $moveLicenceId = null, ?string $trialEnd = null, ?int $userId = null): array
 {
     if (preg_match('/[\r\n]/', $email)) return ['ok' => false, 'error' => 'err_email'];
     $email = strtolower(trim($email));
@@ -202,9 +202,9 @@ function palette_st_sub_start(mysqli $c, string $mode, string $email, string $la
     $price = palette_money($cents);
     $live = $mode === 'live' ? 1 : 0;
     $now = palette_sub_now();
-    $st = $c->prepare("INSERT INTO palette_subscriptions (email, lang, status, plan_id, price_usd, consent_at, created_at, updated_at, provider, livemode, move_license_id)
-                       VALUES (?, ?, 'pending', 'stripe', ?, ?, ?, ?, 'stripe', ?, ?)");
-    $st->bind_param('ssssssii', $email, $lang, $price, $now, $now, $now, $live, $moveLicenceId);
+    $st = $c->prepare("INSERT INTO palette_subscriptions (email, lang, status, plan_id, price_usd, consent_at, created_at, updated_at, provider, livemode, move_license_id, user_id)
+                       VALUES (?, ?, 'pending', 'stripe', ?, ?, ?, ?, 'stripe', ?, ?, ?)");
+    $st->bind_param('ssssssiii', $email, $lang, $price, $now, $now, $now, $live, $moveLicenceId, $userId);
     $st->execute();
     $id = (int)$c->insert_id;
     $st->close();
@@ -389,7 +389,7 @@ function palette_st_fulfil_sub(mysqli $c, array $row, array $session): array
             $moved = true;
         }
         $lic ??= palette_issue_license($c, (string)$row['email'], $sid, (string)$row['lang'],
-            ['subscription_id' => $sid, 'paid_through' => $end, 'period_start' => $start], 'stripe', (int)$row['livemode']);
+            ['subscription_id' => $sid, 'paid_through' => $end, 'period_start' => $start], 'stripe', (int)$row['livemode'], isset($row['user_id']) ? (int)$row['user_id'] : null);
         $lid = (int)$lic['id'];
         $c->query("UPDATE palette_subscriptions SET license_id = $lid WHERE id = $id");
         $c->commit();

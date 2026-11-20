@@ -392,11 +392,12 @@
         return;
       }
       $('key').textContent = r.key;
+      show(document.querySelector('#done .linkbox'), !r.saved); show($('saved-box'), !!r.saved);
       $('account-link').setAttribute('href', '/palette/account?key=' + encodeURIComponent(r.key) + '&lang=' + encodeURIComponent(lang));
       fillWithLtr($('emailed'), r.email_masked ? T.co_emailed : '', '{email}', r.email_masked);
       show($('done'), true);
       $('done-title').focus();
-      tellExtension(r.key);
+      tellExtension(r.key, (r.plan || plan) === 'ai');
     }
 
     // PayPal took the subscription but the first payment is not settled yet: the key comes by email.
@@ -409,7 +410,7 @@
 
     // Hands the key to the extension that opened this page (?ext=<id>, externally_connectable; after Stripe, the id
     // saved before the redirect).
-    function tellExtension(key) {
+    function tellExtension(key, ai) {
       var status = $('ext-status');
       var paste = function () { status.textContent = T.co_ext_paste; status.className = 'ext-status'; };
       var ext = new URLSearchParams(location.search).get('ext') || saved.ext;
@@ -424,7 +425,7 @@
           settled = true;
           clearTimeout(timer);
           if (resp && resp.ok === true) {
-            status.textContent = T.co_ext_ok;
+            status.textContent = ai ? T.co_ext_ok_ai : T.co_ext_ok;
             status.className = 'ext-status is-ok';
           } else {
             paste();

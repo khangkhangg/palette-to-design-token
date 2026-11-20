@@ -27,7 +27,7 @@ const PALETTE_US_STATES = [
 ];
 // Strings checkout.js needs at runtime.
 const PALETTE_SCRIPT_STRINGS = ['err_email', 'err_paused', 'err_consent', 'err_paypal', 'err_retry', 'err_csrf', 'co_err_region', 'co_err_network',
-    'co_err_confirm', 'co_err_confirm_sub', 'co_load_failed', 'co_copy', 'co_copied', 'co_copy_failed', 'co_ext_ok', 'co_ext_paste', 'co_emailed', 'co_key_emailed', 'api_resend_ok', 'acct_added',
+    'co_err_confirm', 'co_err_confirm_sub', 'co_load_failed', 'co_copy', 'co_copied', 'co_copy_failed', 'co_ext_ok', 'co_ext_ok_ai','co_ext_paste', 'co_emailed', 'co_key_emailed', 'api_resend_ok', 'acct_added',
     // plan chooser (swapped in by checkout.js when the plan changes) and the account subscription panel
     'co_item', 'co_item_ai', 'co_refund', 'co_refund_ai', 'co_card_note', 'co_note_ai', 'co_sub_pending', 'co_success_title', 'co_success_title_ai', 'acct_st_cancelled',
     // Stripe: the PayPal block's note, the return states and Stripe's own error
@@ -814,6 +814,8 @@ function palette_render_checkout(array $ctx): string
         . $billing
         . '<div class="linkbox"><span>' . $t('co_account_note') . '</span>'
         . '<a id="account-link" class="btn btn-quiet" href="' . palette_h(palette_page_url('account', $lang)) . '">' . palette_icon('user', 15) . '<span>' . $t('co_account_link') . '</span></a></div>'
+        . '<div class="linkbox" id="saved-box" hidden><span>' . $t('co_saved') . '</span>'
+        . '<a class="btn btn-quiet" href="' . palette_h(palette_page_url('account', $lang)) . '">' . palette_icon('user', 15) . '<span>' . $t('acct_title') . '</span></a></div>'
         . '</div>';
 
     $lost = '<form id="resend" class="lost" novalidate>'

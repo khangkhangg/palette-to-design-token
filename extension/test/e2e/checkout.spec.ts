@@ -551,7 +551,7 @@ test('Pro + AI: subscribing shows the key and hands it to the extension', async 
   const key = (await page.locator('#key').textContent()) ?? '';
   expect(key).toMatch(KEY_RE);
   await expect(page.locator('#done-title')).toHaveText("You're Pro + AI. Thank you.");
-  await expect(page.locator('#ext-status')).toHaveText('Your extension is now Pro.');
+  await expect(page.locator('#ext-status')).toHaveText('Your extension now has Pro + AI.');
   expect(await page.evaluate(() => (window as unknown as { __sent: unknown[] }).__sent)).toEqual([[EXT, { type: 'license', key }]]);
   await expect(page.locator('#emailed')).toContainText('s***@studio.vn');
 });

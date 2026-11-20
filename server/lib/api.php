@@ -214,10 +214,11 @@ function palette_api_handle(array $req): array
             if (!$open) return palette_api_error(503, 'err_paused', $lang);
             $again = $move !== null ? palette_st_move_open_session($conn, (int)$move['id']) : null;   // a checkout from this link still open
             if (isset($again['error'])) return palette_api_error(502, $again['error'], $lang);
+            $uid = palette_session_user((array)($req['session'] ?? [])) ?: null; // a new key is saved to this account
             $r = $again !== null ? ['ok' => true] + $again
                 : ($move !== null ? palette_st_sub_start($conn, $mode, (string)$move['email'], $lang, $str('consent') === '1', (int)$move['id'], palette_admin_move_trial_end($move))
-                : ($ai ? palette_st_sub_start($conn, $mode, $str('email'), $lang, $str('consent') === '1')
-                     : palette_st_order_start($conn, $mode, $str('email'), $lang, $str('consent') === '1')));
+                : ($ai ? palette_st_sub_start($conn, $mode, $str('email'), $lang, $str('consent') === '1', null, null, $uid)
+                     : palette_st_order_start($conn, $mode, $str('email'), $lang, $str('consent') === '1', $uid)));
             if (!$r['ok']) return palette_api_error(['err_paused' => 503, 'err_stripe' => 502][$r['error']] ?? 400, $r['error'], $lang);
             $mine = is_array($_SESSION['palette_st'] ?? null) ? $_SESSION['palette_st'] : [];
             $mine[] = ($ai ? 's:' : 'o:') . $r['row_id'];
@@ -238,7 +239,9 @@ function palette_api_handle(array $req): array
                 return palette_api_reply(200, ['ok' => true, 'state' => 'paid', 'emailed' => true, 'email_masked' => $r['email_masked'],
                     'message' => strtr(palette_t($lang, 'co_key_emailed'), ['{email}' => $r['email_masked']])]);
             }
-            return palette_api_reply(200, ['ok' => true, 'state' => 'paid', 'key' => $r['key'], 'plan' => $r['plan'], 'email_masked' => $r['email_masked']]);
+            $uid = palette_session_user((array)($req['session'] ?? []));
+            $saved = $uid > 0 && in_array($r['key'], array_column(palette_keys_for_user($conn, $uid), 'key'), true);
+            return palette_api_reply(200, ['ok' => true, 'state' => 'paid', 'key' => $r['key'], 'plan' => $r['plan'], 'email_masked' => $r['email_masked'], 'saved' => $saved]);
         case 'resend':
             $email = $str('email');
             $res = palette_api_reply(200, ['ok' => true, 'message' => palette_t($lang, 'api_resend_ok')]);
