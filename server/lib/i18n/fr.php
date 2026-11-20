@@ -104,7 +104,7 @@ return [
     'acct_signin_text' => 'Connectez-vous à votre compte vietnamcos pour voir vos clés ou en ajouter une.',
     'acct_signin' => 'Se connecter',
     'nav_register' => 'Créer un compte',
-    'nav_signout' => 'Se déconnecter',
+    'nav_signout' => 'Déconnexion',
     'acct_none' => 'Aucune clé dans votre compte pour l’instant.',
     'acct_bought' => 'Achetée le {date}',
     'acct_revoked' => 'Remboursée, ne fonctionne plus',

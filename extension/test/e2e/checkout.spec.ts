@@ -299,7 +299,7 @@ test('account: signed out, the key waits in the session, not in the sign-in URL'
   const key = await (await page.request.get('/__dev/license?email=acct@studio.vn')).text();
   await page.request.get('/__dev/login?user_id=0');
   await page.goto(`/palette/account?key=${key}&lang=en`);
-  await expect(page.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/companies/?auth=login&redirect=/palette/account');
+  await expect(page.getByRole('main').getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/companies/?auth=login&redirect=/palette/account');
   await expect(page.locator('#claim')).toHaveCount(0);
   // after signing in, the plain account URL prefills the key once
   await page.request.get('/__dev/login?user_id=7');
