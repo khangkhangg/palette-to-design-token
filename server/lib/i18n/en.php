@@ -103,6 +103,8 @@ return [
     'acct_lead' => 'Site to Design Token license keys saved to your vietnamcos account.',
     'acct_signin_text' => 'Sign in to your vietnamcos account to see your keys or add one.',
     'acct_signin' => 'Sign in',
+    'nav_register' => 'Create account',
+    'nav_signout' => 'Sign out',
     'acct_none' => 'No keys in your account yet.',
     'acct_bought' => 'Bought {date}',
     'acct_revoked' => 'Refunded, no longer works',

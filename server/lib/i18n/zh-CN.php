@@ -103,6 +103,8 @@ return [
     'acct_lead' => '保存在你的 vietnamcos 账户中的 Site to Design Token 许可证密钥。',
     'acct_signin_text' => '登录你的 vietnamcos 账户，查看或添加密钥。',
     'acct_signin' => '登录',
+    'nav_register' => '注册账户',
+    'nav_signout' => '退出登录',
     'acct_none' => '你的账户中还没有密钥。',
     'acct_bought' => '购买于 {date}',
     'acct_revoked' => '已退款，不再有效',

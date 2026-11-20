@@ -123,6 +123,12 @@ code { font-family: var(--font-mono); }
 
 /* language switcher: links, no script needed */
 .lang { position: relative; margin-inline-start: auto; }
+.topbar-auth { display: flex; gap: 8px; flex-shrink: 0; }
+@media (max-width: 640px) {
+  .lang summary > span { display: none; } /* globe only; the summary keeps its aria-label */
+  .topbar-acct span { display: none; }
+}
+@media (max-width: 480px) { .topbar-auth .btn-accent { display: none; } }
 .lang summary {
   list-style: none; cursor: pointer; user-select: none;
   display: flex; align-items: center; gap: 8px;
@@ -625,7 +631,10 @@ input::placeholder { color: var(--muted); opacity: .7; }
 .dir-report textarea { inline-size: 100%; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--field); background: var(--surface); color: var(--ink); font: inherit; }
 .keyrow .dir-thumb { inline-size: 96px; border: 1px solid var(--line); border-radius: 8px; flex-shrink: 0; }
 .dir-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-@media (max-width: 760px) { .dir-detail { grid-template-columns: 1fr; } .topnav { display: none; } }
+@media (max-width: 760px) { .dir-detail { grid-template-columns: 1fr; } /* two rows: brand and language, then the links and sign in */
+  .topbar-in { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "brand lang" "nav auth"; row-gap: 8px; }
+  .brand { grid-area: brand; } .lang { grid-area: lang; } .topbar-auth { grid-area: auth; }
+  .topnav { grid-area: nav; margin-inline-start: -10px; overflow-x: auto; min-inline-size: 0; } }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

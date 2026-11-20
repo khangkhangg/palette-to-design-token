@@ -178,7 +178,24 @@ function palette_lang_switcher(string $page, string $lang, array $keep): string
         . '</summary><ul class="lang-menu">' . $items . '</ul></details>';
 }
 
-function palette_page_shell(string $page, string $lang, array $keep, string $title, string $main, array $data = []): string
+// Sign in / Create account, or Your keys / Sign out, through the shared companies account.
+// The redirect drops $keep on purpose: a licence key must not reach companies URLs (they carry analytics).
+function palette_header_auth(int $uid, string $page, string $lang): string
+{
+    $t = fn(string $k) => palette_h(palette_t($lang, $k));
+    $back = rawurlencode(palette_page_url($page, $lang));
+    if ($uid === 0) {
+        return '<div class="topbar-auth">'
+            . '<a class="btn btn-sm" rel="nofollow" href="/companies/?auth=login&amp;redirect=' . $back . '">' . $t('acct_signin') . '</a>'
+            . '<a class="btn btn-sm btn-accent" rel="nofollow" href="/companies/?auth=register&amp;redirect=' . $back . '">' . $t('nav_register') . '</a></div>';
+    }
+    return '<div class="topbar-auth">'
+        . '<a class="btn btn-sm topbar-acct" href="' . palette_h(palette_page_url('account', $lang)) . '" title="' . $t('page_keys') . '" aria-label="' . $t('page_keys') . '">'
+        . palette_icon('user', 16) . '<span>' . $t('page_keys') . '</span></a>'
+        . '<a class="btn btn-sm" rel="nofollow" href="/companies/logout.php?redirect=' . $back . '">' . $t('nav_signout') . '</a></div>';
+}
+
+function palette_page_shell(string $page, string $lang, array $keep, string $title, string $main, array $data = [], int $uid = 0): string
 {
     $t = fn(string $k) => palette_h(palette_t($lang, $k));
     $dir = $lang === 'ar' ? 'rtl' : 'ltr';
@@ -200,6 +217,7 @@ function palette_page_shell(string $page, string $lang, array $keep, string $tit
         . '<a href="' . palette_h(palette_page_url('directory/mine', $lang)) . '"'
         . ($page === 'directory/mine' ? ' aria-current="page"' : '') . '>' . $t('dir_nav_mine') . '</a></nav>'
         . palette_lang_switcher($page === 'landing' ? '' : $page, $lang, $keep)
+        . palette_header_auth($uid,$page === 'landing' ? '' : $page, $lang)
         . '</div></header>' . "\n"
         . $main . "\n"
         . '<footer class="foot"><div class="foot-in">'
@@ -449,7 +467,7 @@ function palette_render_landing(array $ctx): string
 
     $main = '<main class="wrap landing">' . $hero . $showcase . $how . palette_section_features($lang) . $edit . palette_section_plans($lang, $price)
         . $insights . $ai . palette_section_install($lang) . $faq . '</main>';
-    return palette_page_shell('landing', $lang, [], palette_t($lang, 'lp_title'), $main, ['t' => palette_script_strings($lang)]);
+    return palette_page_shell('landing', $lang, [], palette_t($lang, 'lp_title'), $main, ['t' => palette_script_strings($lang)], palette_session_user($ctx['session'] ?? []));
 }
 
 function palette_render_terms(array $ctx): string
@@ -479,7 +497,7 @@ function palette_render_terms(array $ctx): string
         . '<div class="card policy-list">' . $sections . '</div>'
         . '<p class="updated">' . palette_t_html($lang, 'priv_updated', ['date' => palette_ltr(PALETTE_TERMS_UPDATED)]) . '</p>'
         . '</article></main>';
-    return palette_page_shell('terms', $lang, [], palette_t($lang, 'terms_title') . ' | Site to Design Token', $main);
+    return palette_page_shell('terms', $lang, [], palette_t($lang, 'terms_title') . ' | Site to Design Token', $main, [], palette_session_user($ctx['session'] ?? []));
 }
 
 // Methods come from checkout_methods, in that order; a method counts only while it is connected (Stripe: the Live
@@ -668,7 +686,7 @@ function palette_render_checkout(array $ctx): string
     }
     if ($stSession !== null) $data += ['st' => $stSession, 'csrf_account' => palette_account_csrf_token()];
     if ($move !== null) $data['move'] = $moveTok;
-    return palette_page_shell('checkout', $lang, $keep, palette_t($lang, 'co_title'), $main, $data);
+    return palette_page_shell('checkout', $lang, $keep, palette_t($lang, 'co_title'), $main, $data, palette_session_user($ctx['session'] ?? []));
 }
 
 function palette_session_user(array $session): int
@@ -737,7 +755,7 @@ function palette_render_account(array $ctx): string
     $strings = [];
     foreach (PALETTE_SCRIPT_STRINGS as $k) $strings[$k] = palette_t($lang, $k);
     return palette_page_shell('account', $lang, $keep, palette_t($lang, 'acct_title') . ' | Site to Design Token',
-        '<main class="wrap narrow">' . $head . $body . '</main>', ['t' => $strings, 'csrf' => palette_account_csrf_token()]);
+        '<main class="wrap narrow">' . $head . $body . '</main>', ['t' => $strings, 'csrf' => palette_account_csrf_token()], $uid);
 }
 
 // What a stored subscription state means right now: revoked|active|pending|cancelled|suspended|expired. Revoked
@@ -823,5 +841,5 @@ function palette_render_privacy(array $ctx): string
         . '<div class="card policy-list">' . $sections . '</div>'
         . '<p class="updated">' . palette_t_html($lang, 'priv_updated', ['date' => palette_ltr(PALETTE_PRIVACY_UPDATED)]) . '</p>'
         . '</article></main>';
-    return palette_page_shell('privacy', $lang, [], palette_t($lang, 'priv_title') . ' | Site to Design Token', $main);
+    return palette_page_shell('privacy', $lang, [], palette_t($lang, 'priv_title') . ' | Site to Design Token', $main, [], palette_session_user($ctx['session'] ?? []));
 }

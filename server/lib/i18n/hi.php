@@ -103,6 +103,8 @@ return [
     'acct_lead' => 'आपके vietnamcos खाते में सहेजी गई Site to Design Token लाइसेंस कुंजियाँ।',
     'acct_signin_text' => 'अपनी कुंजियाँ देखने या जोड़ने के लिए अपने vietnamcos खाते में साइन इन करें।',
     'acct_signin' => 'साइन इन करें',
+    'nav_register' => 'खाता बनाएँ',
+    'nav_signout' => 'साइन आउट',
     'acct_none' => 'आपके खाते में अभी कोई कुंजी नहीं है।',
     'acct_bought' => '{date} को खरीदी',
     'acct_revoked' => 'धनवापसी हुई, अब काम नहीं करती',

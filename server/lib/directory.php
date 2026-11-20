@@ -432,7 +432,7 @@ function palette_dir_html(array $v, int $status, string $page, string $title, st
 {
     $keep = array_intersect_key(palette_page_keep($v['query']), ['ext' => 1]);
     return ['status' => $status, 'headers' => palette_page_headers() + ['Cache-Control' => 'private, no-store'],
-        'body' => palette_page_shell($page, $v['lang'], $keep, $title . ' | Site to Design Token', $main, $data)];
+        'body' => palette_page_shell($page, $v['lang'], $keep, $title . ' | Site to Design Token', $main, $data, $v['uid'])];
 }
 
 function palette_dir_redirect(string $to): array

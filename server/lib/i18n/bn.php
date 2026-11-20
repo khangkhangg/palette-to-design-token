@@ -103,6 +103,8 @@ return [
     'acct_lead' => 'আপনার vietnamcos অ্যাকাউন্টে সংরক্ষিত Site to Design Token লাইসেন্স কী।',
     'acct_signin_text' => 'আপনার কী দেখতে বা নতুন কী যোগ করতে vietnamcos অ্যাকাউন্টে সাইন ইন করুন।',
     'acct_signin' => 'সাইন ইন',
+    'nav_register' => 'অ্যাকাউন্ট খুলুন',
+    'nav_signout' => 'সাইন আউট',
     'acct_none' => 'আপনার অ্যাকাউন্টে এখনো কোনো কী নেই।',
     'acct_bought' => '{date} তারিখে কেনা',
     'acct_revoked' => 'টাকা ফেরত হয়েছে, আর কাজ করে না',

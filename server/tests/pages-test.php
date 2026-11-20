@@ -958,3 +958,11 @@ ok('cancel email: a Stripe subscriber is not sent to PayPal; a PayPal one still 
     && str_contains($cp['html'], h(palette_t('en', 'email_cancel_paypal'))));
 
 $conn->query("DELETE FROM admin_settings WHERE setting_key = 'palette_stripe'");   // leave no Stripe config behind
+
+// Header: sign in / create account when signed out, account / sign out when signed in, back to this page.
+$out = palette_header_auth(0, 'directory', 'fr');
+$in = palette_header_auth(42, 'account', 'en');
+ok('header signed out: sign in and register return to the page', str_contains($out, '/companies/?auth=login&amp;redirect=' . rawurlencode(palette_page_url('directory', 'fr')))
+    && str_contains($out, 'auth=register') && str_contains($out, h(palette_t('fr', 'nav_register'))) && !str_contains($out, 'logout'));
+ok('header signed in: account and sign out, no sign in', str_contains($in, 'logout.php?redirect=') && str_contains($in, 'Your keys') && !str_contains($in, 'auth=login'));
+foreach (LANGS as $l) ok("header strings in $l", palette_t($l, 'nav_register') !== 'nav_register' && palette_t($l, 'nav_signout') !== 'nav_signout');

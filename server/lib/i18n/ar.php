@@ -103,6 +103,8 @@ return [
     'acct_lead' => 'مفاتيح ترخيص Site to Design Token المحفوظة في حسابك على vietnamcos.',
     'acct_signin_text' => 'سجّل الدخول إلى حسابك على vietnamcos لرؤية مفاتيحك أو إضافة مفتاح.',
     'acct_signin' => 'تسجيل الدخول',
+    'nav_register' => 'إنشاء حساب',
+    'nav_signout' => 'تسجيل الخروج',
     'acct_none' => 'لا توجد مفاتيح في حسابك بعد.',
     'acct_bought' => 'اشتُري في {date}',
     'acct_revoked' => 'تم استرداد المبلغ، لم يعد يعمل',

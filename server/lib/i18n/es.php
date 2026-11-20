@@ -103,6 +103,8 @@ return [
     'acct_lead' => 'Claves de licencia de Site to Design Token guardadas en tu cuenta de vietnamcos.',
     'acct_signin_text' => 'Inicia sesión en tu cuenta de vietnamcos para ver tus claves o añadir una.',
     'acct_signin' => 'Iniciar sesión',
+    'nav_register' => 'Crear cuenta',
+    'nav_signout' => 'Cerrar sesión',
     'acct_none' => 'Todavía no hay claves en tu cuenta.',
     'acct_bought' => 'Comprada el {date}',
     'acct_revoked' => 'Reembolsada, ya no funciona',
