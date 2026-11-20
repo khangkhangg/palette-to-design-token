@@ -57,7 +57,7 @@ test('header: the phone menu opens and closes', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await page.goto('/palette/?lang=en');
   await expect(page.locator('.topnav')).toBeHidden();
-  await expect(page.locator('.brand-by')).toBeVisible();
+  await expect(page.locator('header .brand-by')).toBeVisible();
   const toggle = page.locator('details.menu > summary');
   expect((await toggle.boundingBox())!.height).toBeGreaterThanOrEqual(40);
   await toggle.click();
@@ -151,4 +151,29 @@ test('dialog: a wrong password shows the translated message in the alert banner'
   await page.locator('#auth-pw').fill('wrong-one');
   await page.locator('#auth-pw').press('Enter');
   await expect(page.locator('#auth-dlg [role="alert"]')).toContainText('ne correspondent pas');
+});
+
+test('footer: no sideways scroll at 3 widths and in Arabic, 40 px links on phones', async ({ page }) => {
+  const shot = async (name: string) => page.locator('footer.foot').screenshot({ path: `test-results/footer/${name}.png` });
+  for (const width of [1280, 768, 375]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto('/palette/terms?lang=en');
+    await noSideScroll(page);
+    await shot(`footer-${width}`);
+  }
+  for (const link of await page.locator('footer.foot a').all()) {
+    if (await link.locator('xpath=ancestor::*[contains(@class,"foot-brand")]').count()) continue;
+    expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(40);
+  }
+  await page.goto('/palette/terms?lang=ar');
+  await noSideScroll(page);
+  await shot('footer-ar-375');
+});
+
+test('footer: Sign in opens the dialog and stays on the page', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/palette/terms?lang=en');
+  await page.locator('footer').getByRole('link', { name: 'Sign in' }).click();
+  await expect(page.locator('#auth-dlg')).toBeVisible();
+  await expect(page).toHaveURL(/\/palette\/terms\?lang=en$/);
 });

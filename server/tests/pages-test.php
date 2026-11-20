@@ -330,7 +330,7 @@ ok('landing: FAQ with 7 questions, privacy link and the refund line', preg_match
     && substr_count($qm[0], '<details') === 7 && str_contains($qm[0], 'href="/palette/privacy?lang=en"') && str_contains($qm[0], h($refundEn))
     && str_contains($qm[0], h(palette_t('en', 'pp_key_1'))));
 ok('landing: AI block no longer claims every site is linked', !str_contains($lp, 'each linked'));
-ok('landing: no inline script', preg_match_all('/<script(?![^>]*\bsrc=)(?![^>]*type="application\/json")[^>]*>/', $lp) === 0);
+ok('landing: no inline script', preg_match_all('/<script(?![^>]*\bsrc=)(?![^>]*type="application\/(ld\+)?json")[^>]*>/', $lp) === 0);
 ok('landing: no Opera', preg_match('/\bOpera\b/i', $lp) === 0);
 foreach (LANGS as $l) {
     $html = landing(['lang' => $l]);
@@ -1018,3 +1018,44 @@ ok('seo account is noindex', str_contains(palette_head_meta('account', 'en', 'T'
 ok('seo item: own description and image', str_contains(palette_head_meta('directory/a-1', 'en', 'T', ['description' => 'D <x>', 'image' => 'https://vietnamcos.com/i.webp']), 'content="D &lt;x&gt;"'));
 foreach (LANGS as $l) ok("seo item description in $l", !str_contains(palette_t($l, 'dir_item_desc', ['site' => 'a.example']), '{site}') && str_contains(palette_t($l, 'dir_item_desc', ['site' => 'a.example']), 'a.example'));
 foreach (LANGS as $l) ok("header strings in $l", palette_t($l, 'nav_register') !== 'nav_register' && palette_t($l, 'nav_signout') !== 'nav_signout');
+
+// ---- footer: link groups, the page in every language, no licence key in URLs, JSON-LD
+$_SESSION = [];
+preg_match('#<footer class="foot">.*</footer>#s', palette_render_terms(['query' => ['lang' => 'fr'], 'accept_language' => '', 'session' => []]), $fm);
+$ft = $fm[0] ?? '';
+ok('footer: four labelled groups with their links', substr_count($ft, '<nav class="foot-col" aria-label="') === 4
+    && str_contains($ft, '<p class="foot-h">' . h(palette_t('fr', 'foot_product')) . '</p>')
+    && str_contains($ft, 'href="/palette/directory?lang=fr"') && str_contains($ft, 'href="/palette/checkout?lang=fr"')
+    && str_contains($ft, 'href="/palette/?lang=fr#install"') && str_contains($ft, 'href="/palette/account?lang=fr"')
+    && str_contains($ft, 'href="/palette/directory/mine?lang=fr"') && str_contains($ft, 'href="/palette/privacy?lang=fr"')
+    && str_contains($ft, 'href="mailto:support@vietnamcos.com" dir="ltr"')
+    && str_contains($ft, 'href="mailto:support@vietnamcos.com?subject=Site%20removal%20request"')
+    && str_contains($ft, h(palette_t('fr', 'lp_h1'))) && str_contains($ft, '&copy; ' . gmdate('Y') . ' vietnamcos.com'));
+ok('footer signed out: Sign in with the header href', str_contains($ft, '<a href="/companies/?auth=login&amp;redirect=%2Fpalette%2Fterms%3Flang%3Dfr" rel="nofollow">' . h(palette_t('fr', 'acct_signin')) . '</a>')
+    && !str_contains($ft, 'logout.php'));
+ok('footer: the page in all 7 languages, the current one marked', substr_count($ft, ' hreflang="') === 7
+    && str_contains($ft, '<a href="/palette/terms?lang=fr" hreflang="fr" lang="fr" aria-current="true">Français</a>')
+    && str_contains($ft, '<a href="/palette/terms?lang=ar" hreflang="ar" lang="ar">') && substr_count($ft, 'aria-current') === 1);
+preg_match('#<footer class="foot">.*</footer>#s', palette_render_terms(['query' => ['lang' => 'en'], 'accept_language' => '', 'session' => ['user_id' => 7, 'name' => 'Lan', 'email' => 'lan@studio-mai.vn']]), $fm);
+ok('footer signed in: Sign out, no Sign in', str_contains($fm[0] ?? '', 'href="/companies/logout.php?redirect=%2Fpalette%2Fterms%3Flang%3Den" rel="nofollow"')
+    && !str_contains($fm[0] ?? '', 'auth=login'));
+$fk = palette_render_account(['query' => ['lang' => 'en', 'key' => $k3, 'ext' => str_repeat('a', 32)], 'accept_language' => '', 'session' => ['user_id' => 7]]);
+ok('?key= page: no licence key in any URL, ext still carried', !preg_match('#(href|src|action)="[^"]*key=#', $fk)
+    && str_contains($fk, 'href="/palette/account?lang=es&amp;ext=' . str_repeat('a', 32) . '" hreflang="es"'));
+$lpj = landing(['lang' => 'fr']);
+ok('JSON-LD: Organization and WebSite parse as JSON', preg_match('#<script type="application/ld\+json">(.*?)</script>#s', $lpj, $m) === 1
+    && is_array($ld = json_decode($m[1], true))
+    && ($ld['@graph'][0]['@type'] ?? '') === 'Organization' && ($ld['@graph'][0]['url'] ?? '') === 'https://vietnamcos.com'
+    && ($ld['@graph'][0]['email'] ?? '') === 'support@vietnamcos.com'
+    && ($ld['@graph'][0]['logo'] ?? '') === 'https://vietnamcos.com/palette/assets/icon-128.png' && is_file(PALETTE_DIR . '/assets/icon-128.png')
+    && ($ld['@graph'][1]['@type'] ?? '') === 'WebSite' && ($ld['@graph'][1]['url'] ?? '') === 'https://vietnamcos.com/palette/'
+    && ($ld['@graph'][1]['inLanguage'] ?? '') === 'fr');
+ok('JSON-LD absent on noindex pages', !str_contains(checkout(['lang' => 'en']), 'ld+json')
+    && !str_contains(palette_head_meta('account', 'en', 'T', []), 'ld+json')
+    && !str_contains(palette_head_meta('directory/a-1', 'en', 'T', ['noindex' => true]), 'ld+json'));
+$missing = [];
+foreach (LANGS as $l) foreach (['foot_product', 'foot_legal', 'foot_removal'] as $k) {
+    $v = palette_strings($l)[$k] ?? '';
+    if (trim($v) === '' || preg_match(EMOJI_RE, $v) || ($l !== 'en' && $v === palette_t('en', $k))) $missing[] = "$l:$k";
+}
+ok('footer strings in all 7 languages, translated, no emoji: ' . implode(', ', $missing), $missing === []);

@@ -274,7 +274,9 @@ function palette_auth_dialog(string $page, string $lang): string
 
 const PALETTE_ORIGIN = 'https://vietnamcos.com';
 const PALETTE_OG_LOCALES = ['en' => 'en_US', 'zh-CN' => 'zh_CN', 'hi' => 'hi_IN', 'es' => 'es_ES', 'ar' => 'ar_AR', 'fr' => 'fr_FR', 'bn' => 'bn_BD'];
-const PALETTE_NOINDEX_PAGES = ['checkout', 'account', 'directory/mine', 'directory/new', 'directory/connect'];
+// Safe for JSON inside <script>: no </script> breakout.
+const PALETTE_JSON_FLAGS = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
+const PALETTE_NOINDEX_PAGES =['checkout', 'account', 'directory/mine', 'directory/new', 'directory/connect'];
 
 // Description, canonical, language alternates, Open Graph and robots for the <head>.
 // $meta: description, image (absolute URL), noindex. Canonical URLs carry only the language, never $keep.
@@ -285,7 +287,8 @@ function palette_head_meta(string $page, string $lang, string $title, array $met
     $descKey = ['landing' => 'lp_lead', 'directory' => 'dir_lead', 'account' => 'acct_lead'][$page] ?? null;
     $desc = palette_h($meta['description'] ?? ($descKey ? palette_t($lang, $descKey) : ''));
     $image = palette_h($meta['image'] ?? PALETTE_ORIGIN . PALETTE_BASE . '/assets/screenshots/1-popup-colours.png');
-    $out = ($meta['noindex'] ?? in_array($page, PALETTE_NOINDEX_PAGES, true)) ? '<meta name="robots" content="noindex">' : '';
+    $noindex = $meta['noindex'] ?? in_array($page, PALETTE_NOINDEX_PAGES, true);
+    $out = $noindex ? '<meta name="robots" content="noindex">' : '';
     if ($desc !== '') $out .= '<meta name="description" content="' . $desc . '">';
     $out .= '<link rel="canonical" href="' . $url($lang) . '">';
     foreach (array_keys(PALETTE_LANG_NAMES) as $l) $out .= '<link rel="alternate" hreflang="' . $l . '" href="' . $url($l) . '">';
@@ -294,11 +297,58 @@ function palette_head_meta(string $page, string $lang, string $title, array $met
         . '<meta property="og:title" content="' . palette_h($title) . '"><meta property="og:url" content="' . $url($lang) . '">'
         . '<meta property="og:image" content="' . $image . '"><meta property="og:locale" content="' . (PALETTE_OG_LOCALES[$lang] ?? 'en_US') . '">'
         . '<meta name="twitter:card" content="summary_large_image">';
-    return $desc !== '' ? $out . '<meta property="og:description" content="' . $desc . '">' : $out;
+    if ($desc !== '') $out .= '<meta property="og:description" content="' . $desc . '">';
+    if ($noindex) return $out;
+    $ld = ['@context' => 'https://schema.org', '@graph' => [
+        ['@type' => 'Organization', 'name' => 'vietnamcos.com', 'url' => PALETTE_ORIGIN, 'email' => PALETTE_SUPPORT_EMAIL,
+            'logo' => PALETTE_ORIGIN . PALETTE_BASE . '/assets/icon-128.png'],
+        ['@type' => 'WebSite', 'name' => 'Site to Design Token', 'url' => PALETTE_ORIGIN . PALETTE_BASE . '/', 'inLanguage' => $lang],
+    ]];
+    return $out . '<script type="application/ld+json">' . json_encode($ld, PALETTE_JSON_FLAGS) . '</script>';
+}
+
+// The logo mark with the name and by-line stacked beside it, linking home.
+function palette_page_brand(string $lang): string
+{
+    return '<a class="brand" href="' . palette_h(palette_page_url('', $lang)) . '"><span class="mark" aria-hidden="true"></span>'
+        . '<span class="brand-txt"><span class="brand-name">Site to Design Token</span><span class="brand-by">' . palette_h(palette_t($lang, 'page_by')) . '</span></span></a>';
+}
+
+// Footer on every public page: brand, four link groups, then the copyright and this page in each language.
+// $keep carries over like the header switcher's; the shell has already dropped the licence key.
+function palette_page_footer(string $page, string $lang, array $user, array $keep = []): string
+{
+    $t = fn(string $k) => palette_h(palette_t($lang, $k));
+    $a = fn(string $href, string $label, string $attr = '') => '<li><a href="' . palette_h($href) . '"' . $attr . '>' . $label . '</a></li>';
+    $back = rawurlencode(palette_page_url($page, $lang));
+    $mail = 'mailto:' . PALETTE_SUPPORT_EMAIL;
+    $groups = [
+        'foot_product' => $a(palette_page_url('directory', $lang), $t('dir_nav')) . $a(palette_page_url('checkout', $lang), $t('nav_pricing'))
+            . $a(palette_page_url('', $lang) . '#install', $t('nav_extension')),
+        'nav_account' => $a(palette_page_url('account', $lang), $t('page_keys')) . $a(palette_page_url('directory/mine', $lang), $t('dir_nav_mine'))
+            . ($user ? $a('/companies/logout.php?redirect=' . $back, $t('nav_signout'), ' rel="nofollow"')
+                : $a('/companies/?auth=login&redirect=' . $back, $t('acct_signin'), ' rel="nofollow"')),
+        'foot_legal' => $a(palette_page_url('privacy', $lang), $t('page_privacy')) . $a(palette_page_url('terms', $lang), $t('page_terms')),
+        'page_support' => $a($mail, str_replace('@', '@<wbr>', PALETTE_SUPPORT_EMAIL), ' dir="ltr"') . $a($mail . '?subject=' . rawurlencode('Site removal request'), $t('foot_removal')),
+    ];
+    $cols = '';
+    foreach ($groups as $k => $items) $cols .= '<nav class="foot-col" aria-label="' . $t($k) . '"><p class="foot-h">' . $t($k) . '</p><ul>' . $items . '</ul></nav>';
+    $langs = '';
+    foreach (PALETTE_LANG_NAMES as $code => $name) {
+        $langs .= '<li><a href="' . palette_h(palette_page_url($page, $code, $keep)) . '" hreflang="' . $code . '" lang="' . $code . '"'
+            . ($code === $lang ? ' aria-current="true"' : '') . '>' . palette_h($name) . '</a></li>';
+    }
+    return '<footer class="foot"><div class="foot-in">'
+        . '<div class="foot-brand">' . palette_page_brand($lang) . '<p>' . $t('lp_h1') . '</p></div>'
+        . '<div class="foot-cols">' . $cols . '</div>'
+        . '<div class="foot-bottom"><p dir="ltr">&copy; ' . gmdate('Y') . ' vietnamcos.com</p>'
+        . '<nav aria-label="' . $t('page_language') . '"><ul class="foot-langs">' . $langs . '</ul></nav></div>'
+        . '</div></footer>';
 }
 
 function palette_page_shell(string $page, string $lang, array $keep, string $title, string $main, array $data = [], array $user = [], array $meta = []): string
 {
+    $keep = array_diff_key($keep, ['key' => 1]); // a licence key never lands in a link
     $t = fn(string $k) => palette_h(palette_t($lang, $k));
     $dir = $lang === 'ar' ? 'rtl' : 'ltr';
     $here = $page === 'landing' ? '' : $page;
@@ -308,7 +358,7 @@ function palette_page_shell(string $page, string $lang, array $keep, string $tit
         . ($l[2] ? ' aria-current="page"' : '') . '>' . $t($l[1]) . '</a>', $links));
     if (!$user) $data['t'] = ($data['t'] ?? []) + array_combine(PALETTE_AUTH_STRINGS, array_map(fn(string $k) => palette_t($lang, $k), PALETTE_AUTH_STRINGS));
     $json = json_encode(['lang' => $lang, 'page' => $page] + $data,
-        JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        PALETTE_JSON_FLAGS);
     return '<!doctype html>' . "\n"
         . '<html lang="' . $lang . '" dir="' . $dir . '">' . "\n"
         . '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
@@ -318,8 +368,7 @@ function palette_page_shell(string $page, string $lang, array $keep, string $tit
         . '<script src="' . palette_h(palette_asset('checkout.js')) . '" defer></script></head>' . "\n"
         . '<body class="page-' . $page . '">'
         . '<header class="topbar"><div class="topbar-in">'
-        . '<a class="brand" href="' . palette_h(palette_page_url('', $lang)) . '"><span class="mark" aria-hidden="true"></span>'
-        . '<span class="brand-txt"><span class="brand-name">Site to Design Token</span><span class="brand-by">' . $t('page_by') . '</span></span></a>'
+        . palette_page_brand($lang)
         . '<nav class="topnav">' . $nav('') . '</nav><div class="topbar-end">'
         . palette_lang_switcher($here, $lang, $keep) . palette_header_auth($user, $here, $lang)
         . '<details class="dd menu"><summary aria-label="' . $t('nav_menu') . '" data-close-label="' . $t('nav_close_menu') . '">'
@@ -328,13 +377,7 @@ function palette_page_shell(string $page, string $lang, array $keep, string $tit
         . ($user ? '' : '<hr class="sep"><div class="sheet-actions">' . palette_header_auth([], $here, $lang) . '</div>') . '</div></details>'
         . '</div></div></header>' . "\n" . ($user ? '' : palette_auth_dialog($here, $lang))
         . $main . "\n"
-        . '<footer class="foot"><div class="foot-in">'
-        . '<a href="' . palette_h(palette_page_url('privacy', $lang)) . '">' . $t('page_privacy') . '</a>'
-        . '<a href="' . palette_h(palette_page_url('terms', $lang)) . '">' . $t('page_terms') . '</a>'
-        . '<a href="' . palette_h(palette_page_url('account', $lang)) . '">' . $t('page_keys') . '</a>'
-        . '<a href="mailto:' . PALETTE_SUPPORT_EMAIL . '">' . $t('page_support') . ': <span dir="ltr">' . PALETTE_SUPPORT_EMAIL . '</span></a>'
-        . '<span class="foot-copy">vietnamcos.com</span>'
-        . '</div></footer>' . "\n"
+        . palette_page_footer($here, $lang, $user, $keep) . "\n"
         . '<script type="application/json" id="palette-data">' . $json . '</script>' . "\n"
         . '</body></html>' . "\n";
 }

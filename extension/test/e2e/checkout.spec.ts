@@ -277,7 +277,7 @@ test('Arabic is right-to-left and the language links keep the extension id', asy
   await page.goto(`/palette/checkout?lang=ar&ext=${EXT}`);
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await page.locator('details.lang summary').click();
-  await page.getByRole('link', { name: 'Français' }).click();
+  await page.locator('header').getByRole('link', { name: 'Français' }).click();
   await expect(page).toHaveURL(`/palette/checkout?lang=fr&ext=${EXT}`);
   await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
   await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
@@ -500,7 +500,7 @@ test('plan chooser: ?plan=ai selects Pro + AI; switching swaps the URL, summary,
   await expect(page).toHaveURL(/plan=ai/);
   await expect(page.locator('#paypal-sdk')).toHaveAttribute('src', SDK_AI);
   await page.locator('details.lang summary').click();
-  await expect(page.getByRole('link', { name: 'Français' })).toHaveAttribute('href', `/palette/checkout?lang=fr&ext=${EXT}&plan=ai`);
+  await expect(page.locator('header').getByRole('link', { name: 'Français' })).toHaveAttribute('href', `/palette/checkout?lang=fr&ext=${EXT}&plan=ai`);
 });
 
 test('plan chooser: Pro is the default, and Pro + AI says coming soon when no PayPal plan exists', async ({ page }) => {
