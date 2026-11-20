@@ -37,6 +37,8 @@ function e2eHostPermission(): Plugin {
       // SDT_E2E_HOSTS (comma-separated) adds hosts, e.g. the friendly hostname npm run screenshots maps to 127.0.0.1.
       const extra = (process.env.SDT_E2E_HOSTS ?? '').split(',').filter((h) => /^[a-z0-9.-]+$/.test(h));
       manifest.host_permissions = ['http://127.0.0.1/*', ...extra.map((h) => `http://${h}/*`)];
+      // Playwright cannot click the toolbar icon that grants activeTab, so the directory spec's capture needs this.
+      if (process.env.SDT_E2E_CAPTURE === '1') manifest.host_permissions.push('<all_urls>');
       writeFileSync(file, JSON.stringify(manifest, null, 2) + '\n');
     },
   };

@@ -11,7 +11,7 @@ function run(cmd, args, env = {}) {
 }
 
 // Same test build as npm run e2e (fernleaf.example is the public-looking host the AI specs scan).
-run('npx', ['vite', 'build'], { SDT_E2E: '1', SDT_E2E_HOSTS: 'fernleaf.example' });
+run('npx', ['vite', 'build'], { SDT_E2E: '1', SDT_E2E_HOSTS: 'fernleaf.example', SDT_E2E_CAPTURE: '1' });
 run('npx', ['vite', 'build', '-c', 'vite.extract.config.ts'], { SDT_E2E: '1' });
 run('npx', ['vite', 'build', '-c', 'vite.edit.config.ts'], { SDT_E2E: '1' });
 run('npx', ['playwright', 'test', '-c', 'playwright.checkout.config.ts', ...process.argv.slice(2)]);

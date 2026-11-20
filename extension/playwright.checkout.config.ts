@@ -16,7 +16,7 @@ const router = resolve(import.meta.dirname, '../server/tests/dev-router.php');
 export default defineConfig({
   testDir: 'test/e2e',
   // ai-router.spec.ts drives the built test extension (dist-e2e: scripts/e2e-checkout.mjs builds it first) against action=analyse.
-  testMatch: ['checkout.spec.ts', 'ai-router.spec.ts'],
+  testMatch: ['checkout.spec.ts', 'ai-router.spec.ts', 'directory.spec.ts'],
   timeout: 30_000,
   workers: 1,
   reporter: 'list',

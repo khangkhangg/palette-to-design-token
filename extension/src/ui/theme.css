@@ -402,7 +402,9 @@ body.sidepanel, body.sidepanel #app { block-size: 100vh; }
 }
 .export-body {
   flex-grow: 1; min-block-size: 0; display: flex; flex-direction: column; gap: 16px; padding: 12px 20px 0;
+  overflow-y: auto; /* the share review form is taller than a short panel */
 }
+.ex-btn-primary:disabled { background: var(--seg-bg); }
 .fmt-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 6px; }
 .fmt {
   position: relative; min-inline-size: 0; min-block-size: 54px; padding: 6px 11px; cursor: pointer;
