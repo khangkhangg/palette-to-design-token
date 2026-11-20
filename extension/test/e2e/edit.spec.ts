@@ -136,6 +136,8 @@ test('text, alignment and drag edits change the page and are listed in DESIGN.md
   await expect.poll(() => css('header .wrap', 'align-items')).toBe('flex-end');
 
   // Drag the third feature card in front of the first.
+  // The cards can sit below the 900px window (font metrics differ by OS), and off-screen points hit nothing.
+  await page.locator('.cards').scrollIntoViewIfNeeded();
   const first = (await page.locator('.card').nth(0).boundingBox())!;
   const third = (await page.locator('.card').nth(2).boundingBox())!;
   await page.mouse.move(third.x + third.width / 2, third.y + 12);
