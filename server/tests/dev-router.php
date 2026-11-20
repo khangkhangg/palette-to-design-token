@@ -222,6 +222,8 @@ if ($dev && $path === '/__dev/seed') {
 }
 if ($dev && $path === '/__dev/login') {   // pretend to be signed in to companies as this user id (0 signs out)
     $_SESSION['user_id'] = (int)($_GET['user_id'] ?? 0);
+    $_SESSION['name'] = 'Lan Nguyen'; // companies sets name and email on sign-in; the header shows them
+    $_SESSION['email'] = 'lan@studio-mai.vn';
     unset($_SESSION['user_role']);
     if ($_SESSION['user_id'] < 1) unset($_SESSION['user_id']);
     elseif (($aiStub || $fakeStripe) && ($_GET['role'] ?? '') === 'admin') $_SESSION['user_role'] = 'admin';

@@ -103,7 +103,7 @@ function palette_admin_tab_directory(mysqli $c, array $session, array $query): a
             . '<td><span class="pill pill-plain">' . ($r['source'] === 'extension' ? 'Extension' : 'Website') . '</span></td>'
             . '<td>' . $style . '</td><td>' . $state . '</td><td class="muted">' . palette_h(palette_admin_date($r['created_at'], 'j M, H:i')) . '</td>'
             . '<td class="end"><div class="actions">' . $buttons . '</div></td></tr>';
-        foreach (['hide' => ['dir_hide', 'Hide "' . $r['title'] . '"?', 'The member sees this reason on My submissions.', 'Hide', true],
+        foreach (['hide' => ['dir_hide', 'Hide "' . $r['title'] . '"?', 'The member sees this reason on Your submissions.', 'Hide', true],
                   'delete' => ['dir_delete', 'Delete "' . $r['title'] . '"?', 'The files are removed. This cannot be undone.', 'Delete', false]] as $k => [$action, $qn, $hint, $btn, $req]) {
             if ($confirm === "$k-$id") {
                 $rows .= '<tr><td colspan="7">' . palette_dir_admin_confirm($session, $action, $id, $qn, $hint, $btn, $req, $hidden, $back) . '</td></tr>';

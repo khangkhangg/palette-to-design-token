@@ -63,17 +63,142 @@
 
   // ---- language menu: close on outside click and on Escape
   document.addEventListener('click', function (e) {
-    document.querySelectorAll('details.lang[open]').forEach(function (d) {
+    document.querySelectorAll('details.dd[open]').forEach(function (d) {
       if (!d.contains(e.target)) d.removeAttribute('open');
     });
   });
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
-    document.querySelectorAll('details.lang[open]').forEach(function (d) {
+    document.querySelectorAll('details.dd[open]').forEach(function (d) {
       d.removeAttribute('open');
       d.querySelector('summary').focus();
     });
   });
+
+  // ---- phone menu: the summary reads "Close menu" while the sheet is open
+  document.querySelectorAll('details.menu').forEach(function (d) {
+    var s = d.querySelector('summary'), closed = s.getAttribute('aria-label');
+    d.addEventListener('toggle', function () { s.setAttribute('aria-label', d.open ? s.getAttribute('data-close-label') : closed); });
+  });
+
+  // ---- sign-in dialog: links to /companies/?auth=login|register open it instead of leaving the page.
+  // Posts to companies' api/auth.php (same origin). That endpoint has no rate limit for login; it is not our code,
+  // so none is added here.
+  var AUTH_API = '/companies/api/auth.php';
+  var AUTH_ERRORS = { // the server answers in English: map what it says to this page's language
+    'Invalid email or password': 'auth_err_login', 'Email already in use': 'auth_err_taken', 'Invalid email format': 'err_email',
+    'Password must be at least 8 characters long': 'auth_err_short', 'Passwords do not match': 'auth_err_match',
+    'Name must be at least 3 characters long': 'auth_err_name', 'You must agree to the terms and conditions': 'auth_err_terms'
+  };
+  function initAuth() {
+    var dlg = $('auth-dlg');
+    if (!dlg || typeof dlg.showModal !== 'function') return; // no dialog: the links keep their real hrefs
+    var banner = dlg.querySelector('.error'), tokens = null, opener = null;
+    function post(body) {
+      return fetch(AUTH_API, { method: 'POST', credentials: 'same-origin', body: new URLSearchParams(body) })
+        .then(function (res) { return res.json(); });
+    }
+    function csrf(fresh) {
+      if (!tokens || fresh) {
+        tokens = post({ action: 'csrf' }).then(function (j) { if (!j || !j.success) throw new Error('csrf'); return j; });
+        tokens.catch(function () { tokens = null; });
+      }
+      return tokens;
+    }
+    function say(msg) { banner.querySelector('span').textContent = msg || ''; show(banner, !!msg); }
+    function fieldError(input, msg) {
+      var p = $(input.id + '-err');
+      if (!p) return;
+      p.querySelector('span').textContent = msg;
+      show(p, !!msg);
+      if (msg) input.setAttribute('aria-invalid', 'true'); else input.removeAttribute('aria-invalid');
+    }
+    function select(name, focusTab) {
+      dlg.querySelectorAll('[role="tab"]').forEach(function (b) {
+        var on = b.id === 'auth-tab-' + name;
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+        b.tabIndex = on ? 0 : -1;
+        show($(b.getAttribute('aria-controls')), on);
+        if (on) { dlg.setAttribute('aria-labelledby', b.id); if (focusTab) b.focus(); }
+      });
+      say('');
+      if (!focusTab) $('auth-' + name).querySelector('input').focus();
+    }
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest ? e.target.closest('a[href^="/companies/?auth="]') : null;
+      if (!a || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      var menu = a.closest('details[open]');
+      if (menu) menu.removeAttribute('open');
+      opener = a;
+      dlg.showModal();
+      select(/auth=register/.test(a.getAttribute('href')) ? 'register' : 'login');
+      csrf().catch(function () {});
+    });
+    dlg.querySelector('[data-close]').addEventListener('click', function () { dlg.close(); });
+    dlg.addEventListener('close', function () {
+      var closed = opener && opener.closest('details:not([open])'); // the phone sheet closed behind the dialog
+      var to = closed ? closed.querySelector('summary') : opener;
+      if (to && to.offsetParent !== null) to.focus();
+    });
+    dlg.querySelector('[role="tablist"]').addEventListener('click', function (e) {
+      var b = e.target.closest('[role="tab"]');
+      if (b) select(b.id.replace('auth-tab-', ''));
+    });
+    dlg.querySelector('[role="tablist"]').addEventListener('keydown', function (e) {
+      if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].indexOf(e.key) < 0) return;
+      e.preventDefault();
+      select(dlg.querySelector('[role="tab"][aria-selected="false"]').id.replace('auth-tab-', ''), true);
+    });
+    function check(form) {
+      var reg = form.getAttribute('data-action') === 'register', first = null;
+      Array.prototype.forEach.call(form.querySelectorAll('input[id]'), function (i) {
+        var v = i.value, msg = '';
+        if (i.name === 'name' && v.trim().length < 3) msg = T.auth_err_name;
+        else if (i.type === 'email' && (!v.trim() || !i.checkValidity())) msg = T.err_email;
+        else if (i.name === 'password' && !reg && !v) msg = T.auth_err_password;
+        else if (i.name === 'password' && reg && v.length < 8) msg = T.auth_err_short;
+        else if (i.name === 'confirm_password' && v !== form.elements.password.value) msg = T.auth_err_match;
+        else if (i.name === 'terms' && !i.checked) msg = T.auth_err_terms;
+        fieldError(i, msg || '');
+        if (msg && !first) first = i;
+      });
+      return first;
+    }
+    dlg.querySelectorAll('form').forEach(function (form) {
+      var btn = form.querySelector('[type="submit"]'), label = btn.innerHTML;
+      function busy(on) {
+        btn.disabled = on;
+        if (on) { btn.setAttribute('aria-busy', 'true'); btn.innerHTML = '<span class="spinner" aria-hidden="true"></span>'; btn.appendChild(document.createTextNode(btn.getAttribute('data-busy'))); }
+        else { btn.removeAttribute('aria-busy'); btn.innerHTML = label; }
+      }
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (btn.disabled) return;
+        say('');
+        var bad = check(form);
+        if (bad) { bad.focus(); return; }
+        var body = { action: form.getAttribute('data-action') };
+        new FormData(form).forEach(function (v, k) { body[k] = v; });
+        function send(retry) {
+          return csrf(!retry).then(function (tk) {
+            body.csrf_token = tk[body.action];
+            return post(body);
+          }).then(function (j) {
+            return j && j.code === 'csrf_expired' && retry ? send(false) : j; // the token went stale: fetch new ones, try once more
+          });
+        }
+        busy(true);
+        send(true).then(function (j) {
+          if (j && j.success) { location.reload(); return; } // server-rendered pages now show the signed-in content
+          var key = !j ? 'err_generic' : j.code === 'account_suspended' ? 'auth_err_suspended'
+            : j.code === 'csrf_expired' ? 'auth_err_expired' : (AUTH_ERRORS[j.message] || 'err_generic');
+          busy(false);
+          say(T[key] || T.err_generic);
+        }, function () { busy(false); say(T.auth_err_network); });
+      });
+    });
+  }
 
   // ---- scroll regions: a [data-scroll-label] wrapper that overflows becomes a focusable, labelled region
   // so keyboard users can scroll it; when everything fits it stays a plain wrapper.
@@ -810,6 +935,7 @@
     });
   }
 
+  initAuth();
   initCheckout();
   initResend();
   initClaim();

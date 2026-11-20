@@ -960,11 +960,55 @@ ok('cancel email: a Stripe subscriber is not sent to PayPal; a PayPal one still 
 $conn->query("DELETE FROM admin_settings WHERE setting_key = 'palette_stripe'");   // leave no Stripe config behind
 
 // Header: sign in / create account when signed out, account / sign out when signed in, back to this page.
-$out = palette_header_auth(0, 'directory', 'fr');
-$in = palette_header_auth(42, 'account', 'en');
+$out = palette_header_auth([], 'directory', 'fr');
+$in = palette_header_auth(['id' => 42, 'name' => 'Lan Nguyen', 'email' => 'lan@studio-mai.vn'], 'account', 'en');
 ok('header signed out: sign in and register return to the page', str_contains($out, '/companies/?auth=login&amp;redirect=' . rawurlencode(palette_page_url('directory', 'fr')))
     && str_contains($out, 'auth=register') && str_contains($out, h(palette_t('fr', 'nav_register'))) && !str_contains($out, 'logout'));
-ok('header signed in: account and sign out, no sign in', str_contains($in, 'logout.php?redirect=') && str_contains($in, 'Your keys') && !str_contains($in, 'auth=login'));
+ok('header signed in: avatar menu with name, email, keys, submissions, sign out', str_contains($in, 'logout.php?redirect=') && str_contains($in, 'Your keys')
+    && !str_contains($in, 'auth=login') && str_contains($in, '<span class="av" aria-hidden="true">LN</span>') && str_contains($in, 'Lan Nguyen')
+    && str_contains($in, 'lan@studio-mai.vn') && str_contains($in, 'aria-label="Account: Lan Nguyen"')
+    && str_contains($in, 'href="/palette/directory/mine?lang=en">' . palette_icon('send', 16) . '<span>Your submissions</span>')
+    && str_contains($in, 'href="/palette/account?lang=en" aria-current="page"'));
+ok('initials: one word, no name', palette_initials(['name' => 'lan', 'email' => 'x@y.z']) === 'L' && palette_initials(['name' => '', 'email' => 'mai@y.z']) === 'M');
+ok('session viewer: name and email from the companies session, [] signed out', palette_session_viewer([]) === []
+    && palette_session_viewer(['user_id' => '7', 'name' => ' Lan ', 'email' => 'l@x.vn']) === ['id' => 7, 'name' => 'Lan', 'email' => 'l@x.vn']);
+// Header on a whole page, signed out: real hrefs, no licence key in companies URLs, the dialog, nav, compact language control.
+$_SESSION = [];
+$hp = palette_render_account(['query' => ['lang' => 'en', 'key' => $k3], 'accept_language' => '', 'session' => []]);
+preg_match('#<header class="topbar">.*?</header>#s', $hp, $hm);
+preg_match_all('#href="(/companies/[^"]*)"#', $hp, $cos);
+ok('page header signed out: sign in and create account keep real hrefs', str_contains($hm[0] ?? '', 'href="/companies/?auth=login&amp;redirect=%2Fpalette%2Faccount%3Flang%3Den"')
+    && str_contains($hm[0] ?? '', 'href="/companies/?auth=register&amp;redirect='));
+ok('page header: no licence key in any companies URL', count($cos[1]) >= 5 && !preg_grep('/' . preg_quote(substr($k3, 4, 8), '/') . '/', $cos[1]));
+ok('page header: Directory, Pricing and Extension, phone menu', str_contains($hm[0], '<nav class="topnav"><a href="/palette/directory?lang=en">Directory</a><a href="/palette/checkout?lang=en">Pricing</a><a href="/palette/?lang=en#install">Extension</a></nav>')
+    && str_contains($hm[0], 'aria-label="Menu" data-close-label="Close menu"') && substr_count($hm[0], '<a class="mi"') === 3);
+ok('page header: stacked by-line, 32 px language control with the short code', str_contains($hm[0], '<span class="brand-txt"><span class="brand-name">Site to Design Token</span><span class="brand-by">by vietnamcos.com</span></span>')
+    && str_contains($hm[0], '<summary aria-label="Language: English">') && str_contains($hm[0], '<span class="lang-code" aria-hidden="true">EN</span>')
+    && substr_count($hm[0], 'hreflang="en"') === 2);
+ok('sign-in dialog: tabs, fields, Google back to the page, reset and terms links', preg_match('#<dialog class="auth-dlg" id="auth-dlg".*?</dialog>#s', $hp, $dm) === 1
+    && substr_count($dm[0], 'role="tab"') === 2 && str_contains($dm[0], 'name="confirm_password"') && str_contains($dm[0], 'name="remember" value="1"')
+    && str_contains($dm[0], 'name="terms" value="on"') && str_contains($dm[0], 'social-auth.php?provider=google&amp;action=login&amp;redirect=%2Fpalette%2Faccount%3Flang%3Den"')
+    && str_contains($dm[0], 'href="/companies/forgot-password"') && str_contains($dm[0], 'terms-of-service') && str_contains($dm[0], 'role="alert"')
+    && !str_contains($dm[0], $k3));
+ok('sign-in dialog: error strings handed to the script', ($hd = checkoutData($hp)) !== [] && ($hd['t']['auth_err_login'] ?? '') === palette_t('en', 'auth_err_login')
+    && ($hd['t']['acct_added'] ?? '') === palette_t('en', 'acct_added'));
+$_SESSION = [];
+$hs = palette_render_terms(['query' => ['lang' => 'ar'], 'accept_language' => '', 'session' => ['user_id' => 7, 'name' => 'Lan Nguyen', 'email' => 'lan@studio-mai.vn']]);
+ok('page header signed in (ar): avatar menu, no dialog, no sign in', str_contains($hs, 'lan@studio-mai.vn') && str_contains($hs, 'class="dd acct"')
+    && !str_contains($hs, '<dialog') && !str_contains($hs, 'auth=login') && str_contains($hs, '<span class="lang-code" aria-hidden="true">AR</span>')
+    && !isset(checkoutData($hs)['t']['auth_err_login']));
+$HEADER_KEYS = ['nav_pricing', 'nav_extension', 'nav_menu', 'nav_close_menu', 'nav_account', 'dir_nav_mine', 'auth_close', 'auth_google', 'auth_or',
+    'auth_email', 'auth_password', 'auth_remember', 'auth_forgot', 'auth_name', 'auth_confirm', 'auth_pw_hint', 'auth_terms', 'auth_terms_link',
+    'auth_busy_in', 'auth_busy_up', 'auth_err_login', 'auth_err_suspended', 'auth_err_taken', 'auth_err_expired', 'auth_err_network',
+    'auth_err_name', 'auth_err_password', 'auth_err_short', 'auth_err_match', 'auth_err_terms'];
+$bad = [];
+foreach (LANGS as $l) foreach ($HEADER_KEYS as $k) {
+    $v = palette_strings($l)[$k] ?? '';
+    if (trim($v) === '' || preg_match(EMOJI_RE, $v) || ($l !== 'en' && str_starts_with($k, 'auth_err') && $v === palette_t('en', $k))) $bad[] = "$l:$k";
+}
+ok('header and dialog strings in all 7 languages, translated, no emoji: ' . implode(', ', $bad), $bad === []);
+ok('My submissions is now Your submissions', palette_t('en', 'dir_nav_mine') === 'Your submissions' && !str_contains(palette_t('en', 'blocked'), 'My submissions'));
+foreach (LANGS as $l) ok("auth_terms in $l keeps its {terms} link", str_contains(palette_t($l, 'auth_terms'), '{terms}'));
 // SEO: canonical, 7 alternates + x-default, description, Open Graph; private pages are noindex and keep no key in URLs.
 $seo = palette_head_meta('landing', 'fr', 'T', []);
 ok('seo landing: canonical, alternates, description, og, indexable', str_contains($seo, '<link rel="canonical" href="https://vietnamcos.com/palette/?lang=fr">')

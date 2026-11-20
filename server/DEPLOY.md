@@ -413,7 +413,7 @@ uploads to `api.php?action=dir_upload` with `Authorization: Bearer <token>`.
      'https://vietnamcos.com/palette/api.php?action=dir_me'                                 # 401 token_revoked
    ```
    Then sign in, share one item at `/palette/directory/new`, open it, download the zip, delete it on
-   My submissions, and check the folder under `palette-data/directory/YYYY/MM/` is gone.
+   Your submissions, and check the folder under `palette-data/directory/YYYY/MM/` is gone.
 
 ## 7. Extension
 

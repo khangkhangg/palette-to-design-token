@@ -409,7 +409,7 @@ function palette_directory_page(mysqli $c, array $ctx): array
     $path = (string)($ctx['path'] ?? '');
     $v = [
         'c' => $c, 'lang' => palette_page_lang($query, (string)($ctx['accept_language'] ?? '')),
-        'uid' => palette_session_user($session), 'admin' => palette_admin_is_admin($session),
+        'uid' => palette_session_user($session), 'user' => palette_session_viewer($session), 'admin' => palette_admin_is_admin($session),
         'query' => $query, 'post' => $post, 'files' => is_array($ctx['files'] ?? null) ? $ctx['files'] : [],
         'ip' => (string)($ctx['ip'] ?? ''), 'body_bytes' => (int)($ctx['body_bytes'] ?? 0),
         'isPost' => ($ctx['method'] ?? 'GET') === 'POST',
@@ -433,7 +433,7 @@ function palette_dir_html(array $v, int $status, string $page, string $title, st
     $keep = array_intersect_key(palette_page_keep($v['query']), ['ext' => 1]);
     if ($status !== 200) $meta['noindex'] = true;
     return ['status' => $status, 'headers' => palette_page_headers() + ['Cache-Control' => 'private, no-store'],
-        'body' => palette_page_shell($page, $v['lang'], $keep, $title . ' | Site to Design Token', $main, $data, $v['uid'], $meta)];
+        'body' => palette_page_shell($page, $v['lang'], $keep, $title . ' | Site to Design Token', $main, $data, $v['user'], $meta)];
 }
 
 function palette_dir_redirect(string $to): array

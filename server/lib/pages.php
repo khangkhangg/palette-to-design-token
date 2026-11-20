@@ -158,14 +158,19 @@ function palette_icon(string $name, int $size = 16): string
         'search' => '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
         'plug' => '<path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/>',
         'info' => '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
-        'spark' => '<path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 3v4M17 5h4"/>',
+        'menu' => '<path d="M4 6h16M4 12h16M4 18h16"/>',
+        'close' => '<path d="M18 6 6 18M6 6l12 12"/>',
+        'out' => '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+        'spark' =>'<path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 3v4M17 5h4"/>',
         'pointer' => '<path d="M4 4l6.5 16 2.3-6.7L19.5 11z"/>',
     ];
     return '<svg class="icon icon-' . $name . '" width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
         . ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' . ($paths[$name] ?? '') . '</svg>';
 }
 
-function palette_lang_switcher(string $page, string $lang, array $keep): string
+// Language switcher: a 32 px control with the short code (the summary's label and the open menu keep the full
+// names). $sheet: the same list as a row of the phone menu sheet.
+function palette_lang_switcher(string $page, string $lang, array $keep, bool $sheet = false): string
 {
     $items = '';
     foreach (PALETTE_LANG_NAMES as $code => $name) {
@@ -173,26 +178,98 @@ function palette_lang_switcher(string $page, string $lang, array $keep): string
         $items .= '<li><a href="' . palette_h(palette_page_url($page, $code, $keep)) . '" hreflang="' . $code . '" lang="' . $code . '"' . $cur . '>'
             . '<span>' . palette_h($name) . '</span>' . ($cur ? palette_icon('check', 14) : '') . '</a></li>';
     }
-    return '<details class="lang"><summary aria-label="' . palette_h(palette_t($lang, 'page_language') . ': ' . PALETTE_LANG_NAMES[$lang]) . '">'
-        . palette_icon('globe', 15) . '<span lang="' . $lang . '">' . palette_h(PALETTE_LANG_NAMES[$lang]) . '</span>' . palette_icon('chevron', 14)
+    if ($sheet) return '<details class="sheet-lang"><summary class="mi">' . palette_icon('globe', 16) . '<span>' . palette_h(palette_t($lang, 'page_language'))
+        . '</span><span class="val" lang="' . $lang . '">' . palette_h(PALETTE_LANG_NAMES[$lang]) . palette_icon('chevron', 14) . '</span></summary>'
+        . '<ul class="lang-menu">' . $items . '</ul></details>';
+    return '<details class="dd lang"><summary aria-label="' . palette_h(palette_t($lang, 'page_language') . ': ' . PALETTE_LANG_NAMES[$lang]) . '">'
+        . palette_icon('globe', 14) . '<span class="lang-code" aria-hidden="true">' . strtoupper(substr($lang, 0, 2)) . '</span>' . palette_icon('chevron', 14)
         . '</summary><ul class="lang-menu">' . $items . '</ul></details>';
 }
 
-// Sign in / Create account, or Your keys / Sign out, through the shared companies account.
-// The redirect drops $keep on purpose: a licence key must not reach companies URLs (they carry analytics).
-function palette_header_auth(int $uid, string $page, string $lang): string
+// The signed-in companies user for the header: id, name and email from the companies session, or [] when signed out.
+function palette_session_viewer(array $session): array
+{
+    $id = palette_session_user($session);
+    if ($id === 0) return [];
+    return ['id' => $id, 'name' => is_string($session['name'] ?? null) ? trim($session['name']) : '',
+        'email' => is_string($session['email'] ?? null) ? $session['email'] : ''];
+}
+
+// Avatar letters: first and last word of the name, else the first letter of the email.
+function palette_initials(array $user): string
+{
+    $w = preg_split('/\s+/u', (string)($user['name'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) ?: [(string)($user['email'] ?? '')];
+    return mb_strtoupper(mb_substr($w[0], 0, 1) . (count($w) > 1 ? mb_substr(end($w), 0, 1) : ''));
+}
+
+// Signed out: Sign in and Create account (checkout.js opens them in the dialog). Signed in: the avatar menu with
+// Your keys, Your submissions and Sign out. The redirect drops $keep on purpose: a licence key must not reach
+// companies URLs (they carry analytics).
+function palette_header_auth(array $user, string $page, string $lang): string
 {
     $t = fn(string $k) => palette_h(palette_t($lang, $k));
     $back = rawurlencode(palette_page_url($page, $lang));
-    if ($uid === 0) {
-        return '<div class="topbar-auth">'
-            . '<a class="btn btn-sm" rel="nofollow" href="/companies/?auth=login&amp;redirect=' . $back . '">' . $t('acct_signin') . '</a>'
-            . '<a class="btn btn-sm btn-accent" rel="nofollow" href="/companies/?auth=register&amp;redirect=' . $back . '">' . $t('nav_register') . '</a></div>';
+    if (!$user) {
+        return '<a class="btn btn-quiet auth-in" rel="nofollow" href="/companies/?auth=login&amp;redirect=' . $back . '" aria-label="' . $t('acct_signin') . '">'
+            . palette_icon('user', 18) . '<span>' . $t('acct_signin') . '</span></a>'
+            . '<a class="btn btn-accent auth-up" rel="nofollow" href="/companies/?auth=register&amp;redirect=' . $back . '">' . $t('nav_register') . '</a>';
     }
-    return '<div class="topbar-auth">'
-        . '<a class="btn btn-sm topbar-acct" href="' . palette_h(palette_page_url('account', $lang)) . '" title="' . $t('page_keys') . '" aria-label="' . $t('page_keys') . '">'
-        . palette_icon('user', 16) . '<span>' . $t('page_keys') . '</span></a>'
-        . '<a class="btn btn-sm" rel="nofollow" href="/companies/logout.php?redirect=' . $back . '">' . $t('nav_signout') . '</a></div>';
+    $av = '<span class="av" aria-hidden="true">' . palette_h(palette_initials($user)) . '</span>';
+    $mi = fn(string $href, string $icon, string $k, bool $cur) => '<a class="mi" href="' . palette_h($href) . '"' . ($cur ? ' aria-current="page"' : '') . '>'
+        . palette_icon($icon, 16) . '<span>' . $t($k) . '</span></a>';
+    return '<details class="dd acct"><summary aria-label="' . $t('nav_account') . ': ' . palette_h($user['name'] !== '' ? $user['name'] : $user['email']) . '">'
+        . $av . palette_icon('chevron', 14) . '</summary><div class="dd-menu">'
+        . '<div class="who">' . $av . '<div><b>' . palette_h($user['name']) . '</b><span dir="ltr">' . palette_h($user['email']) . '</span></div></div><hr class="sep">'
+        . $mi(palette_page_url('account', $lang), 'key', 'page_keys', $page === 'account')
+        . $mi(palette_page_url('directory/mine', $lang), 'send', 'dir_nav_mine', $page === 'directory/mine') . '<hr class="sep">'
+        . '<a class="mi" rel="nofollow" href="/companies/logout.php?redirect=' . $back . '">' . palette_icon('out', 16) . '<span>' . $t('nav_signout') . '</span></a>'
+        . '</div></details>';
+}
+
+// Strings the sign-in dialog needs in checkout.js (pages without a dialog leave them out).
+const PALETTE_AUTH_STRINGS = ['err_email', 'err_generic', 'auth_err_login', 'auth_err_suspended', 'auth_err_taken', 'auth_err_expired',
+    'auth_err_network', 'auth_err_name', 'auth_err_password', 'auth_err_short', 'auth_err_match', 'auth_err_terms'];
+
+// Sign in / Create account dialog, only for signed-out visitors. The links keep their real /companies/?auth= hrefs;
+// checkout.js opens this instead and posts to companies' api/auth.php (same origin). Google and the password reset
+// leave the page, because they need a redirect and live on the companies site.
+function palette_auth_dialog(string $page, string $lang): string
+{
+    $t = fn(string $k) => palette_h(palette_t($lang, $k));
+    $back = rawurlencode(palette_page_url($page, $lang));
+    $err = fn(string $id) => '<p class="ferr" id="' . $id . '-err" hidden>' . palette_icon('alert', 14) . '<span></span></p>';
+    $fld = function (string $id, string $name, string $type, string $k, string $ac, string $hint = '') use ($t, $err): string {
+        $email = $type === 'email' ? ' placeholder="name@company.com" dir="ltr" maxlength="190"' : '';
+        return '<div class="fld"><label for="' . $id . '">' . $t($k) . '</label>'
+            . '<input type="' . $type . '" id="' . $id . '" name="' . $name . '" autocomplete="' . $ac . '"' . $email
+            . ' aria-describedby="' . ($hint ? $id . '-hint ' : '') . $id . '-err" required>'
+            . ($hint ? '<p class="hint" id="' . $id . '-hint">' . $t($hint) . '</p>' : '') . $err($id) . '</div>';
+    };
+    $tab = fn(string $id, string $k, bool $on) => '<button type="button" role="tab" id="auth-tab-' . $id . '" aria-controls="auth-' . $id . '" aria-selected="'
+        . ($on ? 'true' : 'false') . '"' . ($on ? '' : ' tabindex="-1"') . '>' . $t($k) . '</button>';
+    $submit = fn(string $k, string $busy) => '<button type="submit" class="btn btn-accent btn-full" data-busy="' . $t($busy) . '">' . $t($k) . '</button>';
+    return '<dialog class="auth-dlg" id="auth-dlg" aria-labelledby="auth-tab-login">'
+        . '<div class="dlg-head"><div class="seg" role="tablist" aria-label="' . $t('nav_account') . '">'
+        . $tab('login', 'acct_signin', true) . $tab('register', 'nav_register', false) . '</div>'
+        . '<button type="button" class="btn btn-quiet btn-sq" data-close aria-label="' . $t('auth_close') . '">' . palette_icon('close', 18) . '</button></div>'
+        . '<div class="error" role="alert" hidden>' . palette_icon('alert', 16) . '<span></span></div>'
+        . '<div class="dlg-panel" id="auth-login" role="tabpanel" aria-labelledby="auth-tab-login">'
+        . '<a class="btn btn-quiet btn-full" rel="nofollow" href="/companies/api/social-auth.php?provider=google&amp;action=login&amp;redirect=' . $back . '">'
+        . $t('auth_google') . '</a><p class="or">' . $t('auth_or') . '</p>'
+        . '<form class="dlg-form" data-action="login" novalidate>'
+        . $fld('auth-email', 'email', 'email', 'auth_email', 'email') . $fld('auth-pw', 'password', 'password', 'auth_password', 'current-password')
+        . '<div class="dlg-row"><label class="consent"><input type="checkbox" name="remember" value="1"><span>' . $t('auth_remember') . '</span></label>'
+        . '<a href="/companies/forgot-password">' . $t('auth_forgot') . '</a></div>'
+        . $submit('acct_signin', 'auth_busy_in') . '</form></div>'
+        . '<div class="dlg-panel" id="auth-register" role="tabpanel" aria-labelledby="auth-tab-register" hidden>'
+        . '<form class="dlg-form" data-action="register" novalidate>'
+        . $fld('auth-name', 'name', 'text', 'auth_name', 'name') . $fld('auth-remail', 'email', 'email', 'auth_email', 'email')
+        . $fld('auth-npw', 'password', 'password', 'auth_password', 'new-password', 'auth_pw_hint')
+        . $fld('auth-cpw', 'confirm_password', 'password', 'auth_confirm', 'new-password')
+        . '<div class="fld"><label class="consent"><input type="checkbox" id="auth-terms" name="terms" value="on" aria-describedby="auth-terms-err" required><span>'
+        . palette_t_html($lang, 'auth_terms', ['terms' => '<a href="https://pm.vietnamcos.com/courses/terms-of-service" target="_blank" rel="noopener">'
+            . $t('auth_terms_link') . '</a>']) . '</span></label>' . $err('auth-terms') . '</div>'
+        . $submit('nav_register', 'auth_busy_up') . '</form></div></dialog>' . "\n";
 }
 
 const PALETTE_ORIGIN = 'https://vietnamcos.com';
@@ -220,10 +297,16 @@ function palette_head_meta(string $page, string $lang, string $title, array $met
     return $desc !== '' ? $out . '<meta property="og:description" content="' . $desc . '">' : $out;
 }
 
-function palette_page_shell(string $page, string $lang, array $keep, string $title, string $main, array $data = [], int $uid = 0, array $meta = []): string
+function palette_page_shell(string $page, string $lang, array $keep, string $title, string $main, array $data = [], array $user = [], array $meta = []): string
 {
     $t = fn(string $k) => palette_h(palette_t($lang, $k));
     $dir = $lang === 'ar' ? 'rtl' : 'ltr';
+    $here = $page === 'landing' ? '' : $page;
+    $links = [[palette_page_url('directory', $lang), 'dir_nav', $page === 'directory'], [palette_page_url('checkout', $lang), 'nav_pricing', $page === 'checkout'],
+        [palette_page_url('', $lang) . '#install', 'nav_extension', false]];
+    $nav = fn(string $attr) => implode('', array_map(fn(array $l) => '<a' . $attr . ' href="' . palette_h($l[0]) . '"'
+        . ($l[2] ? ' aria-current="page"' : '') . '>' . $t($l[1]) . '</a>', $links));
+    if (!$user) $data['t'] = ($data['t'] ?? []) + array_combine(PALETTE_AUTH_STRINGS, array_map(fn(string $k) => palette_t($lang, $k), PALETTE_AUTH_STRINGS));
     $json = json_encode(['lang' => $lang, 'page' => $page] + $data,
         JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     return '<!doctype html>' . "\n"
@@ -235,16 +318,15 @@ function palette_page_shell(string $page, string $lang, array $keep, string $tit
         . '<script src="' . palette_h(palette_asset('checkout.js')) . '" defer></script></head>' . "\n"
         . '<body class="page-' . $page . '">'
         . '<header class="topbar"><div class="topbar-in">'
-        . '<a class="brand" href="' . palette_h(palette_page_url('', $lang)) . '">'
-        . '<span class="mark" aria-hidden="true"></span><span class="brand-name">Site to Design Token</span>'
-        . '<span class="brand-by">' . $t('page_by') . '</span></a>'
-        . '<nav class="topnav"><a href="' . palette_h(palette_page_url('directory', $lang)) . '"'
-        . ($page === 'directory' ? ' aria-current="page"' : '') . '>' . $t('dir_nav') . '</a>'
-        . '<a href="' . palette_h(palette_page_url('directory/mine', $lang)) . '"'
-        . ($page === 'directory/mine' ? ' aria-current="page"' : '') . '>' . $t('dir_nav_mine') . '</a></nav>'
-        . palette_lang_switcher($page === 'landing' ? '' : $page, $lang, $keep)
-        . palette_header_auth($uid,$page === 'landing' ? '' : $page, $lang)
-        . '</div></header>' . "\n"
+        . '<a class="brand" href="' . palette_h(palette_page_url('', $lang)) . '"><span class="mark" aria-hidden="true"></span>'
+        . '<span class="brand-txt"><span class="brand-name">Site to Design Token</span><span class="brand-by">' . $t('page_by') . '</span></span></a>'
+        . '<nav class="topnav">' . $nav('') . '</nav><div class="topbar-end">'
+        . palette_lang_switcher($here, $lang, $keep) . palette_header_auth($user, $here, $lang)
+        . '<details class="dd menu"><summary aria-label="' . $t('nav_menu') . '" data-close-label="' . $t('nav_close_menu') . '">'
+        . palette_icon('menu', 18) . palette_icon('close', 18) . '</summary><div class="sheet">' . $nav(' class="mi"') . '<hr class="sep">'
+        . palette_lang_switcher($here, $lang, $keep, true)
+        . ($user ? '' : '<hr class="sep"><div class="sheet-actions">' . palette_header_auth([], $here, $lang) . '</div>') . '</div></details>'
+        . '</div></div></header>' . "\n" . ($user ? '' : palette_auth_dialog($here, $lang))
         . $main . "\n"
         . '<footer class="foot"><div class="foot-in">'
         . '<a href="' . palette_h(palette_page_url('privacy', $lang)) . '">' . $t('page_privacy') . '</a>'
@@ -493,7 +575,7 @@ function palette_render_landing(array $ctx): string
 
     $main = '<main class="wrap landing">' . $hero . $showcase . $how . palette_section_features($lang) . $edit . palette_section_plans($lang, $price)
         . $insights . $ai . palette_section_install($lang) . $faq . '</main>';
-    return palette_page_shell('landing', $lang, [], palette_t($lang, 'lp_title'), $main, ['t' => palette_script_strings($lang)], palette_session_user($ctx['session'] ?? []));
+    return palette_page_shell('landing', $lang, [], palette_t($lang, 'lp_title'), $main, ['t' => palette_script_strings($lang)], palette_session_viewer($ctx['session'] ?? []));
 }
 
 function palette_render_terms(array $ctx): string
@@ -523,7 +605,7 @@ function palette_render_terms(array $ctx): string
         . '<div class="card policy-list">' . $sections . '</div>'
         . '<p class="updated">' . palette_t_html($lang, 'priv_updated', ['date' => palette_ltr(PALETTE_TERMS_UPDATED)]) . '</p>'
         . '</article></main>';
-    return palette_page_shell('terms', $lang, [], palette_t($lang, 'terms_title') . ' | Site to Design Token', $main, [], palette_session_user($ctx['session'] ?? []));
+    return palette_page_shell('terms', $lang, [], palette_t($lang, 'terms_title') . ' | Site to Design Token', $main, [], palette_session_viewer($ctx['session'] ?? []));
 }
 
 // Methods come from checkout_methods, in that order; a method counts only while it is connected (Stripe: the Live
@@ -712,7 +794,7 @@ function palette_render_checkout(array $ctx): string
     }
     if ($stSession !== null) $data += ['st' => $stSession, 'csrf_account' => palette_account_csrf_token()];
     if ($move !== null) $data['move'] = $moveTok;
-    return palette_page_shell('checkout', $lang, $keep, palette_t($lang, 'co_title'), $main, $data, palette_session_user($ctx['session'] ?? []));
+    return palette_page_shell('checkout', $lang, $keep, palette_t($lang, 'co_title'), $main, $data, palette_session_viewer($ctx['session'] ?? []));
 }
 
 function palette_session_user(array $session): int
@@ -781,7 +863,7 @@ function palette_render_account(array $ctx): string
     $strings = [];
     foreach (PALETTE_SCRIPT_STRINGS as $k) $strings[$k] = palette_t($lang, $k);
     return palette_page_shell('account', $lang, $keep, palette_t($lang, 'acct_title') . ' | Site to Design Token',
-        '<main class="wrap narrow">' . $head . $body . '</main>', ['t' => $strings, 'csrf' => palette_account_csrf_token()], $uid);
+        '<main class="wrap narrow">' . $head . $body . '</main>', ['t' => $strings, 'csrf' => palette_account_csrf_token()], palette_session_viewer($session));
 }
 
 // What a stored subscription state means right now: revoked|active|pending|cancelled|suspended|expired. Revoked
@@ -867,5 +949,5 @@ function palette_render_privacy(array $ctx): string
         . '<div class="card policy-list">' . $sections . '</div>'
         . '<p class="updated">' . palette_t_html($lang, 'priv_updated', ['date' => palette_ltr(PALETTE_PRIVACY_UPDATED)]) . '</p>'
         . '</article></main>';
-    return palette_page_shell('privacy', $lang, [], palette_t($lang, 'priv_title') . ' | Site to Design Token', $main, [], palette_session_user($ctx['session'] ?? []));
+    return palette_page_shell('privacy', $lang, [], palette_t($lang, 'priv_title') . ' | Site to Design Token', $main, [], palette_session_viewer($ctx['session'] ?? []));
 }
