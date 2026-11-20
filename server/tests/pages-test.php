@@ -314,12 +314,12 @@ ok('landing: Get Pro goes to the checkout buy card', preg_match('~<a[^>]*href="/
 ok('landing: version and browsers', str_contains($lp, 'Works in Chrome, Edge and Brave. Version <bdi dir="ltr">' . PALETTE_EXT_VERSION . '</bdi>.'));
 ok('landing: sections in order', $at('id="hero-actions"') < $at('id="shots"') && $at('id="shots"') < $at('id="how"') && $at('id="how"') < $at('id="what"')
     && $at('id="what"') < $at('id="plans"') && $at('id="plans"') < $at('id="ai"') && $at('id="ai"') < $at('id="install"') && $at('id="install"') < $at('id="faq"'));
-ok('landing: five screenshots with size, alt and lazy loading after the first',
-    preg_match_all('#<img src="/palette/assets/screenshots/([1-5]-[a-z-]+\.png)" width="1280" height="800" alt="([^"]+)"( loading="lazy")?#', $lp, $im) === 5
-    && $im[3][0] === '' && count(array_filter(array_slice($im[3], 1))) === 4 && $im[2][0] === h(palette_t('en', 'lp_shot_1')));
+ok('landing: four gallery screenshots with size, alt and lazy loading (the stage replaces the first)',
+    preg_match_all('#<img src="/palette/assets/screenshots/([2-5]-[a-z-]+\.png)" width="1280" height="800" alt="([^"]+)" loading="lazy"#', $lp, $im) === 4
+    && $im[2][0] === h(palette_t('en', 'lp_shot_2')));
 $files = true;
 foreach ($im[1] as $f) if (!is_file(PALETTE_DIR . '/assets/screenshots/' . $f)) $files = false;
-ok('landing: screenshot files exist', $files && count($im[1]) === 5);
+ok('landing: screenshot files exist', $files && count($im[1]) === 4);
 ok('landing: how it works has 3 steps', preg_match('#id="how".*?</section>#s', $lp, $hm) === 1 && substr_count($hm[0], '<li') === 3);
 ok('landing: reuses features, plans and install from checkout', preg_match('#id="what".*?</section>#s', $lp, $a) === 1
     && preg_match('#id="what".*?</section>#s', checkout(['lang' => 'en']), $b) === 1 && $a[0] === $b[0]
@@ -331,11 +331,36 @@ ok('landing: FAQ with 7 questions, privacy link and the refund line', preg_match
     && str_contains($qm[0], h(palette_t('en', 'pp_key_1'))));
 ok('landing: AI block no longer claims every site is linked', !str_contains($lp, 'each linked'));
 ok('landing: no inline script', preg_match_all('/<script(?![^>]*\bsrc=)(?![^>]*type="application\/(ld\+)?json")[^>]*>/', $lp) === 0);
+// Hero stage and "Try it on a site": the page holds the markup, landing.js fills it from the strings in palette-data.
+ok('landing: stage and try-it come after the hero, before the gallery',
+    $at('id="hero-actions"') < $at('id="stage"') && $at('id="stage"') < $at('id="try"') && $at('id="try"') < $at('id="shots"'));
+ok('landing: stage markup (steps, play button, made-up site in English, caption)',
+    str_contains($lp, 'id="stage" role="region" aria-label="' . h(palette_t('en', 'lp_st_label')) . '"')
+    && str_contains($lp, '<div class="st-steps" id="steps" role="group" aria-label="' . h(palette_t('en', 'lp_st_steps')) . '">')
+    && str_contains($lp, '<button class="play" id="play" type="button">') && str_contains($lp, '<div class="vp-page" id="page" lang="en" dir="ltr">')
+    && str_contains($lp, '<div class="try-site" id="try-site" aria-hidden="true" lang="en" dir="ltr">') && str_contains($lp, '<p class="caption" aria-live="polite">'));
+ok('landing: loads landing.css and landing.js from files; checkout does not',
+    preg_match('#<link rel="stylesheet" href="/palette/assets/landing\.css(\?v=\d+)?">#', $lp) === 1
+    && preg_match('#<script src="/palette/assets/landing\.js(\?v=\d+)?" defer></script>#', $lp) === 1
+    && !str_contains(checkout(['lang' => 'en']), 'landing.js'));
+preg_match('#<script type="application/json" id="palette-data">(.*?)</script>#s', $lp, $dm);
+ok('landing: palette-data carries the stage strings', (json_decode($dm[1] ?? '', true)['t']['lp_st_c4'] ?? null) === palette_t('en', 'lp_st_c4'));
+$stageKeys = array_filter(palette_strings('en'), fn($k) => str_starts_with($k, 'lp_st_') || str_starts_with($k, 'lp_try_'), ARRAY_FILTER_USE_KEY);
+$bad = [];
+foreach (LANGS as $l) foreach ($stageKeys as $k => $en) {
+    $v = palette_strings($l)[$k] ?? '';
+    preg_match_all('/\{\w+\}/', $en, $pa);
+    preg_match_all('/\{\w+\}/', $v, $pb);
+    sort($pa[0]);
+    sort($pb[0]);
+    if (trim($v) === '' || preg_match(EMOJI_RE, $v) || $pa[0] !== $pb[0]) $bad[] = "$l:$k";
+}
+ok('landing: 61 stage strings in all 7 languages, same {placeholders}, no emoji: ' . implode(', ', array_slice($bad, 0, 12)), count($stageKeys) === 61 && $bad === []);
 ok('landing: no Opera', preg_match('/\bOpera\b/i', $lp) === 0);
 foreach (LANGS as $l) {
     $html = landing(['lang' => $l]);
     $alts = true;
-    for ($i = 1; $i <= 5; $i++) if (!str_contains($html, 'alt="' . h(palette_t($l, "lp_shot_$i")) . '"')) $alts = false;
+    for ($i = 2; $i <= 5; $i++) if (!str_contains($html, 'alt="' . h(palette_t($l, "lp_shot_$i")) . '"')) $alts = false;
     ok("landing $l: lang/dir, alts, no emoji, switcher, title", str_contains($html, '<html lang="' . $l . '" dir="' . ($l === 'ar' ? 'rtl' : 'ltr') . '">')
         && $alts && preg_match(EMOJI_RE, $html) === 0 && str_contains($html, 'href="/palette/?lang=fr"')
         && str_contains($html, '<title>' . h(palette_t($l, 'lp_title')) . '</title>'));
@@ -705,7 +730,10 @@ foreach (LANGS as $l) {
     ok("landing $l: Edit on page section, feature and plan row", str_contains($h, h(palette_t($l, 'lp_edit_h'))) && str_contains($h, h(palette_t($l, 'lp_edit_b3')))
         && str_contains($h, 'alt="' . h(palette_t($l, 'lp_shot_7')) . '"') && str_contains($h, h(palette_t($l, 'pp_feat_edit'))) && str_contains($h, h(palette_t($l, 'pp_row_edit'))));
 }
-ok('landing: still five gallery screenshots (the sixth lives in the AI section)', preg_match_all('#<img src="/palette/assets/screenshots/[1-5]-#', $lpOn) === 5);
+ok('landing: still four gallery screenshots (the sixth lives in the AI section)', preg_match_all('#<img src="/palette/assets/screenshots/[1-5]-#', $lpOn) === 4);
+preg_match('#<section class="pp-section" id="try".*?</section>#s', $lpOn, $tm);
+preg_match_all('#<a class="btn [^"]*"[^>]*>(?:<svg.*?</svg>)?(?:<span>)?(.*?)(?:</span>)?</a>#s', $tm[0] ?? '', $bm);
+ok('landing: try-it pricing row has the 3 live labels', $bm[1] === ['Download the extension (free)', 'Get Pro — $1.49', 'Get Pro + AI — $3.99/month']);
 preg_match('#id="faq".*?</section>#s', $lpOn, $faq);
 ok('FAQ gains what Pro + AI is (price and limit) and how to cancel', str_contains($faq[0], h(palette_t('en', 'lp_faq_ai_q'))) && str_contains($faq[0], h(palette_t('en', 'lp_faq_ai_a', ['price' => '$3.99', 'n' => 100])))
     && str_contains($faq[0], 'up to 100 analyses a month') && str_contains($faq[0], h(palette_t('en', 'lp_faq_cancel_q'))) && str_contains($faq[0], 'select Cancel subscription')
@@ -718,7 +746,7 @@ foreach (LANGS as $l) {
         str_contains($h, 'alt="' . h(palette_t($l, 'lp_shot_6')) . '"') && str_contains($h, h(palette_t($l, 'lp_ins_h'))) && str_contains($h, h(palette_t($l, 'lp_ins_b2')))
         && str_contains($h, h(palette_t($l, 'pp_plan_ai', ['price' => $price]))) && str_contains($h, h(palette_t($l, 'lp_faq_ai_q'))) && str_contains($h, h(palette_t($l, 'lp_faq_cancel_a')))
         && str_contains($h, h(palette_t($l, 'lp_faq_ai_a', ['price' => $price, 'n' => 100]))) && substr_count($h, '<details class="faq-item">') === 7
-        && str_contains($h, h(palette_t($l, 'pp_ai_n', ['n' => 100]))) && preg_match('/{(price|n)}/', $h) === 0 && preg_match(EMOJI_RE, $h) === 0);
+        && str_contains($h, h(palette_t($l, 'pp_ai_n', ['n' => 100]))) && preg_match('/{(price|n)}/', preg_replace('#<script type="application/json".*?</script>#s', '', $h)) === 0 && preg_match(EMOJI_RE, $h) === 0);
 }
 $cen = checkout(['lang' => 'en']);
 ok('checkout shares the 3-column table and its lead names both plans', str_contains($cen, 'Pro + AI, $3.99 a month') && str_contains($cen, h(palette_t('en', 'co_lead'))) && str_contains(palette_t('en', 'co_lead'), 'Pro + AI is a monthly plan'));
