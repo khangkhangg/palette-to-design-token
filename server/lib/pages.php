@@ -365,7 +365,9 @@ function palette_page_shell(string $page, string $lang, array $keep, string $tit
         . '<meta name="color-scheme" content="light dark"><title>' . palette_h($title) . '</title>'
         . palette_head_meta($page, $lang, $title, $meta)
         . '<link rel="stylesheet" href="' . palette_h(palette_asset('checkout.css')) . '">'
-        . '<script src="' . palette_h(palette_asset('checkout.js')) . '" defer></script></head>' . "\n"
+        . '<script src="' . palette_h(palette_asset('checkout.js')) . '" defer></script>'
+        . ($page === 'landing' ? '<link rel="stylesheet" href="' . palette_h(palette_asset('landing.css')) . '"><script src="' . palette_h(palette_asset('landing.js')) . '" defer></script>' : '')
+        . '</head>' . "\n"
         . '<body class="page-' . $page . '">'
         . '<header class="topbar"><div class="topbar-in">'
         . palette_page_brand($lang)
@@ -464,13 +466,17 @@ function palette_plan_cards(string $lang, string $plan, bool $aiOn, string $proP
 // ---- sections shared by the landing and checkout pages
 
 // Download (free) + Get Pro, and the version / browsers line. $proHref: '#buy' on checkout, the checkout URL elsewhere.
+// The download, Get Pro and (when AI is on) Get Pro + AI buttons, shared by the hero and "Try it on a site".
+function palette_price_buttons(string $lang, string $price, string $proHref, ?string $aiHref, string $aiPrice): string
+{
+    return '<a class="btn btn-accent btn-lg" href="' . PALETTE_DOWNLOAD_URL . '" download>' . palette_icon('download', 17) . '<span>' . palette_h(palette_t($lang, 'pp_download')) . '</span></a>'
+        . '<a class="btn btn-quiet btn-lg" href="' . palette_h($proHref) . '">' . palette_h(palette_t($lang, 'pp_get_pro', ['price' => $price])) . '</a>'
+        . ($aiHref !== null ? '<a class="btn btn-quiet btn-lg" href="' . palette_h($aiHref) . '">' . palette_h(palette_t($lang, 'pp_get_ai', ['price' => $aiPrice])) . '</a>' : '');
+}
+
 function palette_section_hero_actions(string $lang, string $price, string $proHref, ?string $aiHref = null, string $aiPrice = ''): string
 {
-    return '<div class="hero-actions" id="hero-actions">'
-        . '<a class="btn btn-accent btn-lg" href="' . PALETTE_DOWNLOAD_URL . '" download>' . palette_icon('download', 17) . '<span>' . palette_h(palette_t($lang, 'pp_download')) . '</span></a>'
-        . '<a class="btn btn-quiet btn-lg" href="' . palette_h($proHref) . '">' . palette_h(palette_t($lang, 'pp_get_pro', ['price' => $price])) . '</a>'
-        . ($aiHref !== null ? '<a class="btn btn-quiet btn-lg" href="' . palette_h($aiHref) . '">' . palette_h(palette_t($lang, 'pp_get_ai', ['price' => $aiPrice])) . '</a>' : '')
-        . '</div>'
+    return '<div class="hero-actions" id="hero-actions">' . palette_price_buttons($lang, $price, $proHref, $aiHref, $aiPrice) . '</div>'
         . '<p class="works-in">' . palette_t_html($lang, 'pp_works_in', ['version' => palette_ltr(PALETTE_EXT_VERSION)]) . '</p>';
 }
 
@@ -563,10 +569,30 @@ function palette_render_landing(array $ctx): string
         . '</section>';
 
     $shots = '';
-    foreach (PALETTE_SCREENSHOTS as $i => $file) {
-        $shots .= '<figure class="shot' . ($i === 0 ? ' shot-main' : '') . '"><img src="' . PALETTE_BASE . '/assets/screenshots/' . $file . '" width="1280" height="800"'
-            . ' alt="' . $t('lp_shot_' . ($i + 1)) . '"' . ($i === 0 ? '' : ' loading="lazy"') . ' decoding="async"></figure>';
+    // The first shot (the popup) was the picture under the hero; the stage replaces it.
+    foreach (array_slice(PALETTE_SCREENSHOTS, 1, null, true) as $i => $file) {
+        $shots .= '<figure class="shot"><img src="' . PALETTE_BASE . '/assets/screenshots/' . $file . '" width="1280" height="800"'
+            . ' alt="' . $t('lp_shot_' . ($i + 1)) . '" loading="lazy" decoding="async"></figure>';
     }
+    // The stage: landing.js plays 6 steps of the extension on Fernleaf, a made-up site (English, left to right).
+    // The side panel speaks the page language, like the real extension.
+    $dir = $lang === 'ar' ? 'rtl' : 'ltr';
+    $stage = '<div class="stage" id="stage" role="region" aria-label="' . $t('lp_st_label') . '">'
+        . '<div class="stage-ctrl"><div class="st-steps" id="steps" role="group" aria-label="' . $t('lp_st_steps') . '"></div>'
+        . '<button class="play" id="play" type="button"></button></div>'
+        . '<div class="frame" dir="ltr"><div class="chrome" aria-hidden="true"><span class="addr">fernleaf.example</span>'
+        . '<span class="ext" id="ext"><span class="mark"></span></span></div>'
+        . '<div class="vp" id="vp" aria-hidden="true" inert><div class="vp-page" id="page" lang="en" dir="ltr"><span class="scanline" id="scanline"></span></div>'
+        . '<aside class="panel closed" id="panel" lang="' . $lang . '" dir="' . $dir . '"></aside>'
+        . '<div class="fx" id="fx"><svg class="cursor" id="cursor" viewBox="0 0 20 20"><path d="M3 2l14 7.5-6.4 1.7L7 17.5z" fill="#111" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg></div></div></div>'
+        . '<p class="caption" aria-live="polite"><span class="n" id="cap-n"></span><span class="t" id="cap-t"></span></p></div>';
+
+    $try = '<section class="pp-section" id="try" aria-labelledby="try-h"><h2 id="try-h">' . $t('lp_try_h') . '</h2><p>' . $t('lp_try_text') . '</p>'
+        . '<div class="try-ctrl" id="try-pick" role="group" aria-label="' . $t('lp_try_pick') . '"></div>'
+        . '<div class="try"><div class="try-site" id="try-site" aria-hidden="true" lang="en" dir="ltr"></div><div class="try-side" id="try-side" aria-live="polite"></div></div>'
+        . '<div class="pricing-row">' . palette_price_buttons($lang, $price, palette_page_url('checkout', $lang) . '#buy',
+            palette_ai_on() ? palette_page_url('checkout', $lang, ['plan' => 'ai']) . '#buy' : null, palette_ai_price_label($lang)) . '</div></section>';
+
     $showcase = '<section class="pp-section lp-shots" id="shots" aria-labelledby="shots-h"><h2 id="shots-h" class="sr-only">' . $t('lp_shots_h') . '</h2>'
         . '<div class="shots">' . $shots . '</div></section>';
 
@@ -616,9 +642,10 @@ function palette_render_landing(array $ctx): string
     $faq = '<section class="pp-section" id="faq" aria-labelledby="faq-h"><h2 id="faq-h">' . $t('lp_faq_h') . '</h2>'
         . '<div class="faq">' . $items . '</div></section>';
 
-    $main = '<main class="wrap landing">' . $hero . $showcase . $how . palette_section_features($lang) . $edit . palette_section_plans($lang, $price)
+    $main = '<main class="wrap landing">' . $hero . $stage . $try . $showcase . $how . palette_section_features($lang) . $edit . palette_section_plans($lang, $price)
         . $insights . $ai . palette_section_install($lang) . $faq . '</main>';
-    return palette_page_shell('landing', $lang, [], palette_t($lang, 'lp_title'), $main, ['t' => palette_script_strings($lang)], palette_session_viewer($ctx['session'] ?? []));
+    return palette_page_shell('landing', $lang, [], palette_t($lang, 'lp_title'), $main, ['t' => palette_script_strings($lang)
+        + array_filter(palette_strings($lang), fn($k) => str_starts_with($k, 'lp_st_') || str_starts_with($k, 'lp_try_'), ARRAY_FILTER_USE_KEY)], palette_session_viewer($ctx['session'] ?? []));
 }
 
 function palette_render_terms(array $ctx): string

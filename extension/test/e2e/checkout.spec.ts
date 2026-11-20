@@ -343,7 +343,7 @@ test('product page: free download link, Get Pro jumps to the buy card, install a
     await expect(page.getByRole('heading', { name: h })).toBeVisible();
   }
 
-  const getPro = page.getByRole('link', { name: 'Get Pro — $1.49' });
+  const getPro = page.locator('#hero-actions').getByRole('link', { name: 'Get Pro — $1.49' });
   await expect(getPro).toHaveAttribute('href', '#buy');
   await getPro.click();
   await expect(page).toHaveURL(/#buy$/);
@@ -394,10 +394,12 @@ test('landing: download, Get Pro to the checkout buy card, screenshots load, ter
   await fakePayPal(page);
   const res = await page.goto('/palette/?lang=en');
   expect(res!.headers()['content-security-policy']).toContain("default-src 'self'");
-  await expect(page.getByRole('link', { name: 'Download the extension (free)' })).toHaveAttribute('href', '/palette/download/site-to-design-token-latest.zip');
-  await expect(page.locator('img').first()).toHaveJSProperty('naturalWidth', 1280);
+  await expect(page.locator('#hero-actions').getByRole('link', { name: 'Download the extension (free)' })).toHaveAttribute('href', '/palette/download/site-to-design-token-latest.zip');
+  // The stage replaced the first screenshot; the gallery images load lazily.
+  await page.locator('#shots img').first().scrollIntoViewIfNeeded();
+  await expect(page.locator('#shots img').first()).toHaveJSProperty('naturalWidth', 1280);
   const srcs = await page.locator('#shots img').evaluateAll((imgs) => imgs.map((i) => (i as HTMLImageElement).getAttribute('src') ?? ''));
-  expect(srcs).toHaveLength(5);
+  expect(srcs).toHaveLength(4);
   for (const src of srcs) {
     const r = await page.request.get(src);
     expect(r.status(), src).toBe(200);
@@ -406,7 +408,7 @@ test('landing: download, Get Pro to the checkout buy card, screenshots load, ter
   const terms = page.locator('footer').getByRole('link', { name: 'Terms' });
   await expect(terms).toHaveAttribute('href', '/palette/terms?lang=en');
 
-  const getPro = page.getByRole('link', { name: 'Get Pro — $1.49' });
+  const getPro = page.locator('#hero-actions').getByRole('link', { name: 'Get Pro — $1.49' });
   await expect(getPro).toHaveAttribute('href', '/palette/checkout?lang=en#buy');
   await getPro.click();
   await expect(page).toHaveURL('/palette/checkout?lang=en#buy');
@@ -671,9 +673,9 @@ test('landing: Get Pro + AI goes to the checkout with the Pro + AI plan selected
   await seed(page);
   await fakePayPal(page);
   await page.goto('/palette/?lang=en');
-  // the hero button and the AI insights section both lead to the Pro + AI checkout; the section also shows the AI screenshot
+  // the hero button, the try-it pricing row and the AI insights section all lead to the Pro + AI checkout; the section also shows the AI screenshot
   const links = page.getByRole('link', { name: 'Get Pro + AI — $3.99/month' });
-  await expect(links).toHaveCount(2);
+  await expect(links).toHaveCount(3);
   for (const l of await links.all()) await expect(l).toHaveAttribute('href', '/palette/checkout?lang=en&plan=ai#buy');
   await expect(page.locator('#insights img')).toHaveAttribute('src', '/palette/assets/screenshots/6-ai-insights.png');
   await expect(page.locator('#plans thead .plan-ai')).toContainText('Pro + AI, $3.99 a month');
