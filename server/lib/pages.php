@@ -195,7 +195,32 @@ function palette_header_auth(int $uid, string $page, string $lang): string
         . '<a class="btn btn-sm" rel="nofollow" href="/companies/logout.php?redirect=' . $back . '">' . $t('nav_signout') . '</a></div>';
 }
 
-function palette_page_shell(string $page, string $lang, array $keep, string $title, string $main, array $data = [], int $uid = 0): string
+const PALETTE_ORIGIN = 'https://vietnamcos.com';
+const PALETTE_OG_LOCALES = ['en' => 'en_US', 'zh-CN' => 'zh_CN', 'hi' => 'hi_IN', 'es' => 'es_ES', 'ar' => 'ar_AR', 'fr' => 'fr_FR', 'bn' => 'bn_BD'];
+const PALETTE_NOINDEX_PAGES = ['checkout', 'account', 'directory/mine', 'directory/new', 'directory/connect'];
+
+// Description, canonical, language alternates, Open Graph and robots for the <head>.
+// $meta: description, image (absolute URL), noindex. Canonical URLs carry only the language, never $keep.
+function palette_head_meta(string $page, string $lang, string $title, array $meta): string
+{
+    $p = $page === 'landing' ? '' : $page;
+    $url = fn(string $l) => palette_h(PALETTE_ORIGIN . palette_page_url($p, $l));
+    $descKey = ['landing' => 'lp_lead', 'directory' => 'dir_lead', 'account' => 'acct_lead'][$page] ?? null;
+    $desc = palette_h($meta['description'] ?? ($descKey ? palette_t($lang, $descKey) : ''));
+    $image = palette_h($meta['image'] ?? PALETTE_ORIGIN . PALETTE_BASE . '/assets/screenshots/1-popup-colours.png');
+    $out = ($meta['noindex'] ?? in_array($page, PALETTE_NOINDEX_PAGES, true)) ? '<meta name="robots" content="noindex">' : '';
+    if ($desc !== '') $out .= '<meta name="description" content="' . $desc . '">';
+    $out .= '<link rel="canonical" href="' . $url($lang) . '">';
+    foreach (array_keys(PALETTE_LANG_NAMES) as $l) $out .= '<link rel="alternate" hreflang="' . $l . '" href="' . $url($l) . '">';
+    $out .= '<link rel="alternate" hreflang="x-default" href="' . $url('en') . '">'
+        . '<meta property="og:type" content="website"><meta property="og:site_name" content="Site to Design Token">'
+        . '<meta property="og:title" content="' . palette_h($title) . '"><meta property="og:url" content="' . $url($lang) . '">'
+        . '<meta property="og:image" content="' . $image . '"><meta property="og:locale" content="' . (PALETTE_OG_LOCALES[$lang] ?? 'en_US') . '">'
+        . '<meta name="twitter:card" content="summary_large_image">';
+    return $desc !== '' ? $out . '<meta property="og:description" content="' . $desc . '">' : $out;
+}
+
+function palette_page_shell(string $page, string $lang, array $keep, string $title, string $main, array $data = [], int $uid = 0, array $meta = []): string
 {
     $t = fn(string $k) => palette_h(palette_t($lang, $k));
     $dir = $lang === 'ar' ? 'rtl' : 'ltr';
@@ -205,6 +230,7 @@ function palette_page_shell(string $page, string $lang, array $keep, string $tit
         . '<html lang="' . $lang . '" dir="' . $dir . '">' . "\n"
         . '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
         . '<meta name="color-scheme" content="light dark"><title>' . palette_h($title) . '</title>'
+        . palette_head_meta($page, $lang, $title, $meta)
         . '<link rel="stylesheet" href="' . palette_h(palette_asset('checkout.css')) . '">'
         . '<script src="' . palette_h(palette_asset('checkout.js')) . '" defer></script></head>' . "\n"
         . '<body class="page-' . $page . '">'

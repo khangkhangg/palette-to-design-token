@@ -105,6 +105,7 @@ return [
     'acct_signin' => 'Sign in',
     'nav_register' => 'Create account',
     'nav_signout' => 'Sign out',
+    'dir_item_desc' => 'Design tokens from {site}: colours, fonts and spacing as DTCG and Figma JSON. Download them with a free account.',
     'acct_none' => 'No keys in your account yet.',
     'acct_bought' => 'Bought {date}',
     'acct_revoked' => 'Refunded, no longer works',

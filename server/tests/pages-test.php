@@ -965,4 +965,12 @@ $in = palette_header_auth(42, 'account', 'en');
 ok('header signed out: sign in and register return to the page', str_contains($out, '/companies/?auth=login&amp;redirect=' . rawurlencode(palette_page_url('directory', 'fr')))
     && str_contains($out, 'auth=register') && str_contains($out, h(palette_t('fr', 'nav_register'))) && !str_contains($out, 'logout'));
 ok('header signed in: account and sign out, no sign in', str_contains($in, 'logout.php?redirect=') && str_contains($in, 'Your keys') && !str_contains($in, 'auth=login'));
+// SEO: canonical, 7 alternates + x-default, description, Open Graph; private pages are noindex and keep no key in URLs.
+$seo = palette_head_meta('landing', 'fr', 'T', []);
+ok('seo landing: canonical, alternates, description, og, indexable', str_contains($seo, '<link rel="canonical" href="https://vietnamcos.com/palette/?lang=fr">')
+    && substr_count($seo, 'rel="alternate"') === 8 && str_contains($seo, 'hreflang="x-default"') && str_contains($seo, 'name="description"')
+    && str_contains($seo, 'og:image') && str_contains($seo, 'content="fr_FR"') && !str_contains($seo, 'noindex'));
+ok('seo account is noindex', str_contains(palette_head_meta('account', 'en', 'T', []), 'noindex'));
+ok('seo item: own description and image', str_contains(palette_head_meta('directory/a-1', 'en', 'T', ['description' => 'D <x>', 'image' => 'https://vietnamcos.com/i.webp']), 'content="D &lt;x&gt;"'));
+foreach (LANGS as $l) ok("seo item description in $l", !str_contains(palette_t($l, 'dir_item_desc', ['site' => 'a.example']), '{site}') && str_contains(palette_t($l, 'dir_item_desc', ['site' => 'a.example']), 'a.example'));
 foreach (LANGS as $l) ok("header strings in $l", palette_t($l, 'nav_register') !== 'nav_register' && palette_t($l, 'nav_signout') !== 'nav_signout');

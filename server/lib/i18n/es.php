@@ -105,6 +105,7 @@ return [
     'acct_signin' => 'Iniciar sesión',
     'nav_register' => 'Crear cuenta',
     'nav_signout' => 'Cerrar sesión',
+    'dir_item_desc' => 'Tokens de diseño de {site}: colores, fuentes y espaciado en JSON DTCG y Figma. Descárgalos con una cuenta gratuita.',
     'acct_none' => 'Todavía no hay claves en tu cuenta.',
     'acct_bought' => 'Comprada el {date}',
     'acct_revoked' => 'Reembolsada, ya no funciona',

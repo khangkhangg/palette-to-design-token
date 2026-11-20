@@ -428,11 +428,12 @@ function palette_directory_page(mysqli $c, array $ctx): array
     }
 }
 
-function palette_dir_html(array $v, int $status, string $page, string $title, string $main, array $data = []): array
+function palette_dir_html(array $v, int $status, string $page, string $title, string $main, array $data = [], array $meta = []): array
 {
     $keep = array_intersect_key(palette_page_keep($v['query']), ['ext' => 1]);
+    if ($status !== 200) $meta['noindex'] = true;
     return ['status' => $status, 'headers' => palette_page_headers() + ['Cache-Control' => 'private, no-store'],
-        'body' => palette_page_shell($page, $v['lang'], $keep, $title . ' | Site to Design Token', $main, $data, $v['uid'])];
+        'body' => palette_page_shell($page, $v['lang'], $keep, $title . ' | Site to Design Token', $main, $data, $v['uid'], $meta)];
 }
 
 function palette_dir_redirect(string $to): array
@@ -640,7 +641,11 @@ function palette_dir_page_item(array $v, string $slug, ?string $file): array
         . '<p class="pp-note">' . palette_icon('info', 15) . '<span>' . $t('dir_ext_cta') . '</span></p>'
         . '<div id="report">' . $report . '<p class="hint">' . palette_t_html($v['lang'], 'dir_removal', ['email' => $mail]) . '</p></div>'
         . '</aside></div></main>';
-    return palette_dir_html($v, 200, 'directory/' . $item['slug'], $item['title'], $main);
+    return palette_dir_html($v, 200, 'directory/' . $item['slug'], $item['title'], $main, [], [
+        'description' => palette_t($v['lang'], 'dir_item_desc', ['site' => $item['host']]),
+        'image' => PALETTE_ORIGIN . palette_dir_shot_url($item['slug']),
+        'noindex' => $item['status'] !== 'published',
+    ]);
 }
 
 // W3: upload form. Posts here (multipart, session + CSRF) and redirects to the new detail page.

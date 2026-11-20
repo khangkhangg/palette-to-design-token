@@ -105,6 +105,7 @@ return [
     'acct_signin' => '登录',
     'nav_register' => '注册账户',
     'nav_signout' => '退出登录',
+    'dir_item_desc' => '来自 {site} 的设计令牌：颜色、字体和间距，DTCG 与 Figma JSON 格式。使用免费账户即可下载。',
     'acct_none' => '你的账户中还没有密钥。',
     'acct_bought' => '购买于 {date}',
     'acct_revoked' => '已退款，不再有效',
