@@ -118,7 +118,7 @@ ok('Pro + AI key issued with the session user', $f['ok'] && count(ba_lics($conn)
 
 // ---- copy: real handoff steps, Pro + AI success line, saved note, in every language
 $old = ['Unlock Pro', '解锁 Pro', 'Pro अनलॉक', 'Desbloquear Pro', 'فتح Pro', 'Débloquer Pro', 'Pro আনলক'];
-$label = ['en' => 'Have a key? Enter it', 'zh-CN' => '已有密钥？输入密钥', 'hi' => 'पहले से कुंजी है? दर्ज करें', 'es' => '¿Ya tienes una clave? Introdúcela',
+$label = ['en' => 'Already have a key? Enter it', 'zh-CN' => '已有密钥？输入密钥', 'hi' => 'पहले से कुंजी है? दर्ज करें', 'es' => '¿Ya tienes una clave? Introdúcela',
     'ar' => 'لديك مفتاح بالفعل؟ أدخله', 'fr' => 'Vous avez déjà une clé ? Saisissez-la', 'bn' => 'আগে থেকেই কী আছে? লিখুন'];
 foreach ($label as $lg => $want) {
     $s = require PALETTE_DIR . "/lib/i18n/$lg.php";

@@ -5,7 +5,7 @@ return [
     'email_license_intro' => 'مفتاح ترخيص Site to Design Token Pro الخاص بك أدناه. احتفظ بهذه الرسالة؛ يمكنك استخدام المفتاح في أي من متصفحاتك.',
     'email_key_label' => 'مفتاح الترخيص',
     'email_steps_title' => 'طريقة التفعيل',
-    'email_step1' => 'افتح اللوحة الجانبية لـ Site to Design Token واختر "فتح Pro".',
+    'email_step1' => 'افتح اللوحة الجانبية لـ Site to Design Token، واختر "لديك مفتاح بالفعل؟ أدخله"، ثم الصق المفتاح.',
     'email_step2' => 'الصق مفتاح الترخيص.',
     'email_step3' => 'اختر "تفعيل". يُفتح Pro فورًا.',
     'email_account_text' => 'للاحتفاظ بمفتاحك في حساب، سجّل الدخول وأضفه هنا:',

@@ -5,7 +5,7 @@ return [
     'email_license_intro' => 'Voici votre clé de licence Site to Design Token Pro. Conservez cet e-mail ; vous pouvez utiliser la clé dans n\'importe lequel de vos navigateurs.',
     'email_key_label' => 'Clé de licence',
     'email_steps_title' => 'Comment l\'activer',
-    'email_step1' => 'Ouvrez le panneau latéral de Site to Design Token et choisissez Débloquer Pro.',
+    'email_step1' => 'Ouvrez le panneau latéral de Site to Design Token, choisissez « Vous avez déjà une clé ? Saisissez-la », puis collez la clé.',
     'email_step2' => 'Collez votre clé de licence.',
     'email_step3' => 'Sélectionnez Activer. Pro est débloqué immédiatement.',
     'email_account_text' => 'Pour conserver votre clé dans un compte, connectez-vous et ajoutez-la ici :',
